@@ -1,4 +1,4 @@
-import 'package:douyin_modern/app/app.dart';
+import 'package:meow_media/app/app.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

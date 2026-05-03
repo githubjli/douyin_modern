@@ -1,5 +1,5 @@
 name: douyin_modern
-description: Modern Flutter foundation inspired by Douyin UX patterns.
+description: Modern Flutter foundation inspired by Meow UX patterns.
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -27,5 +27,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/brand/meow-main-logo.png
+  image_path: assets/brand/app_icon_black.png
   remove_alpha_ios: true

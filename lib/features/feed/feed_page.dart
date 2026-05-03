@@ -100,7 +100,11 @@ class _ActionColumn extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        const CircleAvatar(radius: 24, backgroundColor: Colors.white24, child: Icon(Icons.person)),
+        const CircleAvatar(
+          radius: 24,
+          backgroundColor: Colors.white24,
+          child: Icon(Icons.person),
+        ),
         const SizedBox(height: 16),
         _ActionIcon(icon: Icons.favorite, label: item.likes),
         _ActionIcon(icon: Icons.mode_comment, label: item.comments),
@@ -142,7 +146,10 @@ class _CaptionBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(item.username, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        Text(
+          item.username,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
         const SizedBox(height: 8),
         Text(item.description, maxLines: 3, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 8),

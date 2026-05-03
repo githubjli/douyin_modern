@@ -6,7 +6,9 @@ class PublishPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: Text('Publish Page (Placeholder)')),
+      body: Center(
+        child: Text('Publish Page (Placeholder)'),
+      ),
     );
   }
 }

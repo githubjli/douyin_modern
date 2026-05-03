@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app/theme/app_colors.dart';
 import '../features/discover/discover_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/messages/messages_page.dart';
@@ -26,6 +27,8 @@ class _MainShellState extends State<MainShell> {
     const ProfilePage(),
   ];
 
+  bool get _isFeedTab => _index == 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,9 +37,11 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.black.withValues(alpha: 0.55),
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
+        backgroundColor: _isFeedTab
+            ? Colors.black.withValues(alpha: 0.55)
+            : AppColors.cardBackground.withValues(alpha: 0.97),
+        selectedItemColor: _isFeedTab ? AppColors.brandGold : AppColors.deepGold,
+        unselectedItemColor: _isFeedTab ? Colors.white70 : AppColors.mutedOliveText,
         onTap: (int value) => setState(() => _index = value),
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),

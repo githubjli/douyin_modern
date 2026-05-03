@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'theme/app_theme.dart';
 import '../shared/main_shell.dart';
 
 class DouyinModernApp extends StatelessWidget {
@@ -10,8 +11,8 @@ class DouyinModernApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Douyin Modern',
-      theme: ThemeData.dark(useMaterial3: true),
+      title: 'Meow Media',
+      theme: AppTheme.lightTheme(),
       home: MainShell(enableFeedVideo: enableFeedVideo),
       debugShowCheckedModeBanner: false,
     );

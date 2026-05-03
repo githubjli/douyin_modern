@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../shared/brand_page_header.dart';
 
 class DiscoverPage extends StatelessWidget {
   const DiscoverPage({super.key});
@@ -13,11 +14,11 @@ class DiscoverPage extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: const <Widget>[
-          Text('Discover', style: AppTextStyles.sectionTitle),
+          BrandPageHeader(title: 'Discover'),
           SizedBox(height: AppSpacing.md),
           _WarmCard(
             title: 'Discover Board',
-            subtitle: 'Phase 3 placeholder with warm surface and compact hierarchy.',
+            subtitle: 'Phase 3.5 placeholder with brand-aware warm surface.',
           ),
           SizedBox(height: AppSpacing.sm),
           _WarmCard(

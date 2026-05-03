@@ -10,6 +10,7 @@ class FeedItem {
     required this.comments,
     required this.shares,
     required this.videoUrl,
+    required this.placeholderGradient,
   });
 
   final String username;
@@ -19,10 +20,13 @@ class FeedItem {
   final String comments;
   final String shares;
   final String videoUrl;
+  final List<Color> placeholderGradient;
 }
 
 class FeedPage extends StatefulWidget {
-  const FeedPage({super.key});
+  const FeedPage({super.key, this.enableVideo = true});
+
+  final bool enableVideo;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -38,6 +42,7 @@ class _FeedPageState extends State<FeedPage> {
       comments: '1,203',
       shares: '318',
       videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+      placeholderGradient: <Color>[Color(0xFF111111), Color(0xFF2C2C2C)],
     ),
     FeedItem(
       username: '@foodlab',
@@ -47,6 +52,7 @@ class _FeedPageState extends State<FeedPage> {
       comments: '522',
       shares: '92',
       videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+      placeholderGradient: <Color>[Color(0xFF000000), Color(0xFF3D1A1A)],
     ),
     FeedItem(
       username: '@travelkid',
@@ -56,6 +62,7 @@ class _FeedPageState extends State<FeedPage> {
       comments: '3,883',
       shares: '1,002',
       videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+      placeholderGradient: <Color>[Color(0xFF0A0A0A), Color(0xFF1B2F45)],
     ),
   ];
 
@@ -67,7 +74,9 @@ class _FeedPageState extends State<FeedPage> {
   void initState() {
     super.initState();
     _pageController = PageController();
-    _activateIndex(0);
+    if (widget.enableVideo) {
+      _activateIndex(0);
+    }
   }
 
   Future<void> _activateIndex(int index) async {
@@ -106,6 +115,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _togglePlayPause() async {
+    if (!widget.enableVideo) {
+      return;
+    }
+
     final VideoPlayerController? controller = _controllers[_currentIndex];
     if (controller == null || !controller.value.isInitialized) return;
 
@@ -133,7 +146,14 @@ class _FeedPageState extends State<FeedPage> {
       controller: _pageController,
       scrollDirection: Axis.vertical,
       itemCount: _items.length,
-      onPageChanged: (int index) => _activateIndex(index),
+      onPageChanged: (int index) {
+        _currentIndex = index;
+        if (widget.enableVideo) {
+          _activateIndex(index);
+        } else {
+          setState(() {});
+        }
+      },
       itemBuilder: (BuildContext context, int index) {
         final FeedItem item = _items[index];
         final VideoPlayerController? controller = _controllers[index];
@@ -144,7 +164,11 @@ class _FeedPageState extends State<FeedPage> {
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: index == _currentIndex ? _togglePlayPause : null,
-              child: _FeedVideoBackground(controller: controller),
+              child: _FeedBackground(
+                item: item,
+                enableVideo: widget.enableVideo,
+                controller: controller,
+              ),
             ),
             Positioned(
               right: 12,
@@ -164,13 +188,31 @@ class _FeedPageState extends State<FeedPage> {
   }
 }
 
-class _FeedVideoBackground extends StatelessWidget {
-  const _FeedVideoBackground({required this.controller});
+class _FeedBackground extends StatelessWidget {
+  const _FeedBackground({
+    required this.item,
+    required this.enableVideo,
+    required this.controller,
+  });
 
+  final FeedItem item;
+  final bool enableVideo;
   final VideoPlayerController? controller;
 
   @override
   Widget build(BuildContext context) {
+    if (!enableVideo) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: item.placeholderGradient,
+          ),
+        ),
+      );
+    }
+
     if (controller == null || !controller!.value.isInitialized) {
       return Container(color: Colors.black);
     }

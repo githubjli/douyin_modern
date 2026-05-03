@@ -7,7 +7,9 @@ import '../features/profile/profile_page.dart';
 import '../features/publish/publish_page.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  const MainShell({super.key, this.enableFeedVideo = true});
+
+  final bool enableFeedVideo;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -16,12 +18,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  final List<Widget> _pages = const <Widget>[
-    FeedPage(),
-    DiscoverPage(),
-    PublishPage(),
-    MessagesPage(),
-    ProfilePage(),
+  late final List<Widget> _pages = <Widget>[
+    FeedPage(enableVideo: widget.enableFeedVideo),
+    const DiscoverPage(),
+    const PublishPage(),
+    const MessagesPage(),
+    const ProfilePage(),
   ];
 
   @override

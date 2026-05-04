@@ -92,7 +92,11 @@ class _MainShellState extends State<MainShell> {
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.play_arrow_rounded), label: 'Shorts'),
-          BottomNavigationBarItem(icon: Icon(Icons.add_circle, size: 30), label: '+'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle, size: 34),
+            label: '',
+            tooltip: 'Create',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.workspace_premium), label: 'Membership'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],

@@ -1,0 +1,16 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+		BUILD_CONFIGURATION = {
+			buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = com.meowmedia.app;
+			};
+			name = Release;
+		};
+	};
+	rootObject = BUILD_CONFIGURATION;
+}

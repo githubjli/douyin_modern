@@ -41,7 +41,8 @@ class _FeedPageState extends State<FeedPage> {
       likes: '24.1K',
       comments: '1,203',
       shares: '318',
-      videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+      videoUrl:
+          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
       placeholderGradient: <Color>[Color(0xFF111111), Color(0xFF2C2C2C)],
     ),
     FeedItem(
@@ -51,7 +52,8 @@ class _FeedPageState extends State<FeedPage> {
       likes: '11.6K',
       comments: '522',
       shares: '92',
-      videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+      videoUrl:
+          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
       placeholderGradient: <Color>[Color(0xFF000000), Color(0xFF3D1A1A)],
     ),
     FeedItem(
@@ -61,13 +63,15 @@ class _FeedPageState extends State<FeedPage> {
       likes: '54.8K',
       comments: '3,883',
       shares: '1,002',
-      videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+      videoUrl:
+          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
       placeholderGradient: <Color>[Color(0xFF0A0A0A), Color(0xFF1B2F45)],
     ),
   ];
 
   late final PageController _pageController;
-  final Map<int, VideoPlayerController> _controllers = <int, VideoPlayerController>{};
+  final Map<int, VideoPlayerController> _controllers =
+      <int, VideoPlayerController>{};
   int _currentIndex = 0;
 
   @override
@@ -104,7 +108,8 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _disposeNonVisible(int visibleIndex) async {
-    final List<int> stale = _controllers.keys.where((int key) => key != visibleIndex).toList();
+    final List<int> stale =
+        _controllers.keys.where((int key) => key != visibleIndex).toList();
     for (final int key in stale) {
       final VideoPlayerController? controller = _controllers.remove(key);
       if (controller != null) {
@@ -238,7 +243,10 @@ class _ActionColumn extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        const CircleAvatar(radius: 24, backgroundColor: Colors.white24, child: Icon(Icons.person)),
+        const CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.white24,
+            child: Icon(Icons.person)),
         const SizedBox(height: 16),
         _ActionIcon(icon: Icons.favorite, label: item.likes),
         _ActionIcon(icon: Icons.mode_comment, label: item.comments),
@@ -280,7 +288,8 @@ class _CaptionBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(item.username, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        Text(item.username,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
         const SizedBox(height: 8),
         Text(item.description, maxLines: 3, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 8),

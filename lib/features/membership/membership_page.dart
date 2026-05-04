@@ -29,16 +29,27 @@ class MembershipPage extends StatelessWidget {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Meow Plus', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.inkDark)),
+                Text('Meow Plus',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.inkDark)),
                 SizedBox(height: AppSpacing.xs),
-                Text('Unlock premium badges, perks, and exclusive rooms.', style: AppTextStyles.body),
+                Text('Unlock premium badges, perks, and exclusive rooms.',
+                    style: AppTextStyles.body),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          const _PlanCard(title: 'Monthly', price: '¥5 / month', perks: 'Creator boosts, profile badge'),
+          const _PlanCard(
+              title: 'Monthly',
+              price: '¥5 / month',
+              perks: 'Creator boosts, profile badge'),
           const SizedBox(height: AppSpacing.sm),
-          const _PlanCard(title: 'Yearly', price: '¥50 / year', perks: 'Best value + seasonal gifts'),
+          const _PlanCard(
+              title: 'Yearly',
+              price: '¥50 / year',
+              perks: 'Best value + seasonal gifts'),
         ],
       ),
     );
@@ -46,7 +57,8 @@ class MembershipPage extends StatelessWidget {
 }
 
 class _PlanCard extends StatelessWidget {
-  const _PlanCard({required this.title, required this.price, required this.perks});
+  const _PlanCard(
+      {required this.title, required this.price, required this.perks});
 
   final String title;
   final String price;
@@ -66,7 +78,9 @@ class _PlanCard extends StatelessWidget {
         children: <Widget>[
           Text(title, style: AppTextStyles.cardTitle),
           const SizedBox(height: AppSpacing.xs),
-          Text(price, style: AppTextStyles.body.copyWith(color: AppColors.deepGold, fontWeight: FontWeight.w700)),
+          Text(price,
+              style: AppTextStyles.body.copyWith(
+                  color: AppColors.deepGold, fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpacing.xs),
           Text(perks, style: AppTextStyles.caption),
         ],

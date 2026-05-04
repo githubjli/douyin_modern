@@ -47,12 +47,14 @@ class _MainShellState extends State<MainShell> {
                   onTap: () => Navigator.pop(context),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.ondemand_video, color: AppColors.deepGold),
+                  leading: const Icon(Icons.ondemand_video,
+                      color: AppColors.deepGold),
                   title: const Text('Publish Video'),
                   onTap: () => Navigator.pop(context),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.video_collection, color: AppColors.deepGold),
+                  leading: const Icon(Icons.video_collection,
+                      color: AppColors.deepGold),
                   title: const Text('Upload Short'),
                   onTap: () => Navigator.pop(context),
                 ),
@@ -86,18 +88,22 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: _isShortsTab
             ? Colors.black.withValues(alpha: 0.55)
             : AppColors.cardBackground.withValues(alpha: 0.97),
-        selectedItemColor: _isShortsTab ? AppColors.brandGold : AppColors.deepGold,
-        unselectedItemColor: _isShortsTab ? Colors.white70 : AppColors.mutedOliveText,
+        selectedItemColor:
+            _isShortsTab ? AppColors.brandGold : AppColors.deepGold,
+        unselectedItemColor:
+            _isShortsTab ? Colors.white70 : AppColors.mutedOliveText,
         onTap: _onTapTab,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.play_arrow_rounded), label: 'Shorts'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.play_arrow_rounded), label: 'Shorts'),
           BottomNavigationBarItem(
             icon: Icon(Icons.add_circle, size: 34),
             label: '',
             tooltip: 'Create',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.workspace_premium), label: 'Membership'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.workspace_premium), label: 'Membership'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),

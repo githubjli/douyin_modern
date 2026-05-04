@@ -3,15 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/app/app.dart';
 
 void main() {
-  testWidgets('app shell renders updated bottom tabs', (WidgetTester tester) async {
+  testWidgets('app shell renders updated bottom tabs',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const DouyinModernApp(enableFeedVideo: false));
 
     final Finder bottomNav = find.byType(BottomNavigationBar);
     expect(bottomNav, findsOneWidget);
 
-    expect(find.descendant(of: bottomNav, matching: find.text('Home')), findsOneWidget);
-    expect(find.descendant(of: bottomNav, matching: find.text('Shorts')), findsOneWidget);
-    expect(find.descendant(of: bottomNav, matching: find.text('Membership')), findsOneWidget);
-    expect(find.descendant(of: bottomNav, matching: find.text('Profile')), findsOneWidget);
+    expect(find.descendant(of: bottomNav, matching: find.text('Home')),
+        findsOneWidget);
+    expect(find.descendant(of: bottomNav, matching: find.text('Shorts')),
+        findsOneWidget);
+    expect(find.descendant(of: bottomNav, matching: find.text('Membership')),
+        findsOneWidget);
+    expect(find.descendant(of: bottomNav, matching: find.text('Profile')),
+        findsOneWidget);
   });
 }

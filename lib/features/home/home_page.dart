@@ -8,7 +8,13 @@ import '../../shared/brand_page_header.dart';
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  static const List<String> _channels = <String>['For You', 'Cats', 'Lifestyle', 'News', 'Creators'];
+  static const List<String> _channels = <String>[
+    'For You',
+    'Cats',
+    'Lifestyle',
+    'News',
+    'Creators'
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +25,8 @@ class HomePage extends StatelessWidget {
           const BrandPageHeader(title: 'Home'),
           const SizedBox(height: AppSpacing.md),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: AppColors.softBorder),
@@ -29,7 +36,8 @@ class HomePage extends StatelessWidget {
               children: <Widget>[
                 Icon(Icons.search, color: AppColors.mutedOliveText),
                 SizedBox(width: AppSpacing.sm),
-                Text('Search creators, shows, topics', style: AppTextStyles.caption),
+                Text('Search creators, shows, topics',
+                    style: AppTextStyles.caption),
               ],
             ),
           ),
@@ -43,15 +51,20 @@ class HomePage extends StatelessWidget {
               itemBuilder: (BuildContext context, int index) {
                 final bool selected = index == 0;
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   decoration: BoxDecoration(
-                    color: selected ? AppColors.brandGold : AppColors.cardBackground,
+                    color: selected
+                        ? AppColors.brandGold
+                        : AppColors.cardBackground,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                     border: Border.all(color: AppColors.softBorder),
                   ),
                   child: Text(
                     _channels[index],
-                    style: selected ? AppTextStyles.body.copyWith(color: AppColors.inkDark) : AppTextStyles.caption,
+                    style: selected
+                        ? AppTextStyles.body.copyWith(color: AppColors.inkDark)
+                        : AppTextStyles.caption,
                   ),
                 );
               },

@@ -11,10 +11,12 @@ class MainShell extends StatefulWidget {
     super.key,
     this.enableFeedVideo = true,
     this.enableRemoteFeed = true,
+    this.enableRemoteHome = true,
   });
 
   final bool enableFeedVideo;
   final bool enableRemoteFeed;
+  final bool enableRemoteHome;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -24,7 +26,7 @@ class _MainShellState extends State<MainShell> {
   int _index = 0;
 
   late final List<Widget> _pages = <Widget>[
-    const HomePage(),
+    HomePage(useRemote: widget.enableRemoteHome),
     FeedPage(
       enableVideo: widget.enableFeedVideo,
       enableRemoteFeed: widget.enableRemoteFeed,

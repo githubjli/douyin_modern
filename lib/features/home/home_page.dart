@@ -4,9 +4,33 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../shared/brand_page_header.dart';
+import 'data/mock_home_repository.dart';
+import 'data/remote_home_repository.dart';
+import 'domain/home_models.dart';
+import 'domain/home_repository.dart';
+import '../../core/network/api_client.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({
+    super.key,
+    this.useRemote = true,
+    this.remoteRepository,
+    this.mockRepository = const MockHomeRepository(),
+  });
+
+  final bool useRemote;
+  final HomeRepository? remoteRepository;
+  final HomeRepository mockRepository;
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  late final HomeRepository _remoteRepo;
+  HomePortalData? _data;
+  bool _loading = true;
+  String? _notice;
 
   static const List<String> _channels = <String>[
     'Videos',
@@ -15,35 +39,44 @@ class HomePage extends StatelessWidget {
     'Trending',
   ];
 
-  static const List<_PortalCardData> _featured = <_PortalCardData>[
-    _PortalCardData(title: 'Midnight Casebook', subtitle: 'Top drama this week'),
-    _PortalCardData(title: 'City Live Report', subtitle: 'Breaking scenes now'),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _remoteRepo = widget.remoteRepository ?? RemoteHomeRepository(apiClient: ApiClient());
+    _load();
+  }
 
-  static const List<_PortalCardData> _latestVideos = <_PortalCardData>[
-    _PortalCardData(title: 'Street Food Guide', subtitle: '12m • 48K views'),
-    _PortalCardData(title: 'Morning Fitness', subtitle: '9m • 21K views'),
-  ];
+  Future<void> _load() async {
+    HomePortalData? portal;
+    if (widget.useRemote) {
+      try {
+        portal = await _remoteRepo.getHomePortalData();
+        if (_isEmpty(portal)) {
+          _notice = 'Showing local content.';
+        }
+      } catch (_) {
+        _notice = 'Network unavailable. Showing local content.';
+      }
+    }
 
-  static const List<_PortalCardData> _shortDrama = <_PortalCardData>[
-    _PortalCardData(title: 'EP 12 • Crimson Oath', subtitle: 'Free • 3m'),
-    _PortalCardData(title: 'EP 8 • Silent Signal', subtitle: '2 Points • 2m'),
-  ];
+    portal ??= await widget.mockRepository.getHomePortalData();
+    if (!mounted) return;
+    setState(() {
+      _data = portal;
+      _loading = false;
+    });
+  }
 
-  static const List<_PortalCardData> _liveNow = <_PortalCardData>[
-    _PortalCardData(title: 'Finance Live Desk', subtitle: '1.2K watching'),
-    _PortalCardData(title: 'Travel Street Cam', subtitle: '890 watching'),
-  ];
-
-  static const List<_PortalCardData> _recommended = <_PortalCardData>[
-    _PortalCardData(title: 'Creator Spotlight', subtitle: 'Weekly editorial pick'),
-    _PortalCardData(title: 'Weekend Watchlist', subtitle: 'Drama + video mix'),
-    _PortalCardData(title: 'Local Trend Radar', subtitle: 'Top rising topics'),
-    _PortalCardData(title: 'New Voices', subtitle: 'Fresh creators to follow'),
-  ];
+  bool _isEmpty(HomePortalData p) =>
+      p.latestVideos.isEmpty && p.shortDrama.isEmpty && p.liveNow.isEmpty;
 
   @override
   Widget build(BuildContext context) {
+    final HomePortalData? data = _data;
+    if (_loading || data == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -65,29 +98,35 @@ class HomePage extends StatelessWidget {
               },
             ),
           ),
+          if (_notice != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            Text(_notice!, style: AppTextStyles.caption),
+          ],
           const SizedBox(height: AppSpacing.md),
           const _SectionTitle(title: 'Featured'),
           const SizedBox(height: AppSpacing.sm),
-          const _HorizontalCards(items: _featured),
+          _HorizontalCards(items: data.featured),
           const SizedBox(height: AppSpacing.md),
           const _SectionTitle(title: 'Latest Videos'),
           const SizedBox(height: AppSpacing.sm),
-          const _HorizontalCards(items: _latestVideos),
+          _HorizontalCards(items: data.latestVideos),
           const SizedBox(height: AppSpacing.md),
           const _SectionTitle(title: 'Short Drama'),
           const SizedBox(height: AppSpacing.sm),
-          const _HorizontalCards(items: _shortDrama),
+          _HorizontalCards(items: data.shortDrama),
           const SizedBox(height: AppSpacing.md),
           const _SectionTitle(title: 'Live Now'),
           const SizedBox(height: AppSpacing.sm),
-          const _HorizontalCards(items: _liveNow),
+          data.liveNow.isEmpty
+              ? const _EmptyCard(label: 'No live streams right now')
+              : _HorizontalCards(items: data.liveNow),
           const SizedBox(height: AppSpacing.md),
           const _SectionTitle(title: 'Recommended'),
           const SizedBox(height: AppSpacing.sm),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _recommended.length,
+            itemCount: data.recommended.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: AppSpacing.sm,
@@ -95,7 +134,10 @@ class HomePage extends StatelessWidget {
               childAspectRatio: 1.28,
             ),
             itemBuilder: (_, int index) {
-              final _PortalCardData item = _recommended[index];
+              final _PortalCardData item = _PortalCardData(
+                title: data.recommended[index].title,
+                subtitle: data.recommended[index].subtitle,
+              );
               return _ContentCard(item: item);
             },
           ),
@@ -124,7 +166,9 @@ class _SearchPill extends StatelessWidget {
           SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text('Search videos, dramas, live topics',
-                maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.caption),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption),
           ),
         ],
       ),
@@ -141,8 +185,8 @@ class _CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
         color: selected ? AppColors.brandGold : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
@@ -172,7 +216,7 @@ class _SectionTitle extends StatelessWidget {
 class _HorizontalCards extends StatelessWidget {
   const _HorizontalCards({required this.items});
 
-  final List<_PortalCardData> items;
+  final List<dynamic> items;
 
   @override
   Widget build(BuildContext context) {
@@ -185,7 +229,12 @@ class _HorizontalCards extends StatelessWidget {
         itemBuilder: (_, int index) {
           return SizedBox(
             width: 210,
-            child: _ContentCard(item: items[index]),
+            child: _ContentCard(
+              item: _PortalCardData(
+                title: items[index].title as String,
+                subtitle: items[index].subtitle as String,
+              ),
+            ),
           );
         },
       ),
@@ -212,13 +261,28 @@ class _ContentCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: <Widget>[
           Text(item.title,
-              maxLines: 2, overflow: TextOverflow.ellipsis, style: AppTextStyles.cardTitle),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.cardTitle),
           const SizedBox(height: AppSpacing.xs),
           Text(item.subtitle,
-              maxLines: 2, overflow: TextOverflow.ellipsis, style: AppTextStyles.caption),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption),
         ],
       ),
     );
+  }
+}
+
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ContentCard(item: _PortalCardData(title: 'Live Now', subtitle: label));
   }
 }
 

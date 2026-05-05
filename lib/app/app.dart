@@ -8,10 +8,12 @@ class MeowMediaApp extends StatelessWidget {
     super.key,
     this.enableFeedVideo = true,
     this.enableRemoteFeed = true,
+    this.enableRemoteHome = true,
   });
 
   final bool enableFeedVideo;
   final bool enableRemoteFeed;
+  final bool enableRemoteHome;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +23,7 @@ class MeowMediaApp extends StatelessWidget {
       home: MainShell(
         enableFeedVideo: enableFeedVideo,
         enableRemoteFeed: enableRemoteFeed,
+        enableRemoteHome: enableRemoteHome,
       ),
       debugShowCheckedModeBanner: false,
     );

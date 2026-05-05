@@ -8,6 +8,7 @@ void main() {
     await tester.pumpWidget(const MeowMediaApp(
       enableFeedVideo: false,
       enableRemoteFeed: false,
+      enableRemoteHome: false,
     ));
 
     final Finder bottomNav = find.byType(BottomNavigationBar);

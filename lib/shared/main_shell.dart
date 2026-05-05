@@ -7,9 +7,14 @@ import '../features/membership/membership_page.dart';
 import '../features/profile/profile_page.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, this.enableFeedVideo = true});
+  const MainShell({
+    super.key,
+    this.enableFeedVideo = true,
+    this.enableRemoteFeed = true,
+  });
 
   final bool enableFeedVideo;
+  final bool enableRemoteFeed;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -20,7 +25,10 @@ class _MainShellState extends State<MainShell> {
 
   late final List<Widget> _pages = <Widget>[
     const HomePage(),
-    FeedPage(enableVideo: widget.enableFeedVideo),
+    FeedPage(
+      enableVideo: widget.enableFeedVideo,
+      enableRemoteFeed: widget.enableRemoteFeed,
+    ),
     const SizedBox.shrink(),
     const MembershipPage(),
     const ProfilePage(),

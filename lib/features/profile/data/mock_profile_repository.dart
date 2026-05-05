@@ -11,6 +11,11 @@ class MockProfileRepository implements ProfileRepository {
       displayName: 'Guest',
       bio: 'Welcome to Meow Media',
       avatarUrl: '',
+      email: null,
+      isCreator: false,
+      isSeller: false,
+      walletAddress: null,
+      walletLinked: false,
     );
   }
 
@@ -25,6 +30,11 @@ class MockProfileRepository implements ProfileRepository {
       displayName: displayName,
       bio: bio,
       avatarUrl: avatarUrl ?? '',
+      email: null,
+      isCreator: false,
+      isSeller: false,
+      walletAddress: null,
+      walletLinked: false,
     );
   }
 }

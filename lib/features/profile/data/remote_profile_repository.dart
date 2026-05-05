@@ -41,6 +41,11 @@ class RemoteProfileRepository implements ProfileRepository {
       displayName: _read(data, const <String>['display_name', 'username', 'name']) ?? 'User',
       bio: _read(data, const <String>['bio', 'description']) ?? '',
       avatarUrl: _read(data, const <String>['avatar_url', 'avatar', 'avatarUrl']) ?? '',
+      email: _read(data, const <String>['email']),
+      isCreator: _readBool(data, const <String>['is_creator', 'can_create']),
+      isSeller: _readBool(data, const <String>['is_seller', 'can_sell']),
+      walletAddress: _read(data, const <String>['wallet_address', 'wallet']),
+      walletLinked: _readBool(data, const <String>['wallet_linked', 'has_wallet']),
     );
   }
 
@@ -49,6 +54,14 @@ class RemoteProfileRepository implements ProfileRepository {
       final dynamic value = map[key];
       if (value is String) return value;
       if (value is num) return value.toString();
+    }
+    return null;
+  }
+
+  bool? _readBool(Map<String, dynamic> map, List<String> keys) {
+    for (final String key in keys) {
+      final dynamic value = map[key];
+      if (value is bool) return value;
     }
     return null;
   }

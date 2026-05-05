@@ -8,6 +8,10 @@ class Endpoints {
 
   static const String accountProfile = '/api/account/profile';
 
+  static const String publicVideos = '/api/public/videos/';
+
+  static String publicVideoDetail(String id) => '/api/public/videos/$id/';
+
   static const String feedShorts = '/api/feed/shorts/';
   static const String membershipPlans = '/api/membership/plans/';
 }

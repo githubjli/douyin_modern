@@ -25,16 +25,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  late final List<Widget> _pages = <Widget>[
-    HomePage(useRemote: widget.enableRemoteHome),
-    FeedPage(
-      enableVideo: widget.enableFeedVideo,
-      enableRemoteFeed: widget.enableRemoteFeed,
-    ),
-    const SizedBox.shrink(),
-    const MembershipPage(),
-    const ProfilePage(),
-  ];
+
 
   Future<void> _onTapTab(int value) async {
     if (value == 2) {
@@ -81,10 +72,14 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final int displayIndex = _index >= 2 ? _index - 1 : _index;
     final List<Widget> displayPages = <Widget>[
-      _pages[0],
-      _pages[1],
-      _pages[3],
-      _pages[4],
+      HomePage(useRemote: widget.enableRemoteHome),
+      FeedPage(
+        enableVideo: widget.enableFeedVideo,
+        enableRemoteFeed: widget.enableRemoteFeed,
+        isActive: _index == 1,
+      ),
+      const MembershipPage(),
+      const ProfilePage(),
     ];
 
     return Scaffold(

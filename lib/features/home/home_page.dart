@@ -82,6 +82,7 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
           const BrandPageHeader(title: 'Home'),
+          // Home is a mixed-content portal (videos, shorts/drama, live, lists).
           const SizedBox(height: AppSpacing.md),
           const _SearchPill(),
           const SizedBox(height: AppSpacing.md),

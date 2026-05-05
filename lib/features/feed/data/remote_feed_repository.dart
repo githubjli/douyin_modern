@@ -47,49 +47,6 @@ class RemoteFeedRepository implements FeedRepository {
     return const <dynamic>[];
   }
 
-  FeedItem? _mapVideo(Map<String, dynamic> raw) {
-    final String? videoUrl = _pickPlayableUrl(raw);
-    final bool canWatch = _readBool(raw['can_watch']) ?? true;
-    if (!canWatch || videoUrl == null || videoUrl.isEmpty) {
-      return null;
-    }
-
-    final int likes = _readInt(raw['like_count']);
-    final int comments = _readInt(raw['comment_count']);
-    final int views = _readInt(raw['view_count']);
-    final String ownerName = _readString(raw['owner_name']) ?? 'creator';
-
-    return FeedItem(
-      username: '@$ownerName',
-      description: _readString(raw['description']) ?? _readString(raw['title']) ?? '',
-      music: _readString(raw['category_name']) ?? 'Original Sound',
-      likes: likes.toString(),
-      comments: comments.toString(),
-      shares: views.toString(),
-      videoUrl: videoUrl,
-      placeholderGradient: const <Color>[Color(0xFF111111), Color(0xFF2C2C2C)],
-      id: _readString(raw['id']),
-      title: _readString(raw['title']),
-      thumbnailUrl: _readString(raw['thumbnail_url']),
-      ownerId: _readString(raw['owner_id']),
-      ownerName: _readString(raw['owner_name']),
-      ownerAvatarUrl: _readString(raw['owner_avatar_url']),
-      category: _readString(raw['category']),
-      categoryName: _readString(raw['category_name']),
-      categorySlug: _readString(raw['category_slug']),
-      accessType: _readString(raw['access_type']),
-      previewSeconds: _readIntOrNull(raw['preview_seconds']),
-      canWatch: canWatch,
-      isLocked: _readBool(raw['is_locked']),
-      lockReason: _readString(raw['lock_reason']),
-      likeCount: likes,
-      commentCount: comments,
-      viewCount: views,
-      isLiked: _readBool(raw['is_liked']),
-      createdAt: _readString(raw['created_at']),
-    );
-  }
-
   FeedItem? _mapDramaEpisode(Map<String, dynamic> drama, Map<String, dynamic> episode) {
     final bool canWatch = _readBool(episode['can_watch']) ?? false;
     final bool isLocked = _readBool(episode['is_locked']) ?? false;

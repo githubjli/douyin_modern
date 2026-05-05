@@ -89,6 +89,7 @@ class RemoteHomeRepository implements HomeRepository {
       id: _str(m['id']) ?? title,
       title: title,
       subtitle: '$owner • $views views',
+      thumbnailUrl: _str(m['thumbnail_url']),
     );
   }
 
@@ -101,6 +102,8 @@ class RemoteHomeRepository implements HomeRepository {
       id: _str(m['id']) ?? title,
       title: title,
       subtitle: '$total episodes • Free $free • Locked $locked',
+      coverUrl: _str(m['cover_url']),
+      thumbnailUrl: _str(m['thumbnail_url']),
     );
   }
 

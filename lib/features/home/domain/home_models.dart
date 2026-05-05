@@ -3,11 +3,13 @@ class HomeVideoItem {
     required this.id,
     required this.title,
     required this.subtitle,
+    this.thumbnailUrl,
   });
 
   final String id;
   final String title;
   final String subtitle;
+  final String? thumbnailUrl;
 }
 
 class HomeDramaItem {
@@ -15,11 +17,15 @@ class HomeDramaItem {
     required this.id,
     required this.title,
     required this.subtitle,
+    this.coverUrl,
+    this.thumbnailUrl,
   });
 
   final String id;
   final String title;
   final String subtitle;
+  final String? coverUrl;
+  final String? thumbnailUrl;
 }
 
 class HomeLiveItem {

@@ -1,85 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
-class FeedItem {
-  const FeedItem({
-    required this.username,
-    required this.description,
-    required this.music,
-    required this.likes,
-    required this.comments,
-    required this.shares,
-    required this.videoUrl,
-    required this.placeholderGradient,
-  });
-
-  final String username;
-  final String description;
-  final String music;
-  final String likes;
-  final String comments;
-  final String shares;
-  final String videoUrl;
-  final List<Color> placeholderGradient;
-}
+import '../../app/theme/app_colors.dart';
+import '../../core/network/api_client.dart';
+import 'data/mock_feed_repository.dart';
+import 'data/remote_feed_repository.dart';
+import 'domain/feed_item.dart';
+import 'domain/feed_repository.dart';
 
 class FeedPage extends StatefulWidget {
-  const FeedPage({super.key, this.enableVideo = true});
+  const FeedPage({
+    super.key,
+    this.enableVideo = true,
+    this.mockRepository = const MockFeedRepository(),
+    this.remoteRepository,
+    this.enableRemoteFeed = true,
+  });
 
   final bool enableVideo;
+  final FeedRepository mockRepository;
+  final FeedRepository? remoteRepository;
+  final bool enableRemoteFeed;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
 }
 
 class _FeedPageState extends State<FeedPage> {
-  static const List<FeedItem> _items = <FeedItem>[
-    FeedItem(
-      username: '@citywalker',
-      description: 'Night street vibes in neon lights ✨',
-      music: 'Original Sound - Citywalker',
-      likes: '24.1K',
-      comments: '1,203',
-      shares: '318',
-      videoUrl:
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-      placeholderGradient: <Color>[Color(0xFF111111), Color(0xFF2C2C2C)],
-    ),
-    FeedItem(
-      username: '@foodlab',
-      description: 'Crispy ramen experiment #food #kitchen',
-      music: 'Lo-fi Beat - Foodlab',
-      likes: '11.6K',
-      comments: '522',
-      shares: '92',
-      videoUrl:
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
-      placeholderGradient: <Color>[Color(0xFF000000), Color(0xFF3D1A1A)],
-    ),
-    FeedItem(
-      username: '@travelkid',
-      description: 'Sunrise above the clouds ☁️',
-      music: 'Ambient Rise - Travelkid',
-      likes: '54.8K',
-      comments: '3,883',
-      shares: '1,002',
-      videoUrl:
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-      placeholderGradient: <Color>[Color(0xFF0A0A0A), Color(0xFF1B2F45)],
-    ),
-  ];
-
   late final PageController _pageController;
   final Map<int, VideoPlayerController> _controllers =
       <int, VideoPlayerController>{};
+
+  late final FeedRepository _remoteRepository;
+
   int _currentIndex = 0;
+  List<FeedItem> _items = const <FeedItem>[];
+  bool _loading = true;
+  String? _notice;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    if (widget.enableVideo) {
-      _activateIndex(0);
+    _remoteRepository = widget.remoteRepository ??
+        RemoteFeedRepository(apiClient: ApiClient());
+    _loadFeed();
+  }
+
+  Future<void> _loadFeed() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _notice = null;
+      });
+    }
+
+    List<FeedItem> items = const <FeedItem>[];
+
+    if (widget.enableRemoteFeed) {
+      try {
+        final List<FeedItem> remoteItems = await _remoteRepository.getShortsFeed();
+        items = remoteItems
+            .where((FeedItem item) =>
+                item.videoUrl.isNotEmpty && item.isLocked != true)
+            .toList();
+        if (items.isEmpty) {
+          _notice = 'Using local fallback feed.';
+        }
+      } catch (_) {
+        _notice = 'Network unavailable. Using local feed.';
+      }
+    }
+
+    if (items.isEmpty) {
+      final List<FeedItem> mockItems = await widget.mockRepository.getShortsFeed();
+      items = mockItems;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _items = items;
+      _loading = false;
+    });
+
+    if (widget.enableVideo && _items.isNotEmpty) {
+      await _activateIndex(0);
     }
   }
 
@@ -147,48 +152,82 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: _pageController,
-      scrollDirection: Axis.vertical,
-      itemCount: _items.length,
-      onPageChanged: (int index) {
-        _currentIndex = index;
-        if (widget.enableVideo) {
-          _activateIndex(index);
-        } else {
-          setState(() {});
-        }
-      },
-      itemBuilder: (BuildContext context, int index) {
-        final FeedItem item = _items[index];
-        final VideoPlayerController? controller = _controllers[index];
+    if (_loading) {
+      return const ColoredBox(
+        color: Colors.black,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: index == _currentIndex ? _togglePlayPause : null,
-              child: _FeedBackground(
-                item: item,
-                enableVideo: widget.enableVideo,
-                controller: controller,
+    if (_items.isEmpty) {
+      return const ColoredBox(color: Colors.black);
+    }
+
+    return Stack(
+      children: <Widget>[
+        PageView.builder(
+          controller: _pageController,
+          scrollDirection: Axis.vertical,
+          itemCount: _items.length,
+          onPageChanged: (int index) {
+            _currentIndex = index;
+            if (widget.enableVideo) {
+              _activateIndex(index);
+            } else {
+              setState(() {});
+            }
+          },
+          itemBuilder: (BuildContext context, int index) {
+            final FeedItem item = _items[index];
+            final VideoPlayerController? controller = _controllers[index];
+
+            return Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: index == _currentIndex ? _togglePlayPause : null,
+                  child: _FeedBackground(
+                    item: item,
+                    enableVideo: widget.enableVideo,
+                    controller: controller,
+                  ),
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 120,
+                  child: _ActionColumn(item: item),
+                ),
+                Positioned(
+                  left: 12,
+                  right: 90,
+                  bottom: 115,
+                  child: _CaptionBlock(item: item),
+                ),
+              ],
+            );
+          },
+        ),
+        if (_notice != null)
+          Positioned(
+            top: 12,
+            left: 12,
+            right: 12,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  _notice!,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
               ),
             ),
-            Positioned(
-              right: 12,
-              bottom: 120,
-              child: _ActionColumn(item: item),
-            ),
-            Positioned(
-              left: 12,
-              right: 90,
-              bottom: 115,
-              child: _CaptionBlock(item: item),
-            ),
-          ],
-        );
-      },
+          ),
+      ],
     );
   }
 }
@@ -248,6 +287,7 @@ class _ActionColumn extends StatelessWidget {
             backgroundColor: Colors.white24,
             child: Icon(Icons.person)),
         const SizedBox(height: 16),
+        // TODO(meow-media): replace mock counter strings with backend metrics in a later phase.
         _ActionIcon(icon: Icons.favorite, label: item.likes),
         _ActionIcon(icon: Icons.mode_comment, label: item.comments),
         _ActionIcon(icon: Icons.share, label: item.shares),
@@ -284,16 +324,70 @@ class _CaptionBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasDramaMeta =
+        item.seriesTitle != null && item.episodeNo != null && item.title != null;
+
+    final String seriesLabel = hasDramaMeta
+        ? item.seriesTitle!
+        : (item.username.isNotEmpty ? item.username : '@MeowDrama');
+
+    final String episodeLabel = hasDramaMeta
+        ? 'EP ${item.episodeNo} · ${item.title}'
+        : item.description;
+
+    String? accessLabel;
+    if (item.isLocked == true) {
+      if (item.pointsPrice != null && item.pointsPrice! > 0) {
+        accessLabel = '${item.pointsPrice} Points';
+      } else {
+        accessLabel = 'Locked';
+      }
+    } else if (item.canWatch == true) {
+      accessLabel = 'Free';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(item.username,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        Text(
+          seriesLabel,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            color: AppColors.cocoaText,
+            shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          episodeLabel,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.cocoaText,
+            shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+          ),
+        ),
+        if (accessLabel != null) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            accessLabel,
+            style: const TextStyle(
+              color: AppColors.mutedOliveText,
+              fontSize: 12,
+              shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
-        Text(item.description, maxLines: 3, overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 8),
-        Text('♫ ${item.music}', style: const TextStyle(color: Colors.white70)),
+        Text(
+          '♫ ${item.music}',
+          style: const TextStyle(
+            color: AppColors.mutedOliveText,
+            shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+          ),
+        ),
       ],
     );
   }

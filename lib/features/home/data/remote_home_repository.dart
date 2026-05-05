@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../domain/home_models.dart';
@@ -10,13 +11,44 @@ class RemoteHomeRepository implements HomeRepository {
 
   @override
   Future<HomePortalData> getHomePortalData() async {
-    final videosResponse = await _apiClient.get<dynamic>(Endpoints.publicVideos);
-    final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
-    final liveResponse = await _apiClient.get<dynamic>('/api/live/');
+    List<Map<String, dynamic>> videos = <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> dramas = <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> live = <Map<String, dynamic>>[];
 
-    final List<Map<String, dynamic>> videos = _rows(videosResponse.data);
-    final List<Map<String, dynamic>> dramas = _rows(dramasResponse.data);
-    final List<Map<String, dynamic>> live = _rows(liveResponse.data);
+    try {
+      final videosResponse = await _apiClient.get<dynamic>(Endpoints.publicVideos);
+      videos = _rows(videosResponse.data);
+    } catch (_) {
+      assert(() {
+        debugPrint('[Home] videos fetch failed');
+        return true;
+      }());
+    }
+
+    try {
+      final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
+      dramas = _rows(dramasResponse.data);
+    } catch (_) {
+      assert(() {
+        debugPrint('[Home] dramas fetch failed');
+        return true;
+      }());
+    }
+
+    try {
+      final liveResponse = await _apiClient.get<dynamic>('/api/live/');
+      live = _rows(liveResponse.data);
+    } catch (_) {
+      assert(() {
+        debugPrint('[Home] live fetch failed');
+        return true;
+      }());
+    }
+
+    assert(() {
+      debugPrint('[Home] videos=${videos.length}, dramas=${dramas.length}, live=${live.length}');
+      return true;
+    }());
 
     final List<HomeVideoItem> latestVideos = videos.take(6).map(_mapVideo).toList();
     final List<HomeVideoItem> featured = latestVideos.take(2).toList();
@@ -42,7 +74,9 @@ class RemoteHomeRepository implements HomeRepository {
     if (data is List) return data.whereType<Map<String, dynamic>>().toList();
     if (data is Map<String, dynamic>) {
       final dynamic results = data['results'];
-      if (results is List) return results.whereType<Map<String, dynamic>>().toList();
+      if (results is List) {
+        return results.whereType<Map<String, dynamic>>().toList();
+      }
     }
     return <Map<String, dynamic>>[];
   }
@@ -51,7 +85,11 @@ class RemoteHomeRepository implements HomeRepository {
     final String title = _str(m['title']) ?? 'Untitled video';
     final String owner = _str(m['owner_name']) ?? 'Creator';
     final String views = _str(m['view_count']) ?? '0';
-    return HomeVideoItem(id: _str(m['id']) ?? title, title: title, subtitle: '$owner • $views views');
+    return HomeVideoItem(
+      id: _str(m['id']) ?? title,
+      title: title,
+      subtitle: '$owner • $views views',
+    );
   }
 
   HomeDramaItem _mapDrama(Map<String, dynamic> m) {
@@ -59,19 +97,46 @@ class RemoteHomeRepository implements HomeRepository {
     final String total = _str(m['total_episodes']) ?? '0';
     final String free = _str(m['free_episode_count']) ?? '0';
     final String locked = _str(m['locked_episode_count']) ?? '0';
-    return HomeDramaItem(id: _str(m['id']) ?? title, title: title, subtitle: '$total episodes • Free $free • Locked $locked');
+    return HomeDramaItem(
+      id: _str(m['id']) ?? title,
+      title: title,
+      subtitle: '$total episodes • Free $free • Locked $locked',
+    );
   }
 
   HomeLiveItem _mapLive(Map<String, dynamic> m) {
     final String title = _str(m['title']) ?? 'Live stream';
     final String owner = _str(m['owner_name']) ?? 'Host';
     final String viewers = _str(m['viewer_count']) ?? '0';
-    return HomeLiveItem(id: _str(m['id']) ?? title, title: title, subtitle: '$owner • $viewers watching');
+    final String? thumb = _str(m['thumbnail_url']) ??
+        _str(m['preview_image_url']) ??
+        _str(m['snapshot_url']);
+
+    return HomeLiveItem(
+      id: _str(m['id']) ?? title,
+      title: title,
+      subtitle: '$owner • $viewers watching',
+      ownerName: owner,
+      ownerAvatarUrl: _str(m['owner_avatar_url']),
+      status: _str(m['effective_status']) ?? _str(m['status']),
+      viewerCount: _int(m['viewer_count']),
+      thumbnailUrl: thumb,
+      playbackUrl: _str(m['playback_url']),
+      watchUrl: _str(m['watch_url']),
+      createdAt: _str(m['created_at']),
+    );
   }
 
   String? _str(dynamic v) {
     if (v is String) return v;
     if (v is num) return v.toString();
+    return null;
+  }
+
+  int? _int(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.round();
+    if (v is String) return int.tryParse(v);
     return null;
   }
 }

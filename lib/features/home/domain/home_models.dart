@@ -27,11 +27,27 @@ class HomeLiveItem {
     required this.id,
     required this.title,
     required this.subtitle,
+    this.ownerName,
+    this.ownerAvatarUrl,
+    this.status,
+    this.viewerCount,
+    this.thumbnailUrl,
+    this.playbackUrl,
+    this.watchUrl,
+    this.createdAt,
   });
 
   final String id;
   final String title;
   final String subtitle;
+  final String? ownerName;
+  final String? ownerAvatarUrl;
+  final String? status;
+  final int? viewerCount;
+  final String? thumbnailUrl;
+  final String? playbackUrl;
+  final String? watchUrl;
+  final String? createdAt;
 }
 
 class HomePortalData {

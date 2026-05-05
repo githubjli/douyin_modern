@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../core/network/api_client.dart';
 import '../../shared/brand_page_header.dart';
 import 'data/mock_home_repository.dart';
 import 'data/remote_home_repository.dart';
 import 'domain/home_models.dart';
 import 'domain/home_repository.dart';
-import '../../core/network/api_client.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -42,7 +42,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _remoteRepo = widget.remoteRepository ?? RemoteHomeRepository(apiClient: ApiClient());
+    _remoteRepo =
+        widget.remoteRepository ?? RemoteHomeRepository(apiClient: ApiClient());
     _load();
   }
 
@@ -82,7 +83,9 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
           const BrandPageHeader(title: 'Home'),
-          // Home is a mixed-content portal (videos, shorts/drama, live, lists).
+          const SizedBox(height: AppSpacing.xs),
+          const Text('Your mixed portal: videos, drama, live, and trends',
+              style: AppTextStyles.caption),
           const SizedBox(height: AppSpacing.md),
           const _SearchPill(),
           const SizedBox(height: AppSpacing.md),
@@ -103,25 +106,25 @@ class _HomePageState extends State<HomePage> {
             Text(_notice!, style: AppTextStyles.caption),
           ],
           const SizedBox(height: AppSpacing.md),
-          const _SectionTitle(title: 'Featured'),
+          const _SectionHeader(title: 'Featured', hint: 'Curated today'),
           const SizedBox(height: AppSpacing.sm),
-          _HorizontalCards(items: data.featured),
+          _HorizontalCards(items: data.featured, kind: _CardKind.featured),
           const SizedBox(height: AppSpacing.md),
-          const _SectionTitle(title: 'Latest Videos'),
+          const _SectionHeader(title: 'Latest Videos', hint: 'View all'),
           const SizedBox(height: AppSpacing.sm),
-          _HorizontalCards(items: data.latestVideos),
+          _HorizontalCards(items: data.latestVideos, kind: _CardKind.video),
           const SizedBox(height: AppSpacing.md),
-          const _SectionTitle(title: 'Short Drama'),
+          const _SectionHeader(title: 'Short Drama', hint: 'View all'),
           const SizedBox(height: AppSpacing.sm),
-          _HorizontalCards(items: data.shortDrama),
+          _HorizontalCards(items: data.shortDrama, kind: _CardKind.drama),
           const SizedBox(height: AppSpacing.md),
-          const _SectionTitle(title: 'Live Now'),
+          const _SectionHeader(title: 'Live Now', hint: 'Live updates'),
           const SizedBox(height: AppSpacing.sm),
           data.liveNow.isEmpty
-              ? const _EmptyCard(label: 'No live streams right now')
-              : _HorizontalCards(items: data.liveNow),
+              ? const _LiveEmptyCard()
+              : _HorizontalCards(items: data.liveNow, kind: _CardKind.live),
           const SizedBox(height: AppSpacing.md),
-          const _SectionTitle(title: 'Recommended'),
+          const _SectionHeader(title: 'Recommended', hint: 'For you'),
           const SizedBox(height: AppSpacing.sm),
           GridView.builder(
             shrinkWrap: true,
@@ -131,12 +134,13 @@ class _HomePageState extends State<HomePage> {
               crossAxisCount: 2,
               crossAxisSpacing: AppSpacing.sm,
               mainAxisSpacing: AppSpacing.sm,
-              childAspectRatio: 1.28,
+              childAspectRatio: 1.16,
             ),
             itemBuilder: (_, int index) {
-              final _PortalCardData item = _PortalCardData(
+              return _PortalCard(
                 title: data.recommended[index].title,
                 subtitle: data.recommended[index].subtitle,
+                kind: _CardKind.video,
               );
               return _ContentCard(item: item);
             },
@@ -202,38 +206,46 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title});
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.hint});
 
   final String title;
+  final String hint;
 
   @override
   Widget build(BuildContext context) {
-    return Text(title, style: AppTextStyles.cardTitle);
+    return Row(
+      children: <Widget>[
+        Expanded(child: Text(title, style: AppTextStyles.cardTitle)),
+        Text(hint, style: AppTextStyles.caption),
+      ],
+    );
   }
 }
 
+enum _CardKind { featured, video, drama, live }
+
 class _HorizontalCards extends StatelessWidget {
-  const _HorizontalCards({required this.items});
+  const _HorizontalCards({required this.items, required this.kind});
 
   final List<dynamic> items;
+  final _CardKind kind;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 124,
+      height: 148,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (_, int index) {
           return SizedBox(
-            width: 210,
-            child: _ContentCard(
-              item: _PortalCardData(
-                title: items[index].title as String,
-                subtitle: items[index].subtitle as String,
-              ),
+            width: 230,
+            child: _PortalCard(
+              title: items[index].title as String,
+              subtitle: items[index].subtitle as String,
+              kind: kind,
             ),
           );
         },
@@ -242,10 +254,76 @@ class _HorizontalCards extends StatelessWidget {
   }
 }
 
-class _ContentCard extends StatelessWidget {
-  const _ContentCard({required this.item});
+class _PortalCard extends StatelessWidget {
+  const _PortalCard({
+    required this.title,
+    required this.subtitle,
+    required this.kind,
+  });
 
-  final _PortalCardData item;
+  final String title;
+  final String subtitle;
+  final _CardKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final String badge = switch (kind) {
+      _CardKind.featured => 'Featured',
+      _CardKind.video => 'Video',
+      _CardKind.drama => 'Drama',
+      _CardKind.live => 'Live',
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: AppColors.softBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[Color(0xFF3B352A), Color(0xFF1F1E1D)],
+                ),
+              ),
+              child: const Center(
+                child: Icon(Icons.ondemand_video,
+                    color: AppColors.mutedOliveText, size: 28),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            badge,
+            style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.cardTitle),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveEmptyCard extends StatelessWidget {
+  const _LiveEmptyCard();
 
   @override
   Widget build(BuildContext context) {
@@ -256,39 +334,7 @@ class _ContentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(color: AppColors.softBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: <Widget>[
-          Text(item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.cardTitle),
-          const SizedBox(height: AppSpacing.xs),
-          Text(item.subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption),
-        ],
-      ),
+      child: const Text('No live streams right now.', style: AppTextStyles.caption),
     );
   }
-}
-
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ContentCard(item: _PortalCardData(title: 'Live Now', subtitle: label));
-  }
-}
-
-class _PortalCardData {
-  const _PortalCardData({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
 }

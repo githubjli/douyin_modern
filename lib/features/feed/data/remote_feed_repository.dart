@@ -54,7 +54,8 @@ class RemoteFeedRepository implements FeedRepository {
 
   FeedItem? _mapVideo(Map<String, dynamic> raw) {
     final String? videoUrl = _pickPlayableUrl(raw);
-    if (videoUrl == null || videoUrl.isEmpty) {
+    final bool canWatch = _readBool(raw['can_watch']) ?? true;
+    if (!canWatch || videoUrl == null || videoUrl.isEmpty) {
       return null;
     }
 
@@ -83,7 +84,7 @@ class RemoteFeedRepository implements FeedRepository {
       categorySlug: _readString(raw['category_slug']),
       accessType: _readString(raw['access_type']),
       previewSeconds: _readIntOrNull(raw['preview_seconds']),
-      canWatch: _readBool(raw['can_watch']),
+      canWatch: canWatch,
       isLocked: _readBool(raw['is_locked']),
       lockReason: _readString(raw['lock_reason']),
       likeCount: likes,
@@ -95,8 +96,9 @@ class RemoteFeedRepository implements FeedRepository {
   }
 
   FeedItem? _mapDramaEpisode(Map<String, dynamic> drama, Map<String, dynamic> episode) {
+    final bool canWatch = _readBool(episode['can_watch']) ?? false;
     final String? videoUrl = _pickPlayableUrl(episode);
-    if (videoUrl == null || videoUrl.isEmpty) {
+    if (!canWatch || videoUrl == null || videoUrl.isEmpty) {
       return null;
     }
 
@@ -121,7 +123,7 @@ class RemoteFeedRepository implements FeedRepository {
       categoryName: _readString(drama['category_name']),
       accessType: _readString(episode['access_type']),
       previewSeconds: _readIntOrNull(episode['preview_seconds']),
-      canWatch: _readBool(episode['can_watch']),
+      canWatch: canWatch,
       isLocked: _readBool(episode['is_locked']),
       lockReason: _readString(episode['lock_reason']),
       likeCount: _readIntOrNull(episode['like_count']),
@@ -129,6 +131,13 @@ class RemoteFeedRepository implements FeedRepository {
       viewCount: _readIntOrNull(episode['view_count']),
       isLiked: _readBool(episode['is_liked']),
       createdAt: _readString(episode['created_at']),
+      seriesId: _readIntOrNull(drama['id']),
+      seriesTitle: dramaName,
+      episodeId: _readIntOrNull(episode['id']),
+      episodeNo: _readIntOrNull(episode['episode_no']),
+      durationSeconds: _readIntOrNull(episode['duration_seconds']),
+      unlockType: _readString(episode['unlock_type']),
+      pointsPrice: _readIntOrNull(episode['points_price']),
     );
   }
 

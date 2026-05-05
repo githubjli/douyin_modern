@@ -29,6 +29,13 @@ class FeedItem {
     this.viewCount,
     this.isLiked,
     this.createdAt,
+    this.seriesId,
+    this.seriesTitle,
+    this.episodeId,
+    this.episodeNo,
+    this.durationSeconds,
+    this.unlockType,
+    this.pointsPrice,
   });
 
   final String username;
@@ -59,4 +66,12 @@ class FeedItem {
   final int? viewCount;
   final bool? isLiked;
   final String? createdAt;
+
+  final int? seriesId;
+  final String? seriesTitle;
+  final int? episodeId;
+  final int? episodeNo;
+  final int? durationSeconds;
+  final String? unlockType;
+  final int? pointsPrice;
 }

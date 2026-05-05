@@ -115,7 +115,7 @@ class _MainShellState extends State<MainShell> {
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(
               icon: Icon(Icons.play_arrow_rounded),
-              label: 'Shorts',
+              label: 'Short',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.add_circle, size: 36, color: AppColors.brandGold),

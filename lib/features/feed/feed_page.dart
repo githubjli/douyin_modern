@@ -287,6 +287,7 @@ class _ActionColumn extends StatelessWidget {
             backgroundColor: Colors.white24,
             child: Icon(Icons.person)),
         const SizedBox(height: 16),
+        // TODO(meow-media): replace mock counter strings with backend metrics in a later phase.
         _ActionIcon(icon: Icons.favorite, label: item.likes),
         _ActionIcon(icon: Icons.mode_comment, label: item.comments),
         _ActionIcon(icon: Icons.share, label: item.shares),
@@ -326,29 +327,41 @@ class _CaptionBlock extends StatelessWidget {
     final bool hasDramaMeta =
         item.seriesTitle != null && item.episodeNo != null && item.title != null;
 
-    final String topLabel = hasDramaMeta ? item.seriesTitle! : item.username;
-    final String middleLabel = hasDramaMeta
+    final String seriesLabel = hasDramaMeta
+        ? item.seriesTitle!
+        : (item.username.isNotEmpty ? item.username : '@MeowDrama');
+
+    final String episodeLabel = hasDramaMeta
         ? 'EP ${item.episodeNo} · ${item.title}'
         : item.description;
+
+    String? accessLabel;
+    if (item.isLocked == true) {
+      if (item.pointsPrice != null && item.pointsPrice! > 0) {
+        accessLabel = '${item.pointsPrice} Points';
+      } else {
+        accessLabel = 'Locked';
+      }
+    } else if (item.canWatch == true) {
+      accessLabel = 'Free';
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Text(
-          topLabel,
+          seriesLabel,
           style: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 16,
             color: AppColors.cocoaText,
-            shadows: <Shadow>[
-              Shadow(color: Colors.black87, blurRadius: 8),
-            ],
+            shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
-          middleLabel,
+          episodeLabel,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -356,6 +369,17 @@ class _CaptionBlock extends StatelessWidget {
             shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
           ),
         ),
+        if (accessLabel != null) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            accessLabel,
+            style: const TextStyle(
+              color: AppColors.mutedOliveText,
+              fontSize: 12,
+              shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Text(
           '♫ ${item.music}',

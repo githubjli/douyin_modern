@@ -14,13 +14,8 @@ class RemoteFeedRepository implements FeedRepository {
   Future<List<FeedItem>> getShortsFeed() async {
     final List<FeedItem> items = <FeedItem>[];
 
-    final response = await _apiClient.get<dynamic>(Endpoints.publicVideos);
-    final List<dynamic> videoRows = _extractRows(response.data);
-    for (final dynamic row in videoRows) {
-      if (row is! Map<String, dynamic>) continue;
-      final FeedItem? item = _mapVideo(row);
-      if (item != null) items.add(item);
-    }
+    // Shorts tab is drama-only by product decision.
+    // TODO(meow-media): public videos will be consumed by Home/Browse later.
 
     final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
     final List<dynamic> dramaRows = _extractRows(dramasResponse.data);
@@ -97,8 +92,9 @@ class RemoteFeedRepository implements FeedRepository {
 
   FeedItem? _mapDramaEpisode(Map<String, dynamic> drama, Map<String, dynamic> episode) {
     final bool canWatch = _readBool(episode['can_watch']) ?? false;
+    final bool isLocked = _readBool(episode['is_locked']) ?? false;
     final String? videoUrl = _pickPlayableUrl(episode);
-    if (!canWatch || videoUrl == null || videoUrl.isEmpty) {
+    if (!canWatch || isLocked || videoUrl == null || videoUrl.isEmpty) {
       return null;
     }
 
@@ -124,7 +120,7 @@ class RemoteFeedRepository implements FeedRepository {
       accessType: _readString(episode['access_type']),
       previewSeconds: _readIntOrNull(episode['preview_seconds']),
       canWatch: canWatch,
-      isLocked: _readBool(episode['is_locked']),
+      isLocked: isLocked,
       lockReason: _readString(episode['lock_reason']),
       likeCount: _readIntOrNull(episode['like_count']),
       commentCount: _readIntOrNull(episode['comment_count']),

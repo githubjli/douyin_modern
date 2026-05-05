@@ -143,7 +143,6 @@ class _HomePageState extends State<HomePage> {
                 subtitle: recommendedItem.subtitle,
                 kind: _CardKind.video,
               );
-              return _ContentCard(item: item);
             },
           ),
         ],

@@ -1,5 +1,9 @@
 # Douyin Modern Flutter Rebuild Plan
 
+> **Phase 0A IA Update (Meow Media):** The previous tab IA listed in this document (Home/Discover/Publish/Message/Profile) is now outdated and kept for historical context only.  
+> **Current required IA contract:** **Home / Shorts / + / Membership / Profile**.  
+> The center **+** opens create actions and is **not** a normal page tab.
+
 ## Source Inspection Scope
 Because direct GitHub cloning is blocked in this environment, the inspection was performed using indexed documentation pages for `zyronon/douyin` (DeepWiki index date: 2025-04-18), which summarize the original implementation architecture, routes, components, and features.
 

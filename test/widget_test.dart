@@ -5,7 +5,7 @@ import 'package:meow_media/app/app.dart';
 void main() {
   testWidgets('app shell renders updated bottom tabs',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const DouyinModernApp(enableFeedVideo: false));
+    await tester.pumpWidget(const MeowMediaApp(enableFeedVideo: false));
 
     final Finder bottomNav = find.byType(BottomNavigationBar);
     expect(bottomNav, findsOneWidget);

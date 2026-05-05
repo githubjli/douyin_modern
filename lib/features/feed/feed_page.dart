@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
@@ -60,7 +61,8 @@ class _FeedPageState extends State<FeedPage> {
       try {
         final List<FeedItem> remoteItems = await _remoteRepository.getShortsFeed();
         items = remoteItems
-            .where((FeedItem item) => item.videoUrl.isNotEmpty)
+            .where((FeedItem item) =>
+                item.videoUrl.isNotEmpty && item.isLocked != true)
             .toList();
         if (items.isEmpty) {
           _notice = 'Using local fallback feed.';
@@ -321,16 +323,47 @@ class _CaptionBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasDramaMeta =
+        item.seriesTitle != null && item.episodeNo != null && item.title != null;
+
+    final String topLabel = hasDramaMeta ? item.seriesTitle! : item.username;
+    final String middleLabel = hasDramaMeta
+        ? 'EP ${item.episodeNo} · ${item.title}'
+        : item.description;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(item.username,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        Text(
+          topLabel,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            color: AppColors.cocoaText,
+            shadows: <Shadow>[
+              Shadow(color: Colors.black87, blurRadius: 8),
+            ],
+          ),
+        ),
         const SizedBox(height: 8),
-        Text(item.description, maxLines: 3, overflow: TextOverflow.ellipsis),
+        Text(
+          middleLabel,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.cocoaText,
+            shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+          ),
+        ),
         const SizedBox(height: 8),
-        Text('♫ ${item.music}', style: const TextStyle(color: Colors.white70)),
+        Text(
+          '♫ ${item.music}',
+          style: const TextStyle(
+            color: AppColors.mutedOliveText,
+            shadows: <Shadow>[Shadow(color: Colors.black87, blurRadius: 8)],
+          ),
+        ),
       ],
     );
   }

@@ -106,46 +106,25 @@ class _HomePageState extends State<HomePage> {
             Text(_notice!, style: AppTextStyles.caption),
           ],
           const SizedBox(height: AppSpacing.md),
-          const _SectionHeader(title: 'Featured', hint: 'Curated today'),
-          const SizedBox(height: AppSpacing.sm),
-          _HorizontalCards(items: data.featured, kind: _CardKind.featured),
+          _HeroCard(data: data),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Latest Videos', hint: 'View all'),
           const SizedBox(height: AppSpacing.sm),
-          _HorizontalCards(items: data.latestVideos, kind: _CardKind.video),
+          _SectionGrid(items: data.latestVideos, kind: _CardKind.video),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Short Drama', hint: 'View all'),
           const SizedBox(height: AppSpacing.sm),
-          _HorizontalCards(items: data.shortDrama, kind: _CardKind.drama),
+          _SectionGrid(items: data.shortDrama, kind: _CardKind.drama),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Live Now', hint: 'Live updates'),
           const SizedBox(height: AppSpacing.sm),
           data.liveNow.isEmpty
               ? const _LiveEmptyCard()
-              : _HorizontalCards(items: data.liveNow, kind: _CardKind.live),
+              : _SectionGrid(items: data.liveNow, kind: _CardKind.live),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Recommended', hint: 'For you'),
           const SizedBox(height: AppSpacing.sm),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: data.recommended.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: AppSpacing.sm,
-              mainAxisSpacing: AppSpacing.sm,
-              childAspectRatio: 0.8,
-            ),
-            itemBuilder: (_, int index) {
-              final HomeVideoItem recommendedItem = data.recommended[index];
-              return _PortalCard(
-                title: recommendedItem.title,
-                subtitle: recommendedItem.subtitle,
-                imageUrl: recommendedItem.thumbnailUrl,
-                kind: _CardKind.video,
-              );
-            },
-          ),
+          _SectionGrid(items: data.recommended, kind: _CardKind.video),
         ],
       ),
     );
@@ -226,38 +205,77 @@ class _SectionHeader extends StatelessWidget {
 
 enum _CardKind { featured, video, drama, live }
 
-class _HorizontalCards extends StatelessWidget {
-  const _HorizontalCards({required this.items, required this.kind});
+String? _resolveImageUrlForItem(dynamic item) {
+  if (item is HomeVideoItem) {
+    return item.thumbnailUrl;
+  }
+  if (item is HomeDramaItem) {
+    return item.coverUrl ?? item.thumbnailUrl;
+  }
+  if (item is HomeLiveItem) {
+    return item.thumbnailUrl;
+  }
+  return null;
+}
+
+class _SectionGrid extends StatelessWidget {
+  const _SectionGrid({required this.items, required this.kind});
 
   final List<dynamic> items;
   final _CardKind kind;
 
   @override
   Widget build(BuildContext context) {
-    final double cardWidth = kind == _CardKind.drama ? 160 : 150;
-    final double cardHeight = switch (kind) {
-      _CardKind.drama => 248,
-      _ => 188,
+    final double ratio = switch (kind) {
+      _CardKind.drama => 0.68,
+      _ => 0.8,
     };
 
-    return SizedBox(
-      height: cardHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (_, int index) {
-          final dynamic item = items[index];
-          return SizedBox(
-            width: cardWidth,
-            child: _PortalCard(
-              title: item.title as String,
-              subtitle: item.subtitle as String,
-              imageUrl: _resolveImageUrl(item),
-              kind: kind,
-            ),
-          );
-        },
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpacing.sm,
+        mainAxisSpacing: AppSpacing.sm,
+        childAspectRatio: ratio,
+      ),
+      itemBuilder: (_, int index) {
+        final dynamic item = items[index];
+        return _PortalCard(
+          title: item.title as String,
+          subtitle: item.subtitle as String,
+          imageUrl: _resolveImageUrlForItem(item),
+          kind: kind,
+        );
+      },
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({required this.data});
+
+  final HomePortalData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final dynamic hero = data.shortDrama.isNotEmpty
+        ? data.shortDrama.first
+        : (data.featured.isNotEmpty ? data.featured.first : null);
+    if (hero == null) return const SizedBox.shrink();
+
+    final _CardKind kind = hero is HomeDramaItem ? _CardKind.drama : _CardKind.video;
+    final String subtitle = hero.subtitle as String;
+
+    return AspectRatio(
+      aspectRatio: 1.45,
+      child: _PortalCard(
+        title: hero.title as String,
+        subtitle: subtitle,
+        imageUrl: _resolveImageUrlForItem(hero),
+        kind: kind,
       ),
     );
   }

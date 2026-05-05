@@ -13,11 +13,13 @@ class FeedPage extends StatefulWidget {
     this.enableVideo = true,
     this.mockRepository = const MockFeedRepository(),
     this.remoteRepository,
+    this.enableRemoteFeed = true,
   });
 
   final bool enableVideo;
   final FeedRepository mockRepository;
   final FeedRepository? remoteRepository;
+  final bool enableRemoteFeed;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -54,14 +56,18 @@ class _FeedPageState extends State<FeedPage> {
 
     List<FeedItem> items = const <FeedItem>[];
 
-    try {
-      final List<FeedItem> remoteItems = await _remoteRepository.getShortsFeed();
-      items = remoteItems.where((FeedItem item) => item.videoUrl.isNotEmpty).toList();
-      if (items.isEmpty) {
-        _notice = 'Using local fallback feed.';
+    if (widget.enableRemoteFeed) {
+      try {
+        final List<FeedItem> remoteItems = await _remoteRepository.getShortsFeed();
+        items = remoteItems
+            .where((FeedItem item) => item.videoUrl.isNotEmpty)
+            .toList();
+        if (items.isEmpty) {
+          _notice = 'Using local fallback feed.';
+        }
+      } catch (_) {
+        _notice = 'Network unavailable. Using local feed.';
       }
-    } catch (_) {
-      _notice = 'Network unavailable. Using local feed.';
     }
 
     if (items.isEmpty) {

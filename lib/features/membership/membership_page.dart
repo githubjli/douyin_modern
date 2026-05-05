@@ -4,9 +4,17 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../shared/brand_page_header.dart';
+import 'data/mock_membership_repository.dart';
+import 'domain/membership_plan.dart';
+import 'domain/membership_repository.dart';
 
 class MembershipPage extends StatelessWidget {
-  const MembershipPage({super.key});
+  const MembershipPage({
+    super.key,
+    this.repository = const MockMembershipRepository(),
+  });
+
+  final MembershipRepository repository;
 
   @override
   Widget build(BuildContext context) {
@@ -41,15 +49,27 @@ class MembershipPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          const _PlanCard(
-              title: 'Monthly',
-              price: '¥5 / month',
-              perks: 'Creator boosts, profile badge'),
-          const SizedBox(height: AppSpacing.sm),
-          const _PlanCard(
-              title: 'Yearly',
-              price: '¥50 / year',
-              perks: 'Best value + seasonal gifts'),
+          FutureBuilder<List<MembershipPlan>>(
+            future: repository.getPlans(),
+            builder: (BuildContext context, AsyncSnapshot<List<MembershipPlan>> snapshot) {
+              final List<MembershipPlan> plans = snapshot.data ?? const <MembershipPlan>[];
+              if (plans.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                children: <Widget>[
+                  for (int i = 0; i < plans.length; i++) ...<Widget>[
+                    _PlanCard(
+                      title: plans[i].title,
+                      price: plans[i].price,
+                      perks: plans[i].perks,
+                    ),
+                    if (i != plans.length - 1) const SizedBox(height: AppSpacing.sm),
+                  ],
+                ],
+              );
+            },
+          ),
         ],
       ),
     );

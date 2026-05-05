@@ -96,8 +96,9 @@ class _ProfilePageState extends State<ProfilePage> {
         _error = 'Unable to load profile right now.';
       });
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -119,8 +120,9 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       setState(() => _error = 'Login failed. Please try again.');
     } finally {
-      if (!mounted) return;
-      setState(() => _loggingIn = false);
+      if (mounted) {
+        setState(() => _loggingIn = false);
+      }
     }
   }
 
@@ -219,7 +221,7 @@ class _GuestProfileCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              OutlinedButton(onPressed: null, child: const Text('Register')),
+              const OutlinedButton(onPressed: null, child: Text('Register')),
             ],
           ),
         ],

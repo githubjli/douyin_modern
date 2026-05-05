@@ -10,8 +10,21 @@ class Endpoints {
 
   static const String publicVideos = '/api/public/videos/';
 
-  static String publicVideoDetail(String id) => '/api/public/videos/$id/';
+  static String publicVideoDetail(int id) => '/api/public/videos/$id/';
 
-  static const String feedShorts = '/api/feed/shorts/';
+  static const String dramas = '/api/dramas/';
+
+  static String dramaDetail(int id) => '/api/dramas/$id/';
+
+  static String dramaEpisodes(int dramaId) => '/api/dramas/$dramaId/episodes/';
+
+  static String dramaEpisodeDetail(int dramaId, int episodeNo) =>
+      '/api/dramas/$dramaId/episodes/$episodeNo/';
+
+  static String dramaEpisodeUnlock(int episodeId) =>
+      '/api/dramas/episodes/$episodeId/unlock/';
+
+  static String dramaProgress(int dramaId) => '/api/dramas/$dramaId/progress/';
+
   static const String membershipPlans = '/api/membership/plans/';
 }

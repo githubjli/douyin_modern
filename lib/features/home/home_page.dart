@@ -205,7 +205,7 @@ class _SectionHeader extends StatelessWidget {
 
 enum _CardKind { featured, video, drama, live }
 
-String? _resolveImageUrlForItem(dynamic item) {
+String? _resolveImageUrl(dynamic item) {
   if (item is HomeVideoItem) {
     return item.thumbnailUrl;
   }
@@ -246,7 +246,7 @@ class _SectionGrid extends StatelessWidget {
         return _PortalCard(
           title: item.title as String,
           subtitle: item.subtitle as String,
-          imageUrl: _resolveImageUrlForItem(item),
+          imageUrl: _resolveImageUrl(item),
           kind: kind,
         );
       },
@@ -274,7 +274,7 @@ class _HeroCard extends StatelessWidget {
       child: _PortalCard(
         title: hero.title as String,
         subtitle: subtitle,
-        imageUrl: _resolveImageUrlForItem(hero),
+        imageUrl: _resolveImageUrl(hero),
         kind: kind,
       ),
     );

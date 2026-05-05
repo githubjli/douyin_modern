@@ -134,16 +134,16 @@ class _HomePageState extends State<HomePage> {
               crossAxisCount: 2,
               crossAxisSpacing: AppSpacing.sm,
               mainAxisSpacing: AppSpacing.sm,
-              childAspectRatio: 1.16,
+              childAspectRatio: 0.8,
             ),
             itemBuilder: (_, int index) {
               final HomeVideoItem recommendedItem = data.recommended[index];
               return _PortalCard(
                 title: recommendedItem.title,
                 subtitle: recommendedItem.subtitle,
+                imageUrl: recommendedItem.thumbnailUrl,
                 kind: _CardKind.video,
               );
-              return _ContentCard(item: item);
             },
           ),
         ],
@@ -234,24 +234,45 @@ class _HorizontalCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double cardWidth = kind == _CardKind.drama ? 160 : 150;
+    final double cardHeight = switch (kind) {
+      _CardKind.drama => 248,
+      _ => 188,
+    };
+
     return SizedBox(
-      height: 148,
+      height: cardHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (_, int index) {
+          final dynamic item = items[index];
           return SizedBox(
-            width: 230,
+            width: cardWidth,
             child: _PortalCard(
-              title: items[index].title as String,
-              subtitle: items[index].subtitle as String,
+              title: item.title as String,
+              subtitle: item.subtitle as String,
+              imageUrl: _resolveImageUrl(item),
               kind: kind,
             ),
           );
         },
       ),
     );
+  }
+
+  String? _resolveImageUrl(dynamic item) {
+    if (item is HomeVideoItem) {
+      return item.thumbnailUrl;
+    }
+    if (item is HomeDramaItem) {
+      return item.coverUrl ?? item.thumbnailUrl;
+    }
+    if (item is HomeLiveItem) {
+      return item.thumbnailUrl;
+    }
+    return null;
   }
 }
 
@@ -260,67 +281,209 @@ class _PortalCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.kind,
+    this.imageUrl,
   });
 
   final String title;
   final String subtitle;
   final _CardKind kind;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
     final String badge = switch (kind) {
-      _CardKind.featured => 'Featured',
+      _CardKind.featured => 'Video',
       _CardKind.video => 'Video',
       _CardKind.drama => 'Drama',
-      _CardKind.live => 'Live',
+      _CardKind.live => 'LIVE',
     };
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(color: AppColors.softBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      child: Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[Color(0xFF3B352A), Color(0xFF1F1E1D)],
-                ),
-              ),
-              child: const Center(
-                child: Icon(Icons.ondemand_video,
-                    color: AppColors.mutedOliveText, size: 28),
+          _CardCover(imageUrl: imageUrl, kind: kind),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Color(0x11000000),
+                  Color(0x66000000),
+                  Color(0xCC000000),
+                ],
+                stops: <double>[0.2, 0.6, 1],
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            badge,
-            style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+          Positioned(
+            top: AppSpacing.xs,
+            left: AppSpacing.xs,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs, vertical: 2),
+              decoration: BoxDecoration(
+                color: kind == _CardKind.live
+                    ? AppColors.brandGold
+                    : AppColors.cardBackground.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                border: Border.all(color: AppColors.softBorder),
+              ),
+              child: Text(
+                badge,
+                style: AppTextStyles.caption.copyWith(
+                  color: kind == _CardKind.live
+                      ? AppColors.warmBackground
+                      : AppColors.brandGold,
+                ),
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.cardTitle),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption),
+          Positioned(
+            left: AppSpacing.sm,
+            right: AppSpacing.sm,
+            bottom: AppSpacing.sm,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.cardTitle.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _CardCover extends StatelessWidget {
+  const _CardCover({required this.imageUrl, required this.kind});
+
+  final String? imageUrl;
+  final _CardKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? trimmedUrl = imageUrl?.trim();
+    if (trimmedUrl == null || trimmedUrl.isEmpty) {
+      return _CardCoverPlaceholder(kind: kind);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Image.network(
+        trimmedUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, __, ___) => _CardCoverPlaceholder(kind: kind),
+        loadingBuilder: (BuildContext context, Widget child,
+            ImageChunkEvent? loadingProgress) {
+          if (loadingProgress == null) return child;
+          return _CardCoverPlaceholder(kind: kind);
+        },
+      ),
+    );
+  }
+}
+
+class _CardCoverPlaceholder extends StatelessWidget {
+  const _CardCoverPlaceholder({required this.kind});
+
+  final _CardKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final (_GradientSpec gradientSpec, IconData icon, String label, bool liveBadge) =
+        switch (kind) {
+      _CardKind.drama => (
+          const _GradientSpec(Color(0xFF463522), Color(0xFF221A15)),
+          Icons.theaters,
+          'Drama',
+          false
+        ),
+      _CardKind.live => (
+          const _GradientSpec(Color(0xFF2E2419), Color(0xFF171514)),
+          Icons.live_tv,
+          'Live',
+          true
+        ),
+      _ => (
+          const _GradientSpec(Color(0xFF3B352A), Color(0xFF1F1E1D)),
+          Icons.ondemand_video,
+          'Video',
+          false
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[gradientSpec.start, gradientSpec.end],
+        ),
+      ),
+      child: Stack(
+        children: <Widget>[
+          if (liveBadge)
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.brandGold,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: Text(
+                  'LIVE',
+                  style:
+                      AppTextStyles.caption.copyWith(color: AppColors.warmBackground),
+                ),
+              ),
+            ),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(icon, color: AppColors.mutedOliveText, size: 30),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  label,
+                  style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GradientSpec {
+  const _GradientSpec(this.start, this.end);
+
+  final Color start;
+  final Color end;
 }
 
 class _LiveEmptyCard extends StatelessWidget {

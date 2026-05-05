@@ -1,84 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
-class FeedItem {
-  const FeedItem({
-    required this.username,
-    required this.description,
-    required this.music,
-    required this.likes,
-    required this.comments,
-    required this.shares,
-    required this.videoUrl,
-    required this.placeholderGradient,
-  });
-
-  final String username;
-  final String description;
-  final String music;
-  final String likes;
-  final String comments;
-  final String shares;
-  final String videoUrl;
-  final List<Color> placeholderGradient;
-}
+import 'feed_models.dart';
+import 'feed_repository.dart';
 
 class FeedPage extends StatefulWidget {
-  const FeedPage({super.key, this.enableVideo = true});
+  const FeedPage({
+    super.key,
+    this.enableVideo = true,
+    this.repository = const MockFeedRepository(),
+  });
 
   final bool enableVideo;
+  final FeedRepository repository;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
 }
 
 class _FeedPageState extends State<FeedPage> {
-  static const List<FeedItem> _items = <FeedItem>[
-    FeedItem(
-      username: '@citywalker',
-      description: 'Night street vibes in neon lights ✨',
-      music: 'Original Sound - Citywalker',
-      likes: '24.1K',
-      comments: '1,203',
-      shares: '318',
-      videoUrl:
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-      placeholderGradient: <Color>[Color(0xFF111111), Color(0xFF2C2C2C)],
-    ),
-    FeedItem(
-      username: '@foodlab',
-      description: 'Crispy ramen experiment #food #kitchen',
-      music: 'Lo-fi Beat - Foodlab',
-      likes: '11.6K',
-      comments: '522',
-      shares: '92',
-      videoUrl:
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
-      placeholderGradient: <Color>[Color(0xFF000000), Color(0xFF3D1A1A)],
-    ),
-    FeedItem(
-      username: '@travelkid',
-      description: 'Sunrise above the clouds ☁️',
-      music: 'Ambient Rise - Travelkid',
-      likes: '54.8K',
-      comments: '3,883',
-      shares: '1,002',
-      videoUrl:
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-      placeholderGradient: <Color>[Color(0xFF0A0A0A), Color(0xFF1B2F45)],
-    ),
-  ];
-
   late final PageController _pageController;
   final Map<int, VideoPlayerController> _controllers =
       <int, VideoPlayerController>{};
   int _currentIndex = 0;
+  List<FeedItem> _items = const <FeedItem>[];
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    if (widget.enableVideo) {
+    _loadFeed();
+  }
+
+  Future<void> _loadFeed() async {
+    final List<FeedItem> items = await widget.repository.getShortsFeed();
+    if (!mounted) return;
+    setState(() => _items = items);
+    if (widget.enableVideo && _items.isNotEmpty) {
       _activateIndex(0);
     }
   }
@@ -147,6 +105,10 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_items.isEmpty) {
+      return const ColoredBox(color: Colors.black);
+    }
+
     return PageView.builder(
       controller: _pageController,
       scrollDirection: Axis.vertical,

@@ -19,6 +19,12 @@ class RemoteFeedRepository implements FeedRepository {
 
     final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
     final List<dynamic> dramaRows = _extractRows(dramasResponse.data);
+
+    assert(() {
+      debugPrint('[ShortFeed] drama series count: ${dramaRows.length}');
+      return true;
+    }());
+
     for (final dynamic drama in dramaRows) {
       if (drama is! Map<String, dynamic>) continue;
       final int? dramaId = _readIntOrNull(drama['id']);
@@ -27,7 +33,7 @@ class RemoteFeedRepository implements FeedRepository {
       final episodeResponse = await _apiClient.get<dynamic>(
         Endpoints.dramaEpisodes(dramaId),
       );
-      final List<dynamic> episodeRows = _extractRows(episodeResponse.data);
+      final List<dynamic> episodeRows = _extractEpisodeRows(episodeResponse.data);
       for (final dynamic episode in episodeRows) {
         if (episode is! Map<String, dynamic>) continue;
         final FeedItem? item = _mapDramaEpisode(drama, episode);
@@ -35,12 +41,28 @@ class RemoteFeedRepository implements FeedRepository {
       }
     }
 
+    assert(() {
+      debugPrint('[ShortFeed] playable drama episodes: ${items.length}');
+      return true;
+    }());
+
     return items;
   }
 
   List<dynamic> _extractRows(dynamic data) {
     if (data is List<dynamic>) return data;
     if (data is Map<String, dynamic>) {
+      final dynamic results = data['results'];
+      if (results is List<dynamic>) return results;
+    }
+    return const <dynamic>[];
+  }
+
+  List<dynamic> _extractEpisodeRows(dynamic data) {
+    if (data is List<dynamic>) return data;
+    if (data is Map<String, dynamic>) {
+      final dynamic episodes = data['episodes'];
+      if (episodes is List<dynamic>) return episodes;
       final dynamic results = data['results'];
       if (results is List<dynamic>) return results;
     }

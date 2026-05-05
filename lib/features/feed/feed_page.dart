@@ -66,9 +66,17 @@ class _FeedPageState extends State<FeedPage> {
             .toList();
         if (items.isEmpty) {
           _notice = 'Using local fallback feed.';
+          assert(() {
+            debugPrint('[ShortFeed] fallback reason: remote returned zero playable drama episodes');
+            return true;
+          }());
         }
-      } catch (_) {
+      } catch (error) {
         _notice = 'Network unavailable. Using local feed.';
+        assert(() {
+          debugPrint('[ShortFeed] fallback reason: remote fetch error - $error');
+          return true;
+        }());
       }
     }
 

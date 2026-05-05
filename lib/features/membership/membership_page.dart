@@ -4,8 +4,9 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../shared/brand_page_header.dart';
-import 'membership_models.dart';
-import 'membership_repository.dart';
+import 'data/mock_membership_repository.dart';
+import 'domain/membership_plan.dart';
+import 'domain/membership_repository.dart';
 
 class MembershipPage extends StatelessWidget {
   const MembershipPage({

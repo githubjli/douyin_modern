@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
-import 'feed_models.dart';
-import 'feed_repository.dart';
+import 'data/mock_feed_repository.dart';
+import 'domain/feed_item.dart';
+import 'domain/feed_repository.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({

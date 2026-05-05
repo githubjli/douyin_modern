@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> {
               crossAxisCount: 2,
               crossAxisSpacing: AppSpacing.sm,
               mainAxisSpacing: AppSpacing.sm,
-              childAspectRatio: 1.16,
+              childAspectRatio: 0.8,
             ),
             itemBuilder: (_, int index) {
               final HomeVideoItem recommendedItem = data.recommended[index];
@@ -234,8 +234,14 @@ class _HorizontalCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double cardWidth = kind == _CardKind.drama ? 160 : 150;
+    final double cardHeight = switch (kind) {
+      _CardKind.drama => 248,
+      _ => 188,
+    };
+
     return SizedBox(
-      height: 148,
+      height: cardHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
@@ -243,7 +249,7 @@ class _HorizontalCards extends StatelessWidget {
         itemBuilder: (_, int index) {
           final dynamic item = items[index];
           return SizedBox(
-            width: 230,
+            width: cardWidth,
             child: _PortalCard(
               title: item.title as String,
               subtitle: item.subtitle as String,
@@ -286,38 +292,79 @@ class _PortalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String badge = switch (kind) {
-      _CardKind.featured => 'Featured',
+      _CardKind.featured => 'Video',
       _CardKind.video => 'Video',
       _CardKind.drama => 'Drama',
-      _CardKind.live => 'Live',
+      _CardKind.live => 'LIVE',
     };
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(color: AppColors.softBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      child: Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          Expanded(child: _CardCover(imageUrl: imageUrl, kind: kind)),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            badge,
-            style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+          _CardCover(imageUrl: imageUrl, kind: kind),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Color(0x11000000),
+                  Color(0x66000000),
+                  Color(0xCC000000),
+                ],
+                stops: <double>[0.2, 0.6, 1],
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.cardTitle),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption),
+          Positioned(
+            top: AppSpacing.xs,
+            left: AppSpacing.xs,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs, vertical: 2),
+              decoration: BoxDecoration(
+                color: kind == _CardKind.live
+                    ? AppColors.brandGold
+                    : AppColors.cardBackground.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                border: Border.all(color: AppColors.softBorder),
+              ),
+              child: Text(
+                badge,
+                style: AppTextStyles.caption.copyWith(
+                  color: kind == _CardKind.live
+                      ? AppColors.warmBackground
+                      : AppColors.brandGold,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: AppSpacing.sm,
+            right: AppSpacing.sm,
+            bottom: AppSpacing.sm,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.cardTitle.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -240,17 +240,32 @@ class _HorizontalCards extends StatelessWidget {
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (_, int index) {
+          final dynamic item = items[index];
           return SizedBox(
             width: 230,
             child: _PortalCard(
-              title: items[index].title as String,
-              subtitle: items[index].subtitle as String,
+              title: item.title as String,
+              subtitle: item.subtitle as String,
+              imageUrl: _resolveImageUrl(item),
               kind: kind,
             ),
           );
         },
       ),
     );
+  }
+
+  String? _resolveImageUrl(dynamic item) {
+    if (item is HomeVideoItem) {
+      return item.thumbnailUrl;
+    }
+    if (item is HomeDramaItem) {
+      return item.coverUrl;
+    }
+    if (item is HomeLiveItem) {
+      return item.thumbnailUrl;
+    }
+    return null;
   }
 }
 
@@ -259,11 +274,13 @@ class _PortalCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.kind,
+    this.imageUrl,
   });
 
   final String title;
   final String subtitle;
   final _CardKind kind;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -284,23 +301,7 @@ class _PortalCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[Color(0xFF3B352A), Color(0xFF1F1E1D)],
-                ),
-              ),
-              child: const Center(
-                child: Icon(Icons.ondemand_video,
-                    color: AppColors.mutedOliveText, size: 28),
-              ),
-            ),
-          ),
+          Expanded(child: _CardCover(imageUrl: imageUrl)),
           const SizedBox(height: AppSpacing.sm),
           Text(
             badge,
@@ -317,6 +318,57 @@ class _PortalCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.caption),
         ],
+      ),
+    );
+  }
+}
+
+class _CardCover extends StatelessWidget {
+  const _CardCover({required this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? trimmedUrl = imageUrl?.trim();
+    if (trimmedUrl == null || trimmedUrl.isEmpty) {
+      return const _CardCoverPlaceholder();
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Image.network(
+        trimmedUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, __, ___) => const _CardCoverPlaceholder(),
+        loadingBuilder: (BuildContext context, Widget child,
+            ImageChunkEvent? loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const _CardCoverPlaceholder();
+        },
+      ),
+    );
+  }
+}
+
+class _CardCoverPlaceholder extends StatelessWidget {
+  const _CardCoverPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF3B352A), Color(0xFF1F1E1D)],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.ondemand_video, color: AppColors.mutedOliveText, size: 28),
       ),
     );
   }

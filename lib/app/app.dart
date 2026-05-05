@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import '../shared/main_shell.dart';
 
-class DouyinModernApp extends StatelessWidget {
-  const DouyinModernApp({super.key, this.enableFeedVideo = true});
+class MeowMediaApp extends StatelessWidget {
+  const MeowMediaApp({super.key, this.enableFeedVideo = true});
 
   final bool enableFeedVideo;
 

@@ -13,4 +13,18 @@ class MockProfileRepository implements ProfileRepository {
       avatarUrl: '',
     );
   }
+
+  @override
+  Future<UserProfile> updateProfile({
+    required String displayName,
+    required String bio,
+    String? avatarUrl,
+  }) async {
+    return UserProfile(
+      userId: 'guest',
+      displayName: displayName,
+      bio: bio,
+      avatarUrl: avatarUrl ?? '',
+    );
+  }
 }

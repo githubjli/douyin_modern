@@ -18,12 +18,14 @@ class HomeDramaItem {
     required this.title,
     required this.subtitle,
     this.coverUrl,
+    this.thumbnailUrl,
   });
 
   final String id;
   final String title;
   final String subtitle;
   final String? coverUrl;
+  final String? thumbnailUrl;
 }
 
 class HomeLiveItem {

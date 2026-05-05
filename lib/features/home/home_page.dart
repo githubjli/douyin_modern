@@ -141,6 +141,7 @@ class _HomePageState extends State<HomePage> {
               return _PortalCard(
                 title: recommendedItem.title,
                 subtitle: recommendedItem.subtitle,
+                imageUrl: recommendedItem.thumbnailUrl,
                 kind: _CardKind.video,
               );
             },
@@ -260,7 +261,7 @@ class _HorizontalCards extends StatelessWidget {
       return item.thumbnailUrl;
     }
     if (item is HomeDramaItem) {
-      return item.coverUrl;
+      return item.coverUrl ?? item.thumbnailUrl;
     }
     if (item is HomeLiveItem) {
       return item.thumbnailUrl;
@@ -301,7 +302,7 @@ class _PortalCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(child: _CardCover(imageUrl: imageUrl)),
+          Expanded(child: _CardCover(imageUrl: imageUrl, kind: kind)),
           const SizedBox(height: AppSpacing.sm),
           Text(
             badge,
@@ -324,15 +325,16 @@ class _PortalCard extends StatelessWidget {
 }
 
 class _CardCover extends StatelessWidget {
-  const _CardCover({required this.imageUrl});
+  const _CardCover({required this.imageUrl, required this.kind});
 
   final String? imageUrl;
+  final _CardKind kind;
 
   @override
   Widget build(BuildContext context) {
     final String? trimmedUrl = imageUrl?.trim();
     if (trimmedUrl == null || trimmedUrl.isEmpty) {
-      return const _CardCoverPlaceholder();
+      return _CardCoverPlaceholder(kind: kind);
     }
 
     return ClipRRect(
@@ -341,11 +343,11 @@ class _CardCover extends StatelessWidget {
         trimmedUrl,
         fit: BoxFit.cover,
         width: double.infinity,
-        errorBuilder: (_, __, ___) => const _CardCoverPlaceholder(),
+        errorBuilder: (_, __, ___) => _CardCoverPlaceholder(kind: kind),
         loadingBuilder: (BuildContext context, Widget child,
             ImageChunkEvent? loadingProgress) {
           if (loadingProgress == null) return child;
-          return const _CardCoverPlaceholder();
+          return _CardCoverPlaceholder(kind: kind);
         },
       ),
     );
@@ -353,25 +355,88 @@ class _CardCover extends StatelessWidget {
 }
 
 class _CardCoverPlaceholder extends StatelessWidget {
-  const _CardCoverPlaceholder();
+  const _CardCoverPlaceholder({required this.kind});
+
+  final _CardKind kind;
 
   @override
   Widget build(BuildContext context) {
+    final (_GradientSpec gradientSpec, IconData icon, String label, bool liveBadge) =
+        switch (kind) {
+      _CardKind.drama => (
+          const _GradientSpec(Color(0xFF463522), Color(0xFF221A15)),
+          Icons.theaters,
+          'Drama',
+          false
+        ),
+      _CardKind.live => (
+          const _GradientSpec(Color(0xFF2E2419), Color(0xFF171514)),
+          Icons.live_tv,
+          'Live',
+          true
+        ),
+      _ => (
+          const _GradientSpec(Color(0xFF3B352A), Color(0xFF1F1E1D)),
+          Icons.ondemand_video,
+          'Video',
+          false
+        ),
+    };
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFF3B352A), Color(0xFF1F1E1D)],
+          colors: <Color>[gradientSpec.start, gradientSpec.end],
         ),
       ),
-      child: const Center(
-        child: Icon(Icons.ondemand_video, color: AppColors.mutedOliveText, size: 28),
+      child: Stack(
+        children: <Widget>[
+          if (liveBadge)
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.brandGold,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: Text(
+                  'LIVE',
+                  style:
+                      AppTextStyles.caption.copyWith(color: AppColors.warmBackground),
+                ),
+              ),
+            ),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(icon, color: AppColors.mutedOliveText, size: 30),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  label,
+                  style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _GradientSpec {
+  const _GradientSpec(this.start, this.end);
+
+  final Color start;
+  final Color end;
 }
 
 class _LiveEmptyCard extends StatelessWidget {

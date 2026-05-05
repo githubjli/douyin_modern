@@ -1,0 +1,142 @@
+import 'package:flutter/foundation.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/endpoints.dart';
+import '../domain/home_models.dart';
+import '../domain/home_repository.dart';
+
+class RemoteHomeRepository implements HomeRepository {
+  RemoteHomeRepository({required ApiClient apiClient}) : _apiClient = apiClient;
+
+  final ApiClient _apiClient;
+
+  @override
+  Future<HomePortalData> getHomePortalData() async {
+    List<Map<String, dynamic>> videos = <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> dramas = <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> live = <Map<String, dynamic>>[];
+
+    try {
+      final videosResponse = await _apiClient.get<dynamic>(Endpoints.publicVideos);
+      videos = _rows(videosResponse.data);
+    } catch (_) {
+      assert(() {
+        debugPrint('[Home] videos fetch failed');
+        return true;
+      }());
+    }
+
+    try {
+      final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
+      dramas = _rows(dramasResponse.data);
+    } catch (_) {
+      assert(() {
+        debugPrint('[Home] dramas fetch failed');
+        return true;
+      }());
+    }
+
+    try {
+      final liveResponse = await _apiClient.get<dynamic>('/api/live/');
+      live = _rows(liveResponse.data);
+    } catch (_) {
+      assert(() {
+        debugPrint('[Home] live fetch failed');
+        return true;
+      }());
+    }
+
+    assert(() {
+      debugPrint('[Home] videos=${videos.length}, dramas=${dramas.length}, live=${live.length}');
+      return true;
+    }());
+
+    final List<HomeVideoItem> latestVideos = videos.take(6).map(_mapVideo).toList();
+    final List<HomeVideoItem> featured = latestVideos.take(2).toList();
+    final List<HomeDramaItem> shortDrama = dramas.take(6).map(_mapDrama).toList();
+    final List<HomeLiveItem> liveNow = live.take(6).map(_mapLive).toList();
+
+    final List<HomeVideoItem> recommended =
+        (videos.skip(2).take(4).map(_mapVideo).toList()) +
+            (latestVideos.isEmpty
+                ? const <HomeVideoItem>[]
+                : <HomeVideoItem>[latestVideos.first]);
+
+    return HomePortalData(
+      featured: featured,
+      latestVideos: latestVideos,
+      shortDrama: shortDrama,
+      liveNow: liveNow,
+      recommended: recommended,
+    );
+  }
+
+  List<Map<String, dynamic>> _rows(dynamic data) {
+    if (data is List) return data.whereType<Map<String, dynamic>>().toList();
+    if (data is Map<String, dynamic>) {
+      final dynamic results = data['results'];
+      if (results is List) {
+        return results.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  HomeVideoItem _mapVideo(Map<String, dynamic> m) {
+    final String title = _str(m['title']) ?? 'Untitled video';
+    final String owner = _str(m['owner_name']) ?? 'Creator';
+    final String views = _str(m['view_count']) ?? '0';
+    return HomeVideoItem(
+      id: _str(m['id']) ?? title,
+      title: title,
+      subtitle: '$owner • $views views',
+    );
+  }
+
+  HomeDramaItem _mapDrama(Map<String, dynamic> m) {
+    final String title = _str(m['title']) ?? 'Untitled drama';
+    final String total = _str(m['total_episodes']) ?? '0';
+    final String free = _str(m['free_episode_count']) ?? '0';
+    final String locked = _str(m['locked_episode_count']) ?? '0';
+    return HomeDramaItem(
+      id: _str(m['id']) ?? title,
+      title: title,
+      subtitle: '$total episodes • Free $free • Locked $locked',
+    );
+  }
+
+  HomeLiveItem _mapLive(Map<String, dynamic> m) {
+    final String title = _str(m['title']) ?? 'Live stream';
+    final String owner = _str(m['owner_name']) ?? 'Host';
+    final String viewers = _str(m['viewer_count']) ?? '0';
+    final String? thumb = _str(m['thumbnail_url']) ??
+        _str(m['preview_image_url']) ??
+        _str(m['snapshot_url']);
+
+    return HomeLiveItem(
+      id: _str(m['id']) ?? title,
+      title: title,
+      subtitle: '$owner • $viewers watching',
+      ownerName: owner,
+      ownerAvatarUrl: _str(m['owner_avatar_url']),
+      status: _str(m['effective_status']) ?? _str(m['status']),
+      viewerCount: _int(m['viewer_count']),
+      thumbnailUrl: thumb,
+      playbackUrl: _str(m['playback_url']),
+      watchUrl: _str(m['watch_url']),
+      createdAt: _str(m['created_at']),
+    );
+  }
+
+  String? _str(dynamic v) {
+    if (v is String) return v;
+    if (v is num) return v.toString();
+    return null;
+  }
+
+  int? _int(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.round();
+    if (v is String) return int.tryParse(v);
+    return null;
+  }
+}

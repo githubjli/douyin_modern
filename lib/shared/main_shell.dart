@@ -7,9 +7,16 @@ import '../features/membership/membership_page.dart';
 import '../features/profile/profile_page.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, this.enableFeedVideo = true});
+  const MainShell({
+    super.key,
+    this.enableFeedVideo = true,
+    this.enableRemoteFeed = true,
+    this.enableRemoteHome = true,
+  });
 
   final bool enableFeedVideo;
+  final bool enableRemoteFeed;
+  final bool enableRemoteHome;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -19,14 +26,15 @@ class _MainShellState extends State<MainShell> {
   int _index = 0;
 
   late final List<Widget> _pages = <Widget>[
-    const HomePage(),
-    FeedPage(enableVideo: widget.enableFeedVideo),
+    HomePage(useRemote: widget.enableRemoteHome),
+    FeedPage(
+      enableVideo: widget.enableFeedVideo,
+      enableRemoteFeed: widget.enableRemoteFeed,
+    ),
     const SizedBox.shrink(),
     const MembershipPage(),
     const ProfilePage(),
   ];
-
-  bool get _isShortsTab => _index == 1;
 
   Future<void> _onTapTab(int value) async {
     if (value == 2) {
@@ -82,30 +90,47 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       extendBody: true,
       body: IndexedStack(index: displayIndex, children: displayPages),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: _isShortsTab
-            ? Colors.black.withValues(alpha: 0.55)
-            : AppColors.cardBackground.withValues(alpha: 0.97),
-        selectedItemColor:
-            _isShortsTab ? AppColors.brandGold : AppColors.deepGold,
-        unselectedItemColor:
-            _isShortsTab ? Colors.white70 : AppColors.mutedOliveText,
-        onTap: _onTapTab,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.play_arrow_rounded), label: 'Shorts'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle, size: 34),
-            label: '',
-            tooltip: 'Create',
-          ),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.workspace_premium), label: 'Membership'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground.withValues(alpha: 0.95),
+          border: const Border(top: BorderSide(color: AppColors.softBorder)),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 12,
+              offset: Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _index,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: AppColors.brandGold,
+          unselectedItemColor: AppColors.cocoaText,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          showUnselectedLabels: true,
+          onTap: _onTapTab,
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.play_arrow_rounded),
+              label: 'Short',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.add_circle, size: 36, color: AppColors.brandGold),
+              label: '',
+              tooltip: 'Create',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.workspace_premium),
+              label: 'Member',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          ],
+        ),
       ),
     );
   }

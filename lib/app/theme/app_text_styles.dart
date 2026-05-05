@@ -8,13 +8,13 @@ class AppTextStyles {
   static const TextStyle sectionTitle = TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.w700,
-    color: AppColors.inkDark,
+    color: AppColors.cocoaText,
   );
 
   static const TextStyle cardTitle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: AppColors.inkDark,
+    color: AppColors.cocoaText,
   );
 
   static const TextStyle body = TextStyle(

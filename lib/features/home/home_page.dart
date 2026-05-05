@@ -137,9 +137,10 @@ class _HomePageState extends State<HomePage> {
               childAspectRatio: 1.16,
             ),
             itemBuilder: (_, int index) {
+              final HomeVideoItem recommendedItem = data.recommended[index];
               return _PortalCard(
-                title: data.recommended[index].title,
-                subtitle: data.recommended[index].subtitle,
+                title: recommendedItem.title,
+                subtitle: recommendedItem.subtitle,
                 kind: _CardKind.video,
               );
               return _ContentCard(item: item);

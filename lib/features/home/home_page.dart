@@ -242,6 +242,16 @@ class _HomePageState extends State<HomePage> {
         selectedIndex: selectedIndex,
         onSelected: (int index) => _selectVideoCategory(categories, index),
       ),
+      if (!isAllSelected || _videoLoadNotice != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          _videoLoadNotice ??
+              (usingCategoryPage
+                  ? 'Showing loaded ${selectedCategory.label} videos.'
+                  : 'Filtering currently loaded videos. Use Load more for additional results.'),
+          style: AppTextStyles.caption.copyWith(fontSize: 10),
+        ),
+      ],
       const SizedBox(height: AppSpacing.md),
       if (_loadingVideoCategory)
         const _ChannelLoadingCard(message: 'Loading videos...')

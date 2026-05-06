@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -15,12 +17,14 @@ class FeedPage extends StatefulWidget {
     this.mockRepository = const MockFeedRepository(),
     this.remoteRepository,
     this.enableRemoteFeed = true,
+    this.isActive = true,
   });
 
   final bool enableVideo;
   final FeedRepository mockRepository;
   final FeedRepository? remoteRepository;
   final bool enableRemoteFeed;
+  final bool isActive;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -37,6 +41,7 @@ class _FeedPageState extends State<FeedPage> {
   List<FeedItem> _items = const <FeedItem>[];
   bool _loading = true;
   String? _notice;
+  bool _resumeOnTabActive = false;
 
   @override
   void initState() {
@@ -92,17 +97,21 @@ class _FeedPageState extends State<FeedPage> {
     });
 
     if (widget.enableVideo && _items.isNotEmpty) {
-      await _activateIndex(0);
+      await _activateIndex(0, autoPlay: widget.isActive);
     }
   }
 
-  Future<void> _activateIndex(int index) async {
+  Future<void> _activateIndex(int index, {bool autoPlay = true}) async {
     _currentIndex = index;
     await _ensureController(index);
 
     final VideoPlayerController? active = _controllers[index];
     if (active != null && active.value.isInitialized) {
-      await active.play();
+      if (autoPlay) {
+        await active.play();
+      } else {
+        await active.pause();
+      }
     }
 
     await _disposeNonVisible(index);
@@ -149,6 +158,37 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   @override
+  void didUpdateWidget(covariant FeedPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive == widget.isActive || !widget.enableVideo || _items.isEmpty) {
+      return;
+    }
+
+    final VideoPlayerController? active = _controllers[_currentIndex];
+
+    if (!widget.isActive) {
+      final bool wasPlaying =
+          active != null && active.value.isInitialized && active.value.isPlaying;
+      _resumeOnTabActive = wasPlaying;
+      if (wasPlaying) {
+        unawaited(active.pause());
+      }
+      return;
+    }
+
+    if (_controllers.containsKey(_currentIndex)) {
+      if (_resumeOnTabActive) {
+        unawaited(active?.play());
+      }
+      _resumeOnTabActive = false;
+      return;
+    }
+
+    unawaited(_activateIndex(_currentIndex, autoPlay: _resumeOnTabActive));
+    _resumeOnTabActive = false;
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     for (final VideoPlayerController controller in _controllers.values) {
@@ -180,7 +220,7 @@ class _FeedPageState extends State<FeedPage> {
           onPageChanged: (int index) {
             _currentIndex = index;
             if (widget.enableVideo) {
-              _activateIndex(index);
+              _activateIndex(index, autoPlay: widget.isActive);
             } else {
               setState(() {});
             }

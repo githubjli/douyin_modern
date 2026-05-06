@@ -66,6 +66,8 @@ class HomeLiveItem {
     this.ownerName,
     this.ownerAvatarUrl,
     this.status,
+    this.effectiveStatus,
+    this.djangoStatus,
     this.viewerCount,
     this.thumbnailUrl,
     this.playbackUrl,
@@ -79,6 +81,8 @@ class HomeLiveItem {
   final String? ownerName;
   final String? ownerAvatarUrl;
   final String? status;
+  final String? effectiveStatus;
+  final String? djangoStatus;
   final int? viewerCount;
   final String? thumbnailUrl;
   final String? playbackUrl;

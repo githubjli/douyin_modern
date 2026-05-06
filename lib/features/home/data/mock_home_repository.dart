@@ -35,8 +35,22 @@ class MockHomeRepository implements HomeRepository {
         ),
       ],
       liveNow: <HomeLiveItem>[
-        HomeLiveItem(id: 'l1', title: 'Finance Live Desk', subtitle: '1.2K watching'),
-        HomeLiveItem(id: 'l2', title: 'Travel Street Cam', subtitle: '890 watching'),
+        HomeLiveItem(
+          id: 'l1',
+          title: 'Finance Live Desk',
+          subtitle: 'Finance Live Desk · 1200 watching',
+          ownerName: 'Finance Live Desk',
+          status: 'live',
+          viewerCount: 1200,
+        ),
+        HomeLiveItem(
+          id: 'l2',
+          title: 'Travel Street Cam',
+          subtitle: 'Travel Street Cam · 890 watching',
+          ownerName: 'Travel Street Cam',
+          status: 'ready',
+          viewerCount: 890,
+        ),
       ],
       recommended: <HomeVideoItem>[
         HomeVideoItem(id: 'r1', title: 'Creator Spotlight', subtitle: 'Weekly editorial pick'),

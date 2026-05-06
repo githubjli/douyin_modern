@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
@@ -86,7 +87,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _session = const AuthSession(isSignedIn: false, userId: null, displayName: 'Guest');
         _profile = null;
-        _error = e.message;
+        _error = _friendlyAuthError(e.message);
       });
     } catch (_) {
       if (!mounted) return;
@@ -115,7 +116,7 @@ class _ProfilePageState extends State<ProfilePage> {
       await _loadSession();
     } on ApiError catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.message);
+      setState(() => _error = _friendlyAuthError(e.message));
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'Login failed. Please try again.');
@@ -140,15 +141,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isSignedIn = _session?.isSignedIn == true;
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
-          const BrandPageHeader(title: 'Profile'),
-          const SizedBox(height: AppSpacing.md),
+          if (_loading || isSignedIn) ...<Widget>[
+            const BrandPageHeader(title: 'Profile'),
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (_loading)
             const _WarmCard(title: 'Loading', subtitle: 'Checking your session...')
-          else if (_session?.isSignedIn == true)
+          else if (isSignedIn)
             _SignedInProfileCard(
               profile: _profile,
               onLogout: _logout,
@@ -159,9 +164,11 @@ class _ProfilePageState extends State<ProfilePage> {
               emailController: _emailController,
               passwordController: _passwordController,
               loggingIn: _loggingIn,
+              error: _error,
               onLogin: _login,
+              onSignUp: _showSignUpPlaceholder,
             ),
-          if (_error != null) ...<Widget>[
+          if (_error != null && (_loading || isSignedIn)) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
             _WarmCard(title: 'Notice', subtitle: _error!),
           ],
@@ -169,6 +176,19 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+
+  void _showSignUpPlaceholder() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sign Up coming soon.')),
+    );
+  }
+}
+
+String _friendlyAuthError(String message) {
+  if (message.contains('Given token not valid for any token type')) {
+    return 'Session expired. Please sign in again.';
+  }
+  return message;
 }
 
 class _GuestProfileCard extends StatelessWidget {
@@ -176,55 +196,153 @@ class _GuestProfileCard extends StatelessWidget {
     required this.emailController,
     required this.passwordController,
     required this.loggingIn,
+    required this.error,
     required this.onLogin,
+    required this.onSignUp,
   });
 
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final bool loggingIn;
+  final String? error;
   final Future<void> Function() onLogin;
+  final VoidCallback onSignUp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          children: <Widget>[
+            const SizedBox(height: AppSpacing.xl),
+            Container(
+              width: 96,
+              height: 96,
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                border: Border.all(color: AppColors.softBorder),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              ),
+              child: Image.asset(AppAssets.meowLogo, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text('Meow Media', style: AppTextStyles.sectionTitle),
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              'Sign in to continue',
+              style: AppTextStyles.body.copyWith(color: AppColors.mutedOliveText),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                border: Border.all(color: AppColors.softBorder),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  TextField(
+                    controller: emailController,
+                    cursorColor: AppColors.brandGold,
+                    keyboardType: TextInputType.emailAddress,
+                    style: AppTextStyles.body,
+                    decoration: _loginInputDecoration('Email'),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: passwordController,
+                    cursorColor: AppColors.brandGold,
+                    obscureText: true,
+                    style: AppTextStyles.body,
+                    decoration: _loginInputDecoration('Password'),
+                  ),
+                  if (error != null) ...<Widget>[
+                    const SizedBox(height: AppSpacing.sm),
+                    _InlineAuthMessage(message: error!),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+                  ElevatedButton(
+                    onPressed: loggingIn ? null : onLogin,
+                    child: Text(loggingIn ? 'Signing in...' : 'Sign In'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(
+              onPressed: onSignUp,
+              child: const RichText(
+                text: TextSpan(
+                  style: AppTextStyles.caption,
+                  children: <TextSpan>[
+                    TextSpan(text: 'Don’t have an account? '),
+                    TextSpan(
+                      text: 'Sign Up',
+                      style: TextStyle(
+                        color: AppColors.brandGold,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+InputDecoration _loginInputDecoration(String label) {
+  return InputDecoration(
+    labelText: label,
+    filled: true,
+    fillColor: AppColors.warmBackground,
+    labelStyle: AppTextStyles.caption,
+    floatingLabelStyle: AppTextStyles.caption.copyWith(
+      color: AppColors.brandGold,
+    ),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.sm,
+      vertical: AppSpacing.sm,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: AppColors.softBorder),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: AppColors.brandGold),
+    ),
+  );
+}
+
+class _InlineAuthMessage extends StatelessWidget {
+  const _InlineAuthMessage({required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.softBorder),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text('Guest mode', style: AppTextStyles.cardTitle),
-          const SizedBox(height: AppSpacing.xs),
-          const Text('Log in to load your backend profile.', style: AppTextStyles.body),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: 'Email'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: passwordController,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Password'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: loggingIn ? null : onLogin,
-                  child: Text(loggingIn ? 'Logging in...' : 'Login'),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              const OutlinedButton(onPressed: null, child: Text('Register')),
-            ],
-          ),
-        ],
+      decoration: BoxDecoration(
+        color: AppColors.warmBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Text(
+        message,
+        style: AppTextStyles.caption.copyWith(color: AppColors.mutedOliveText),
       ),
     );
   }

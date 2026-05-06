@@ -30,10 +30,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeRepository _remoteRepo;
   final PageController _heroController = PageController();
+  final PageController _newsHeroController = PageController();
   HomePortalData? _data;
   bool _loading = true;
   String? _notice;
   int _activeHeroIndex = 0;
+  int _activeNewsHeroIndex = 0;
   int _selectedChannelIndex = 0;
   int _selectedNewsFilterIndex = 0;
   int _selectedVideoCategoryIndex = 0;
@@ -115,6 +117,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _heroController.dispose();
+    _newsHeroController.dispose();
     super.dispose();
   }
 
@@ -213,13 +216,27 @@ class _HomePageState extends State<HomePage> {
     final List<HomeVideoItem> newsVideos =
         _newsVideoItems ?? _localNewsVideos(data.latestVideos);
     final List<dynamic> newsItems = _newsItems(data, newsVideos);
+    final List<dynamic> newsHeroItems = _newsHeroItems(newsItems);
     final List<dynamic> visibleItems = _filterNewsItems(
       newsItems,
       _selectedNewsFilterIndex,
     ).take(30).toList();
 
     return <Widget>[
-      _NewsChannelHero(item: _newsHeroItem(newsItems)),
+      _NewsHeroCarousel(
+        items: newsHeroItems,
+        controller: _newsHeroController,
+        onPageChanged: (int index) {
+          setState(() => _activeNewsHeroIndex = index);
+        },
+      ),
+      if (newsHeroItems.length > 1) ...<Widget>[
+        const SizedBox(height: AppSpacing.xs),
+        _HeroDots(
+          count: newsHeroItems.length,
+          activeIndex: _activeNewsHeroIndex,
+        ),
+      ],
       const SizedBox(height: AppSpacing.sm),
       _NewsFilterChips(
         selectedIndex: _selectedNewsFilterIndex,
@@ -709,15 +726,19 @@ DateTime? _newsCreatedAt(dynamic item) {
   return DateTime.tryParse(value);
 }
 
-dynamic _newsHeroItem(List<dynamic> items) {
-  for (final HomeLiveItem item in items.whereType<HomeLiveItem>()) {
-    final String status = _liveStatus(item);
-    if (status == 'live' || status == 'ready') return item;
-  }
-  for (final HomeVideoItem item in items.whereType<HomeVideoItem>()) {
-    return item;
-  }
-  return items.isEmpty ? null : items.first;
+List<dynamic> _newsHeroItems(List<dynamic> items) {
+  final List<dynamic> heroItems = <dynamic>[
+    ...items.whereType<HomeLiveItem>().where((HomeLiveItem item) {
+      final String status = _liveStatus(item);
+      return status == 'live' || status == 'ready';
+    }),
+    ...items.whereType<HomeVideoItem>(),
+    ...items.whereType<HomeLiveItem>().where((HomeLiveItem item) {
+      final String status = _liveStatus(item);
+      return status != 'live' && status != 'ready';
+    }),
+  ];
+  return heroItems.isEmpty ? <dynamic>[null] : heroItems.take(5).toList();
 }
 
 bool _isNewsVideo(HomeVideoItem item) {
@@ -1072,29 +1093,46 @@ class _SectionGrid extends StatelessWidget {
   }
 }
 
-class _NewsChannelHero extends StatelessWidget {
-  const _NewsChannelHero({required this.item});
+class _NewsHeroCarousel extends StatelessWidget {
+  const _NewsHeroCarousel({
+    required this.items,
+    required this.controller,
+    required this.onPageChanged,
+  });
 
-  final dynamic item;
+  final List<dynamic> items;
+  final PageController controller;
+  final ValueChanged<int> onPageChanged;
 
   @override
   Widget build(BuildContext context) {
-    final dynamic selectedItem = item;
     return SizedBox(
       height: 176,
-      child: _PortalCard(
-        title: _newsTitle(selectedItem),
-        subtitle: selectedItem == null
-            ? 'No news content yet'
-            : _newsMetadata(selectedItem),
-        imageUrl: selectedItem == null ? null : _resolveImageUrl(selectedItem),
-        kind: selectedItem is HomeLiveItem ? _CardKind.live : _CardKind.video,
-        badgeOverride:
-            selectedItem == null ? 'News' : _newsHeroBadgeLabel(selectedItem),
-        compactOverlay: true,
-        onTap: selectedItem is HomeLiveItem
-            ? () => _showLiveComingSoon(context)
-            : null,
+      child: PageView.builder(
+        controller: controller,
+        itemCount: items.length,
+        onPageChanged: onPageChanged,
+        itemBuilder: (_, int index) {
+          final dynamic selectedItem = items[index];
+          return _PortalCard(
+            title: _newsTitle(selectedItem),
+            subtitle: selectedItem == null
+                ? 'No news content yet'
+                : _newsMetadata(selectedItem),
+            imageUrl:
+                selectedItem == null ? null : _resolveImageUrl(selectedItem),
+            kind: selectedItem is HomeLiveItem
+                ? _CardKind.live
+                : _CardKind.video,
+            badgeOverride: selectedItem == null
+                ? 'News'
+                : _newsHeroBadgeLabel(selectedItem),
+            compactOverlay: true,
+            onTap: selectedItem is HomeLiveItem
+                ? () => _showLiveComingSoon(context)
+                : null,
+          );
+        },
       ),
     );
   }

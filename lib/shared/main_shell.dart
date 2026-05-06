@@ -90,16 +90,16 @@ class _MainShellState extends State<MainShell> {
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: AppColors.cardBackground.withValues(alpha: 0.72),
+              color: AppColors.cardBackground.withValues(alpha: 0.62),
               border: Border(
                 top: BorderSide(
-                  color: AppColors.softBorder.withValues(alpha: 0.55),
+                  color: AppColors.softBorder.withValues(alpha: 0.42),
                   width: 0.5,
                 ),
               ),
               boxShadow: const <BoxShadow>[
                 BoxShadow(
-                  color: Color(0x33000000),
+                  color: Color(0x22000000),
                   blurRadius: 10,
                   offset: Offset(0, -1),
                 ),
@@ -125,11 +125,13 @@ class _MainShellState extends State<MainShell> {
                   onTap: _onTapTab,
                   items: const <BottomNavigationBarItem>[
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.home),
+                      icon: Icon(Icons.home_outlined),
+                      activeIcon: Icon(Icons.home_rounded),
                       label: 'Home',
                     ),
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.play_arrow_rounded),
+                      icon: Icon(Icons.play_circle_outline_rounded),
+                      activeIcon: Icon(Icons.play_circle_fill_rounded),
                       label: 'Short',
                     ),
                     BottomNavigationBarItem(
@@ -143,10 +145,12 @@ class _MainShellState extends State<MainShell> {
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(Icons.star_border_rounded),
+                      activeIcon: Icon(Icons.star_rounded),
                       label: 'Member',
                     ),
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.person),
+                      icon: Icon(Icons.person_outline_rounded),
+                      activeIcon: Icon(Icons.person_rounded),
                       label: 'Profile',
                     ),
                   ],

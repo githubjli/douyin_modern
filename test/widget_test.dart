@@ -24,6 +24,17 @@ void main() {
         findsOneWidget);
 
     expect(
+      find.descendant(of: bottomNav, matching: find.byIcon(Icons.home_rounded)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: bottomNav,
+        matching: find.byIcon(Icons.play_circle_outline_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.descendant(of: bottomNav, matching: find.byIcon(Icons.add_circle)),
       findsOneWidget,
     );
@@ -31,6 +42,13 @@ void main() {
       find.descendant(
         of: bottomNav,
         matching: find.byIcon(Icons.star_border_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: bottomNav,
+        matching: find.byIcon(Icons.person_outline_rounded),
       ),
       findsOneWidget,
     );

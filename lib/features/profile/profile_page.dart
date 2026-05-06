@@ -276,7 +276,7 @@ class _GuestProfileCard extends StatelessWidget {
             TextButton(
               onPressed: onSignUp,
               child: RichText(
-                text: TextSpan(
+                text: const TextSpan(
                   style: AppTextStyles.caption,
                   children: <TextSpan>[
                     TextSpan(text: 'Don’t have an account? '),

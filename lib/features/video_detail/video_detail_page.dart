@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
@@ -79,6 +80,8 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
             const SizedBox(height: AppSpacing.md),
             _VideoInfoSection(video: _video, loading: _loadingDetail),
             const SizedBox(height: AppSpacing.md),
+            _AuthorFollowRow(video: _video, onFollow: _showActionPlaceholder),
+            const SizedBox(height: AppSpacing.sm),
             _VideoActionRow(onAction: _showActionPlaceholder),
             if (_video.description?.trim().isNotEmpty ?? false) ...<Widget>[
               const SizedBox(height: AppSpacing.md),
@@ -399,6 +402,76 @@ class _InfoBadge extends StatelessWidget {
   }
 }
 
+class _AuthorFollowRow extends StatelessWidget {
+  const _AuthorFollowRow({required this.video, required this.onFollow});
+
+  final HomeVideoItem video;
+  final ValueChanged<String> onFollow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: Image.asset(
+            AppAssets.meowLogo,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                _ownerLabel(video),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                'Creator · Public video',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption.copyWith(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        _FollowButton(onTap: () => onFollow('Follow')),
+      ],
+    );
+  }
+}
+
+class _FollowButton extends StatelessWidget {
+  const _FollowButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.brandGold,
+        side: const BorderSide(color: AppColors.brandGold),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
+        textStyle: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700),
+      ),
+      child: const Text('Follow'),
+    );
+  }
+}
+
 class _VideoActionRow extends StatelessWidget {
   const _VideoActionRow({required this.onAction});
 
@@ -406,13 +479,34 @@ class _VideoActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
       children: <Widget>[
-        _ActionButton(icon: Icons.favorite_border, label: 'Like', onTap: onAction),
-        _ActionButton(icon: Icons.chat_bubble_outline, label: 'Comment', onTap: onAction),
-        _ActionButton(icon: Icons.card_giftcard, label: 'Gift', onTap: onAction),
-        _ActionButton(icon: Icons.ios_share, label: 'Share', onTap: onAction),
+        _ActionButton(
+          icon: Icons.favorite_border,
+          label: '25k',
+          action: 'Like',
+          onTap: onAction,
+        ),
+        _ActionButton(
+          icon: Icons.chat_bubble_outline,
+          label: '2.1k',
+          action: 'Comment',
+          onTap: onAction,
+        ),
+        _ActionButton(
+          icon: Icons.card_giftcard,
+          label: '73',
+          action: 'Gift',
+          onTap: onAction,
+        ),
+        _ActionButton(
+          icon: Icons.ios_share,
+          label: 'Share',
+          action: 'Share',
+          onTap: onAction,
+        ),
       ],
     );
   }
@@ -422,36 +516,30 @@ class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,
     required this.label,
+    required this.action,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final String action;
   final ValueChanged<String> onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onTap(label),
-      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-      child: Container(
+    return OutlinedButton.icon(
+      onPressed: () => onTap(action),
+      icon: Icon(icon, size: 14),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.mutedOliveText,
+        side: const BorderSide(color: AppColors.softBorder),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
+          vertical: AppSpacing.xxs,
         ),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          border: Border.all(color: AppColors.softBorder),
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, color: AppColors.brandGold, size: 18),
-            const SizedBox(height: AppSpacing.xxs),
-            Text(label, style: AppTextStyles.caption.copyWith(fontSize: 10)),
-          ],
-        ),
+        visualDensity: VisualDensity.compact,
+        textStyle: AppTextStyles.caption.copyWith(fontSize: 11),
       ),
     );
   }
@@ -464,14 +552,16 @@ class _VideoDescription extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.softBorder),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-      ),
-      child: Text(description, style: AppTextStyles.body),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Description',
+          style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(description, style: AppTextStyles.body),
+      ],
     );
   }
 }

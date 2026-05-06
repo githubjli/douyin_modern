@@ -108,19 +108,19 @@ class _MainShellState extends State<MainShell> {
             child: SafeArea(
               top: false,
               child: SizedBox(
-                height: 68,
+                height: 64,
                 child: BottomNavigationBar(
                   currentIndex: _index,
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
-                  iconSize: 25,
+                  iconSize: 24,
                   selectedItemColor: AppColors.brandGold,
                   unselectedItemColor: AppColors.cocoaText,
                   selectedFontSize: 11,
                   unselectedFontSize: 11,
-                  selectedLabelStyle: const TextStyle(height: 1.1),
-                  unselectedLabelStyle: const TextStyle(height: 1.1),
+                  selectedLabelStyle: const TextStyle(height: 1),
+                  unselectedLabelStyle: const TextStyle(height: 1),
                   showUnselectedLabels: true,
                   onTap: _onTapTab,
                   items: const <BottomNavigationBarItem>[

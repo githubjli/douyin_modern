@@ -90,16 +90,16 @@ class _MainShellState extends State<MainShell> {
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: AppColors.cardBackground.withValues(alpha: 0.62),
+              color: AppColors.cardBackground.withValues(alpha: 0.54),
               border: Border(
                 top: BorderSide(
-                  color: AppColors.softBorder.withValues(alpha: 0.42),
+                  color: AppColors.softBorder.withValues(alpha: 0.36),
                   width: 0.5,
                 ),
               ),
               boxShadow: const <BoxShadow>[
                 BoxShadow(
-                  color: Color(0x22000000),
+                  color: Color(0x1A000000),
                   blurRadius: 10,
                   offset: Offset(0, -1),
                 ),
@@ -108,7 +108,7 @@ class _MainShellState extends State<MainShell> {
             child: SafeArea(
               top: false,
               child: SizedBox(
-                height: 64,
+                height: 58,
                 child: BottomNavigationBar(
                   currentIndex: _index,
                   type: BottomNavigationBarType.fixed,
@@ -119,8 +119,8 @@ class _MainShellState extends State<MainShell> {
                   unselectedItemColor: AppColors.cocoaText,
                   selectedFontSize: 11,
                   unselectedFontSize: 11,
-                  selectedLabelStyle: const TextStyle(height: 1),
-                  unselectedLabelStyle: const TextStyle(height: 1),
+                  selectedLabelStyle: const TextStyle(height: 0.95),
+                  unselectedLabelStyle: const TextStyle(height: 0.95),
                   showUnselectedLabels: true,
                   onTap: _onTapTab,
                   items: const <BottomNavigationBarItem>[

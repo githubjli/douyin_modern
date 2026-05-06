@@ -158,7 +158,7 @@ class _HomeTopRow extends StatelessWidget {
     return Row(children: <Widget>[
       ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: Image.asset(AppAssets.meowLogo, width: 26, height: 26),
+        child: Image.asset(AppAssets.meowLogo, width: 20, height: 20),
       ),
       const SizedBox(width: AppSpacing.sm),
       const Expanded(child: _SearchPill()),
@@ -184,32 +184,6 @@ class _ChannelNav extends StatelessWidget {
           style: AppTextStyles.caption.copyWith(
               color: i == 0 ? AppColors.brandGold : AppColors.cocoaText),
         ),
-      ),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({required this.label, required this.selected});
-
-  final String label;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.brandGold : AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(color: AppColors.softBorder),
-      ),
-      child: Text(
-        label,
-        style: selected
-            ? AppTextStyles.body.copyWith(color: AppColors.warmBackground)
-            : AppTextStyles.caption,
       ),
     );
   }
@@ -290,7 +264,7 @@ class _HeroCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<dynamic> items = <dynamic>[...data.shortDrama.take(3), ...data.featured.take(2)];
     return SizedBox(
-      height: 210,
+      height: 176,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.isEmpty ? 1 : items.length,
@@ -298,13 +272,14 @@ class _HeroCarousel extends StatelessWidget {
         itemBuilder: (_, int index) {
           final dynamic item = items.isEmpty ? null : items[index];
           final _CardKind kind = item is HomeDramaItem ? _CardKind.drama : _CardKind.video;
-          return AspectRatio(
-            aspectRatio: 1.6,
+          return SizedBox(
+            width: MediaQuery.sizeOf(context).width - (AppSpacing.md * 2),
             child: _PortalCard(
               title: item?.title as String? ?? 'Featured Picks',
               subtitle: item?.subtitle as String? ?? 'Drama and video recommendations',
               imageUrl: _resolveImageUrl(item),
               kind: kind,
+              compactOverlay: true,
             ),
           );
         },
@@ -348,18 +323,42 @@ class _HeroDots extends StatelessWidget {
   }
 }
 
+class _HeroDots extends StatelessWidget {
+  const _HeroDots();
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List<Widget>.generate(
+        4,
+        (int i) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: i == 0 ? 12 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PortalCard extends StatelessWidget {
   const _PortalCard({
     required this.title,
     required this.subtitle,
     required this.kind,
     this.imageUrl,
+    this.compactOverlay = false,
   });
 
   final String title;
   final String subtitle;
   final _CardKind kind;
   final String? imageUrl;
+  final bool compactOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -414,23 +413,23 @@ class _PortalCard extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: AppSpacing.sm,
-            right: AppSpacing.sm,
-            bottom: AppSpacing.sm,
+            left: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+            right: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+            bottom: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
                   title,
-                  maxLines: 2,
+                  maxLines: compactOverlay ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(color: Colors.white),
                 ),
-                const SizedBox(height: AppSpacing.xxs),
+                SizedBox(height: compactOverlay ? 2 : AppSpacing.xxs),
                 Text(
                   subtitle,
-                  maxLines: 2,
+                  maxLines: compactOverlay ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(color: Colors.white70),
                 ),

@@ -5,6 +5,7 @@ import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../drama_detail/drama_detail_page.dart';
 import 'data/mock_home_repository.dart';
 import 'data/remote_home_repository.dart';
 import 'domain/home_models.dart';
@@ -107,6 +108,7 @@ class _HomePageState extends State<HomePage> {
             onPageChanged: (int index) {
               setState(() => _activeHeroIndex = index);
             },
+            onDramaTap: (HomeDramaItem drama) => _openDramaDetail(context, drama),
           ),
           const SizedBox(height: AppSpacing.xs),
           _HeroDots(count: heroItems.length, activeIndex: _activeHeroIndex),
@@ -283,6 +285,14 @@ _CardKind _cardKindFor(dynamic item, _CardKind fallback) {
   return fallback;
 }
 
+void _openDramaDetail(BuildContext context, HomeDramaItem drama) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => DramaDetailPage(drama: drama),
+    ),
+  );
+}
+
 String? _resolveImageUrl(dynamic item) {
   if (item is HomeVideoItem) {
     return item.thumbnailUrl;
@@ -326,6 +336,9 @@ class _SectionGrid extends StatelessWidget {
           subtitle: item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
           kind: _cardKindFor(item, kind),
+          onTap: item is HomeDramaItem
+              ? () => _openDramaDetail(context, item)
+              : null,
         );
       },
     );
@@ -337,11 +350,13 @@ class _HeroCarousel extends StatelessWidget {
     required this.items,
     required this.controller,
     required this.onPageChanged,
+    required this.onDramaTap,
   });
 
   final List<dynamic> items;
   final PageController controller;
   final ValueChanged<int> onPageChanged;
+  final ValueChanged<HomeDramaItem> onDramaTap;
 
   @override
   Widget build(BuildContext context) {
@@ -362,6 +377,7 @@ class _HeroCarousel extends StatelessWidget {
             imageUrl: _resolveImageUrl(item),
             kind: kind,
             compactOverlay: true,
+            onTap: item is HomeDramaItem ? () => onDramaTap(item) : null,
           );
         },
       ),
@@ -406,6 +422,7 @@ class _PortalCard extends StatelessWidget {
     required this.kind,
     this.imageUrl,
     this.compactOverlay = false,
+    this.onTap,
   });
 
   final String title;
@@ -413,6 +430,7 @@ class _PortalCard extends StatelessWidget {
   final _CardKind kind;
   final String? imageUrl;
   final bool compactOverlay;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -423,82 +441,85 @@ class _PortalCard extends StatelessWidget {
       _CardKind.live => 'LIVE',
     };
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          _CardCover(imageUrl: imageUrl, kind: kind),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Color(0x0D000000),
-                  Color(0x55000000),
-                  Color(0xB3000000),
-                ],
-                stops: <double>[0.2, 0.6, 1],
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            _CardCover(imageUrl: imageUrl, kind: kind),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x0D000000),
+                    Color(0x55000000),
+                    Color(0xB3000000),
+                  ],
+                  stops: <double>[0.2, 0.6, 1],
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: AppSpacing.xs,
-            left: AppSpacing.xs,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs, vertical: 2),
-              decoration: BoxDecoration(
-                color: kind == _CardKind.live
-                    ? AppColors.brandGold
-                    : AppColors.cardBackground.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                border: Border.all(color: AppColors.softBorder),
-              ),
-              child: Text(
-                badge,
-                style: AppTextStyles.caption.copyWith(
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs, vertical: 2),
+                decoration: BoxDecoration(
                   color: kind == _CardKind.live
-                      ? AppColors.warmBackground
-                      : AppColors.brandGold,
+                      ? AppColors.brandGold
+                      : AppColors.cardBackground.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  border: Border.all(color: AppColors.softBorder),
+                ),
+                child: Text(
+                  badge,
+                  style: AppTextStyles.caption.copyWith(
+                    color: kind == _CardKind.live
+                        ? AppColors.warmBackground
+                        : AppColors.brandGold,
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
-            right: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
-            bottom: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  title,
-                  maxLines: compactOverlay ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.cardTitle.copyWith(
-                    color: Colors.white,
-                    fontSize: compactOverlay ? 16 : 11,
-                    height: compactOverlay ? 1.2 : 1.08,
+            Positioned(
+              left: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+              right: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+              bottom: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    title,
+                    maxLines: compactOverlay ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: compactOverlay ? 16 : 11,
+                      height: compactOverlay ? 1.2 : 1.08,
+                    ),
                   ),
-                ),
-                SizedBox(height: compactOverlay ? 2 : AppSpacing.xxs),
-                Text(
-                  subtitle,
-                  maxLines: compactOverlay ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.caption.copyWith(
-                    color: compactOverlay ? Colors.white70 : Colors.white54,
-                    fontSize: compactOverlay ? 12 : 10,
-                    height: compactOverlay ? null : 1.1,
+                  SizedBox(height: compactOverlay ? 2 : AppSpacing.xxs),
+                  Text(
+                    subtitle,
+                    maxLines: compactOverlay ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: compactOverlay ? Colors.white70 : Colors.white54,
+                      fontSize: compactOverlay ? 12 : 10,
+                      height: compactOverlay ? null : 1.1,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

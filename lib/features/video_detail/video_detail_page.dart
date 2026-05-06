@@ -8,6 +8,42 @@ import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../home/domain/home_models.dart';
 
+const TextStyle _videoDetailSectionHeadingStyle = TextStyle(
+  fontSize: 12,
+  fontWeight: FontWeight.w600,
+  color: AppColors.cocoaText,
+);
+
+const TextStyle _videoDetailMainTitleStyle = TextStyle(
+  fontSize: 12,
+  fontWeight: FontWeight.w700,
+  height: 1.25,
+  color: AppColors.cocoaText,
+);
+
+const TextStyle _videoDetailCreatorNameStyle = TextStyle(
+  fontSize: 12,
+  fontWeight: FontWeight.w600,
+  color: AppColors.cocoaText,
+);
+
+const TextStyle _videoDetailCreatorMetaStyle = TextStyle(
+  fontSize: 11,
+  color: AppColors.mutedOliveText,
+);
+
+const TextStyle _videoDetailCompactChipStyle = TextStyle(
+  fontSize: 11,
+  fontWeight: FontWeight.w500,
+  color: AppColors.mutedOliveText,
+);
+
+const TextStyle _videoDetailFollowStyle = TextStyle(
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
+  color: AppColors.brandGold,
+);
+
 class VideoDetailPage extends StatefulWidget {
   const VideoDetailPage({
     super.key,
@@ -47,7 +83,9 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     });
 
     try {
-      final response = await _apiClient.get<dynamic>(_detailPath(widget.video.id));
+      final response = await _apiClient.get<dynamic>(
+        _detailPath(widget.video.id),
+      );
       final HomeVideoItem? detail = _mapDetail(response.data, widget.video);
       if (!mounted) return;
       setState(() {
@@ -77,14 +115,17 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
           padding: const EdgeInsets.all(AppSpacing.md),
           children: <Widget>[
             _VideoMediaHeader(video: _video),
-            const SizedBox(height: AppSpacing.md),
-            _VideoInfoSection(video: _video, loading: _loadingDetail),
-            const SizedBox(height: AppSpacing.md),
-            _AuthorFollowRow(video: _video, onFollow: _showActionPlaceholder),
             const SizedBox(height: AppSpacing.sm),
+            _VideoInfoSection(video: _video, loading: _loadingDetail),
+            const SizedBox(height: AppSpacing.xs),
+            _AuthorFollowRow(video: _video, onFollow: _showActionPlaceholder),
+            const SizedBox(height: AppSpacing.xs),
             _VideoActionRow(onAction: _showActionPlaceholder),
-            const SizedBox(height: AppSpacing.lg),
-            const Text('Recommendations', style: AppTextStyles.sectionTitle),
+            const SizedBox(height: AppSpacing.md),
+            const Text(
+              'Recommendations',
+              style: _videoDetailSectionHeadingStyle,
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (recommendations.isEmpty)
               const _VideoDetailEmptyCard(message: 'No video recommendations yet.')
@@ -336,7 +377,12 @@ class _VideoInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(video.title, style: AppTextStyles.sectionTitle),
+        Text(
+          video.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: _videoDetailMainTitleStyle,
+        ),
         if (loading) ...<Widget>[
           const SizedBox(height: AppSpacing.xs),
           const Text('Loading details...', style: AppTextStyles.caption),
@@ -399,14 +445,14 @@ class _AuthorFollowRow extends StatelessWidget {
                 _ownerLabel(video),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+                style: _videoDetailCreatorNameStyle,
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 'Creator · Public video',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.caption.copyWith(fontSize: 11),
+                style: _videoDetailCreatorMetaStyle,
               ),
             ],
           ),
@@ -436,10 +482,7 @@ class _FollowButton extends StatelessWidget {
           vertical: AppSpacing.xxs,
         ),
         visualDensity: VisualDensity.compact,
-        textStyle: AppTextStyles.caption.copyWith(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
+        textStyle: _videoDetailFollowStyle,
       ),
       child: const Text('Follow'),
     );
@@ -513,7 +556,7 @@ class _ActionButton extends StatelessWidget {
           vertical: AppSpacing.xxs,
         ),
         visualDensity: VisualDensity.compact,
-        textStyle: AppTextStyles.caption.copyWith(fontSize: 11),
+        textStyle: _videoDetailCompactChipStyle,
       ),
     );
   }

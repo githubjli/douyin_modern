@@ -6,6 +6,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../drama_detail/drama_detail_page.dart';
+import '../video_detail/video_detail_page.dart';
 import 'data/mock_home_repository.dart';
 import 'data/remote_home_repository.dart';
 import 'domain/home_models.dart';
@@ -180,6 +181,7 @@ class _HomePageState extends State<HomePage> {
           _SectionGrid(
             items: _completeRecommendedItems(data),
             kind: _CardKind.video,
+            videoRecommendations: _videoDetailRecommendations(data),
           ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Videos', hint: 'More'),
@@ -187,6 +189,7 @@ class _HomePageState extends State<HomePage> {
           _SectionGrid(
             items: data.latestVideos.take(6).toList(),
             kind: _CardKind.video,
+            videoRecommendations: _videoDetailRecommendations(data),
           ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Short Drama', hint: 'More'),
@@ -207,7 +210,11 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'More', hint: 'Explore'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.featured, kind: _CardKind.video),
+          _SectionGrid(
+            items: data.featured,
+            kind: _CardKind.video,
+            videoRecommendations: _videoDetailRecommendations(data),
+          ),
         ],
     };
   }
@@ -259,6 +266,10 @@ class _HomePageState extends State<HomePage> {
           items: visibleItems,
           kind: _CardKind.video,
           useNewsMetadata: true,
+          videoRecommendations: _appendUniqueVideos(
+            _videoDetailRecommendations(data),
+            newsVideos,
+          ),
         ),
       if (_newsVideosNextUrl != null) ...<Widget>[
         const SizedBox(height: AppSpacing.sm),
@@ -374,7 +385,14 @@ class _HomePageState extends State<HomePage> {
       else if (visibleVideos.isEmpty)
         const _ChannelEmptyCard(message: 'No loaded videos available yet.')
       else
-        _SectionGrid(items: visibleVideos, kind: _CardKind.video),
+        _SectionGrid(
+          items: visibleVideos,
+          kind: _CardKind.video,
+          videoRecommendations: _appendUniqueVideos(
+            _videoDetailRecommendations(data),
+            loadedVideos,
+          ),
+        ),
       if (nextUrl != null) ...<Widget>[
         const SizedBox(height: AppSpacing.sm),
         _ChannelMoreButton(
@@ -992,6 +1010,16 @@ List<dynamic> _completeRecommendedItems(HomePortalData data) {
   return items;
 }
 
+List<HomeVideoItem> _videoDetailRecommendations(HomePortalData data) {
+  final List<HomeVideoItem> videos = <HomeVideoItem>[
+    ...data.latestVideos,
+    ...data.featured,
+    ...data.recommended,
+  ];
+  final Set<String> seen = <String>{};
+  return videos.where((HomeVideoItem video) => seen.add(video.id)).toList();
+}
+
 String _homeItemKey(dynamic item) {
   if (item is HomeVideoItem) return 'video:${item.id}';
   if (item is HomeDramaItem) return 'drama:${item.id}';
@@ -1009,6 +1037,21 @@ void _openDramaDetail(BuildContext context, HomeDramaItem drama) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => DramaDetailPage(drama: drama),
+    ),
+  );
+}
+
+void _openVideoDetail(
+  BuildContext context,
+  HomeVideoItem video,
+  List<HomeVideoItem> recommendations,
+) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => VideoDetailPage(
+        video: video,
+        recommendations: recommendations,
+      ),
     ),
   );
 }
@@ -1039,6 +1082,7 @@ class _SectionGrid extends StatelessWidget {
     this.useDramaMetadata = false,
     this.useLiveMetadata = false,
     this.useNewsMetadata = false,
+    this.videoRecommendations = const <HomeVideoItem>[],
   });
 
   final List<dynamic> items;
@@ -1046,6 +1090,7 @@ class _SectionGrid extends StatelessWidget {
   final bool useDramaMetadata;
   final bool useLiveMetadata;
   final bool useNewsMetadata;
+  final List<HomeVideoItem> videoRecommendations;
 
   @override
   Widget build(BuildContext context) {
@@ -1084,9 +1129,11 @@ class _SectionGrid extends StatelessWidget {
                   : null,
           onTap: item is HomeDramaItem
               ? () => _openDramaDetail(context, item)
-              : (useLiveMetadata || useNewsMetadata) && item is HomeLiveItem
-                  ? () => _showLiveComingSoon(context)
-                  : null,
+              : item is HomeVideoItem
+                  ? () => _openVideoDetail(context, item, videoRecommendations)
+                  : (useLiveMetadata || useNewsMetadata) && item is HomeLiveItem
+                      ? () => _showLiveComingSoon(context)
+                      : null,
         );
       },
     );

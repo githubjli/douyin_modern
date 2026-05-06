@@ -4,6 +4,8 @@ class HomeVideoItem {
     required this.title,
     required this.subtitle,
     this.thumbnailUrl,
+    this.videoUrl,
+    this.description,
     this.ownerName,
     this.viewCount,
     this.category,
@@ -15,6 +17,8 @@ class HomeVideoItem {
   final String title;
   final String subtitle;
   final String? thumbnailUrl;
+  final String? videoUrl;
+  final String? description;
   final String? ownerName;
   final int? viewCount;
   final String? category;

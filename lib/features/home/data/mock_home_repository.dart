@@ -16,6 +16,7 @@ class MockHomeRepository implements HomeRepository {
           id: 'v1',
           title: 'Street Food Guide',
           subtitle: 'Meow News · 48K views',
+          description: 'A quick public video update from the Meow News desk.',
           ownerName: 'Meow News',
           viewCount: 48000,
           category: 'news',

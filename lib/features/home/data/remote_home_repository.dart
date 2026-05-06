@@ -160,6 +160,8 @@ class RemoteHomeRepository implements HomeRepository {
       title: title,
       subtitle: '$owner • $views views',
       thumbnailUrl: _str(m['thumbnail_url']),
+      videoUrl: _str(m['video_url']) ?? _str(m['playback_url']) ?? _str(m['file_url']),
+      description: _str(m['description']) ?? _str(m['summary']),
       ownerName: owner.isEmpty ? null : owner,
       viewCount: _int(m['view_count']),
       category: _str(m['category']),

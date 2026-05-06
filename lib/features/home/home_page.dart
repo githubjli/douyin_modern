@@ -36,6 +36,7 @@ class _HomePageState extends State<HomePage> {
   int _activeHeroIndex = 0;
   int _selectedChannelIndex = 0;
   int _selectedVideoCategoryIndex = 0;
+  int _selectedDramaFilterIndex = 0;
   List<HomeVideoItem>? _videoItems;
   List<HomeVideoItem>? _categoryVideoItems;
   String? _videosNextUrl;
@@ -133,18 +134,7 @@ class _HomePageState extends State<HomePage> {
   List<Widget> _channelContent(HomePortalData data, List<dynamic> heroItems) {
     return switch (_selectedChannelIndex) {
       1 => _videoChannelContent(data),
-      2 => <Widget>[
-          const _SectionHeader(title: 'Short Drama', hint: 'Drama'),
-          const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(
-            items: data.shortDrama.take(30).toList(),
-            kind: _CardKind.drama,
-          ),
-          if (data.dramasNextUrl != null) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            const _ChannelMoreButton(),
-          ],
-        ],
+      2 => _dramaChannelContent(data),
       3 => <Widget>[
           const _SectionHeader(title: 'Live', hint: 'Live'),
           const SizedBox(height: AppSpacing.sm),
@@ -211,6 +201,39 @@ class _HomePageState extends State<HomePage> {
     };
   }
 
+  List<Widget> _dramaChannelContent(HomePortalData data) {
+    final List<HomeDramaItem> loadedDramas = data.shortDrama;
+    final HomeDramaItem? heroDrama = _dramaHeroItem(loadedDramas);
+    final List<HomeDramaItem> visibleDramas = _filterDramas(
+      loadedDramas,
+      _selectedDramaFilterIndex,
+    ).take(30).toList();
+
+    return <Widget>[
+      _DramaChannelHero(drama: heroDrama),
+      const SizedBox(height: AppSpacing.sm),
+      _DramaFilterChips(
+        selectedIndex: _selectedDramaFilterIndex,
+        onSelected: (int index) {
+          setState(() => _selectedDramaFilterIndex = index);
+        },
+      ),
+      const SizedBox(height: AppSpacing.md),
+      if (visibleDramas.isEmpty)
+        const _ChannelEmptyCard(message: 'No loaded dramas available yet.')
+      else
+        _SectionGrid(
+          items: visibleDramas,
+          kind: _CardKind.drama,
+          useDramaMetadata: true,
+        ),
+      if (data.dramasNextUrl != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.sm),
+        const _ChannelMoreButton(),
+      ],
+    ];
+  }
+
   List<Widget> _videoChannelContent(HomePortalData data) {
     final List<HomeVideoItem> loadedVideos = _videoItems ?? data.latestVideos;
     final List<_VideoCategoryOption> categories =
@@ -242,16 +265,6 @@ class _HomePageState extends State<HomePage> {
         selectedIndex: selectedIndex,
         onSelected: (int index) => _selectVideoCategory(categories, index),
       ),
-      if (!isAllSelected || _videoLoadNotice != null) ...<Widget>[
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          _videoLoadNotice ??
-              (usingCategoryPage
-                  ? 'Showing loaded ${selectedCategory.label} videos.'
-                  : 'Filtering currently loaded videos. Use Load more for additional results.'),
-          style: AppTextStyles.caption.copyWith(fontSize: 10),
-        ),
-      ],
       const SizedBox(height: AppSpacing.md),
       if (_loadingVideoCategory)
         const _ChannelLoadingCard(message: 'Loading videos...')
@@ -527,6 +540,46 @@ List<HomeVideoItem> _videoCategorySource(
   return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
+const List<String> _dramaFilters = <String>[
+  'All',
+  'Free',
+  'Locked',
+  'Completed',
+];
+
+List<HomeDramaItem> _filterDramas(
+  List<HomeDramaItem> dramas,
+  int selectedIndex,
+) {
+  final int safeIndex = selectedIndex.clamp(0, _dramaFilters.length - 1).toInt();
+  final String filter = _dramaFilters[safeIndex];
+  return switch (filter) {
+    'Free' => dramas
+        .where((HomeDramaItem drama) => (drama.freeEpisodeCount ?? 0) > 0)
+        .toList(),
+    'Locked' => dramas
+        .where((HomeDramaItem drama) => (drama.lockedEpisodeCount ?? 0) > 0)
+        .toList(),
+    'Completed' => dramas
+        .where((HomeDramaItem drama) => drama.isCompleted == true)
+        .toList(),
+    _ => dramas,
+  };
+}
+
+HomeDramaItem? _dramaHeroItem(List<HomeDramaItem> dramas) {
+  for (final HomeDramaItem drama in dramas) {
+    if (drama.coverUrl?.trim().isNotEmpty ?? false) return drama;
+  }
+  return dramas.isEmpty ? null : dramas.first;
+}
+
+String _dramaMetadata(HomeDramaItem drama) {
+  return '${drama.totalEpisodes ?? 0} episodes • '
+      'Free ${drama.freeEpisodeCount ?? 0} • '
+      'Locked ${drama.lockedEpisodeCount ?? 0}';
+}
+
 List<_VideoCategoryOption> _videoCategories(List<HomeVideoItem> videos) {
   final List<_VideoCategoryOption> categories = <_VideoCategoryOption>[
     const _VideoCategoryOption(label: 'All'),
@@ -650,10 +703,15 @@ String? _resolveImageUrl(dynamic item) {
 }
 
 class _SectionGrid extends StatelessWidget {
-  const _SectionGrid({required this.items, required this.kind});
+  const _SectionGrid({
+    required this.items,
+    required this.kind,
+    this.useDramaMetadata = false,
+  });
 
   final List<dynamic> items;
   final _CardKind kind;
+  final bool useDramaMetadata;
 
   @override
   Widget build(BuildContext context) {
@@ -676,7 +734,9 @@ class _SectionGrid extends StatelessWidget {
         final dynamic item = items[index];
         return _PortalCard(
           title: item.title as String,
-          subtitle: item.subtitle as String,
+          subtitle: useDramaMetadata && item is HomeDramaItem
+              ? _dramaMetadata(item)
+              : item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
           kind: _cardKindFor(item, kind),
           onTap: item is HomeDramaItem
@@ -684,6 +744,71 @@ class _SectionGrid extends StatelessWidget {
               : null,
         );
       },
+    );
+  }
+}
+
+class _DramaChannelHero extends StatelessWidget {
+  const _DramaChannelHero({required this.drama});
+
+  final HomeDramaItem? drama;
+
+  @override
+  Widget build(BuildContext context) {
+    final HomeDramaItem? selectedDrama = drama;
+    return SizedBox(
+      height: 176,
+      child: _PortalCard(
+        title: selectedDrama?.title ?? 'Short Drama',
+        subtitle: selectedDrama == null
+            ? 'Discover bite-size drama stories'
+            : _dramaMetadata(selectedDrama),
+        imageUrl:
+            selectedDrama == null ? null : _resolveImageUrl(selectedDrama),
+        kind: _CardKind.drama,
+        compactOverlay: true,
+        onTap: selectedDrama == null
+            ? null
+            : () => _openDramaDetail(context, selectedDrama),
+      ),
+    );
+  }
+}
+
+class _DramaFilterChips extends StatelessWidget {
+  const _DramaFilterChips({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _dramaFilters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, int index) {
+          final bool selected = index == selectedIndex;
+          return ChoiceChip(
+            label: Text(_dramaFilters[index]),
+            selected: selected,
+            onSelected: (_) => onSelected(index),
+            selectedColor: AppColors.brandGold,
+            backgroundColor: AppColors.cardBackground,
+            side: const BorderSide(color: AppColors.softBorder),
+            labelStyle: AppTextStyles.caption.copyWith(
+              color: selected ? AppColors.warmBackground : AppColors.cocoaText,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            ),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
     );
   }
 }

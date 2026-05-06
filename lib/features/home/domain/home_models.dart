@@ -41,6 +41,10 @@ class HomeDramaItem {
     required this.subtitle,
     this.coverUrl,
     this.thumbnailUrl,
+    this.totalEpisodes,
+    this.freeEpisodeCount,
+    this.lockedEpisodeCount,
+    this.isCompleted,
   });
 
   final String id;
@@ -48,6 +52,10 @@ class HomeDramaItem {
   final String subtitle;
   final String? coverUrl;
   final String? thumbnailUrl;
+  final int? totalEpisodes;
+  final int? freeEpisodeCount;
+  final int? lockedEpisodeCount;
+  final bool? isCompleted;
 }
 
 class HomeLiveItem {

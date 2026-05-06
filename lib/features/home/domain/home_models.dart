@@ -20,6 +20,20 @@ class HomeVideoItem {
   final String? categoryName;
 }
 
+class HomeVideoPage {
+  const HomeVideoPage({
+    required this.items,
+    this.count,
+    this.nextUrl,
+    this.previousUrl,
+  });
+
+  final List<HomeVideoItem> items;
+  final int? count;
+  final String? nextUrl;
+  final String? previousUrl;
+}
+
 class HomeDramaItem {
   const HomeDramaItem({
     required this.id,
@@ -71,7 +85,9 @@ class HomePortalData {
     required this.shortDrama,
     required this.liveNow,
     required this.recommended,
+    this.videosCount,
     this.videosNextUrl,
+    this.videosPreviousUrl,
     this.dramasNextUrl,
     this.liveNextUrl,
   });
@@ -81,7 +97,9 @@ class HomePortalData {
   final List<HomeDramaItem> shortDrama;
   final List<HomeLiveItem> liveNow;
   final List<HomeVideoItem> recommended;
+  final int? videosCount;
   final String? videosNextUrl;
+  final String? videosPreviousUrl;
   final String? dramasNextUrl;
   final String? liveNextUrl;
 }

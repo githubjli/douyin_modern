@@ -164,20 +164,26 @@ class RemoteHomeRepository implements HomeRepository {
       viewCount: _int(m['view_count']),
       category: _str(m['category']),
       categoryName: _str(m['category_name']),
+      createdAt: _str(m['created_at']),
     );
   }
 
   HomeDramaItem _mapDrama(Map<String, dynamic> m) {
     final String title = _str(m['title']) ?? 'Untitled drama';
-    final String total = _str(m['total_episodes']) ?? '0';
-    final String free = _str(m['free_episode_count']) ?? '0';
-    final String locked = _str(m['locked_episode_count']) ?? '0';
+    final int? total = _int(m['total_episodes']);
+    final int? free = _int(m['free_episode_count']);
+    final int? locked = _int(m['locked_episode_count']);
     return HomeDramaItem(
       id: _str(m['id']) ?? title,
       title: title,
-      subtitle: '$total episodes • Free $free • Locked $locked',
+      subtitle: _dramaMetadata(total: total, free: free, locked: locked),
       coverUrl: _str(m['cover_url']),
       thumbnailUrl: _str(m['thumbnail_url']),
+      totalEpisodes: total,
+      freeEpisodeCount: free,
+      lockedEpisodeCount: locked,
+      isCompleted:
+          _bool(m['is_completed']) ?? _isCompletedStatus(m['status']),
     );
   }
 
@@ -192,11 +198,15 @@ class RemoteHomeRepository implements HomeRepository {
     return HomeLiveItem(
       id: _str(m['id']) ?? title,
       title: title,
-      subtitle: '$owner • $viewers watching',
+      subtitle: '$owner · $viewers watching',
       ownerName: owner,
       ownerAvatarUrl: _str(m['owner_avatar_url']),
-      status: _str(m['effective_status']) ?? _str(m['status']),
+      status: _str(m['status']),
+      effectiveStatus: _str(m['effective_status']),
+      djangoStatus: _str(m['django_status']),
       viewerCount: _int(m['viewer_count']),
+      category: _str(m['category']),
+      categoryName: _str(m['category_name']),
       thumbnailUrl: thumb,
       playbackUrl: _str(m['playback_url']),
       watchUrl: _str(m['watch_url']),
@@ -209,6 +219,19 @@ class RemoteHomeRepository implements HomeRepository {
         _nestedStr(m['owner'], 'username') ??
         _nestedStr(m['owner'], 'email') ??
         _nestedStr(m['creator'], 'name');
+  }
+
+  String _dramaMetadata({int? total, int? free, int? locked}) {
+    return '${total ?? 0} episodes • Free ${free ?? 0} • '
+        'Locked ${locked ?? 0}';
+  }
+
+  bool? _isCompletedStatus(dynamic value) {
+    final String? status = _str(value)?.toLowerCase().trim();
+    if (status == null || status.isEmpty) return null;
+    return status == 'completed' ||
+        status == 'complete' ||
+        status == 'finished';
   }
 
   String? _nestedStr(dynamic value, String key) {
@@ -228,6 +251,16 @@ class RemoteHomeRepository implements HomeRepository {
     if (v is int) return v;
     if (v is double) return v.round();
     if (v is String) return int.tryParse(v);
+    return null;
+  }
+
+  bool? _bool(dynamic v) {
+    if (v is bool) return v;
+    if (v is String) {
+      final String normalized = v.toLowerCase().trim();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+    }
     return null;
   }
 }

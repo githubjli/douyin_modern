@@ -8,6 +8,7 @@ class HomeVideoItem {
     this.viewCount,
     this.category,
     this.categoryName,
+    this.createdAt,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class HomeVideoItem {
   final int? viewCount;
   final String? category;
   final String? categoryName;
+  final String? createdAt;
 }
 
 class HomeVideoPage {
@@ -41,6 +43,10 @@ class HomeDramaItem {
     required this.subtitle,
     this.coverUrl,
     this.thumbnailUrl,
+    this.totalEpisodes,
+    this.freeEpisodeCount,
+    this.lockedEpisodeCount,
+    this.isCompleted,
   });
 
   final String id;
@@ -48,6 +54,10 @@ class HomeDramaItem {
   final String subtitle;
   final String? coverUrl;
   final String? thumbnailUrl;
+  final int? totalEpisodes;
+  final int? freeEpisodeCount;
+  final int? lockedEpisodeCount;
+  final bool? isCompleted;
 }
 
 class HomeLiveItem {
@@ -58,7 +68,11 @@ class HomeLiveItem {
     this.ownerName,
     this.ownerAvatarUrl,
     this.status,
+    this.effectiveStatus,
+    this.djangoStatus,
     this.viewerCount,
+    this.category,
+    this.categoryName,
     this.thumbnailUrl,
     this.playbackUrl,
     this.watchUrl,
@@ -71,7 +85,11 @@ class HomeLiveItem {
   final String? ownerName;
   final String? ownerAvatarUrl;
   final String? status;
+  final String? effectiveStatus;
+  final String? djangoStatus;
   final int? viewerCount;
+  final String? category;
+  final String? categoryName;
   final String? thumbnailUrl;
   final String? playbackUrl;
   final String? watchUrl;

@@ -186,13 +186,6 @@ String? _categoryKey(HomeVideoItem video) {
   return trimmed.toLowerCase();
 }
 
-String _categoryLabel(HomeVideoItem video) {
-  final String? label = video.categoryName?.trim().isNotEmpty == true
-      ? video.categoryName!.trim()
-      : video.category?.trim();
-  return label == null || label.isEmpty ? 'Video' : label;
-}
-
 String _ownerLabel(HomeVideoItem video) {
   final String? owner = video.ownerName?.trim();
   return owner == null || owner.isEmpty ? 'Creator' : owner;
@@ -200,15 +193,6 @@ String _ownerLabel(HomeVideoItem video) {
 
 String _viewsLabel(HomeVideoItem video) {
   return '${video.viewCount ?? 0} views';
-}
-
-String _dateLabel(HomeVideoItem video) {
-  final String? createdAt = video.createdAt?.trim();
-  if (createdAt == null || createdAt.isEmpty) return 'Date unavailable';
-  final DateTime? parsed = DateTime.tryParse(createdAt);
-  if (parsed == null) return createdAt;
-  return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-'
-      '${parsed.day.toString().padLeft(2, '0')}';
 }
 
 class _VideoMediaHeader extends StatelessWidget {
@@ -356,22 +340,11 @@ class _VideoInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            _InfoBadge(label: _categoryLabel(video)),
-            if (loading) ...<Widget>[
-              const SizedBox(width: AppSpacing.xs),
-              const Text('Loading details...', style: AppTextStyles.caption),
-            ],
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
         Text(video.title, style: AppTextStyles.sectionTitle),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          '${_ownerLabel(video)} · ${_viewsLabel(video)} · ${_dateLabel(video)}',
-          style: AppTextStyles.caption,
-        ),
+        if (loading) ...<Widget>[
+          const SizedBox(height: AppSpacing.xs),
+          const Text('Loading details...', style: AppTextStyles.caption),
+        ],
       ],
     );
   }
@@ -552,17 +525,7 @@ class _VideoDescription extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Description',
-          style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(description, style: AppTextStyles.body),
-      ],
-    );
+    return Text(description, style: AppTextStyles.body);
   }
 }
 

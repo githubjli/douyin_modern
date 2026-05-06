@@ -275,7 +275,7 @@ class _GuestProfileCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             TextButton(
               onPressed: onSignUp,
-              child: const RichText(
+              child: RichText(
                 text: TextSpan(
                   style: AppTextStyles.caption,
                   children: <TextSpan>[

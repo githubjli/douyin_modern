@@ -7,6 +7,8 @@ import '../domain/home_repository.dart';
 class RemoteHomeRepository implements HomeRepository {
   RemoteHomeRepository({required ApiClient apiClient}) : _apiClient = apiClient;
 
+  static const int _videoPageSize = 30;
+
   final ApiClient _apiClient;
 
   @override
@@ -14,14 +16,18 @@ class RemoteHomeRepository implements HomeRepository {
     List<Map<String, dynamic>> videos = <Map<String, dynamic>>[];
     List<Map<String, dynamic>> dramas = <Map<String, dynamic>>[];
     List<Map<String, dynamic>> live = <Map<String, dynamic>>[];
+    int? videosCount;
     String? videosNextUrl;
+    String? videosPreviousUrl;
     String? dramasNextUrl;
     String? liveNextUrl;
 
     try {
-      final videosResponse = await _apiClient.get<dynamic>(Endpoints.publicVideos);
-      videos = _rows(videosResponse.data);
-      videosNextUrl = _next(videosResponse.data);
+      final _HomeVideoRows videosPage = await _fetchVideoRows();
+      videos = videosPage.rows;
+      videosCount = videosPage.count;
+      videosNextUrl = videosPage.nextUrl;
+      videosPreviousUrl = videosPage.previousUrl;
     } catch (_) {
       assert(() {
         debugPrint('[Home] videos fetch failed');
@@ -73,9 +79,43 @@ class RemoteHomeRepository implements HomeRepository {
       shortDrama: shortDrama,
       liveNow: liveNow,
       recommended: recommended,
+      videosCount: videosCount,
       videosNextUrl: videosNextUrl,
+      videosPreviousUrl: videosPreviousUrl,
       dramasNextUrl: dramasNextUrl,
       liveNextUrl: liveNextUrl,
+    );
+  }
+
+  Future<HomeVideoPage> getVideoPage({String? pageUrl, String? category}) async {
+    final _HomeVideoRows page = await _fetchVideoRows(
+      pageUrl: pageUrl,
+      category: category,
+    );
+    return HomeVideoPage(
+      items: page.rows.map(_mapVideo).toList(),
+      count: page.count,
+      nextUrl: page.nextUrl,
+      previousUrl: page.previousUrl,
+    );
+  }
+
+  Future<_HomeVideoRows> _fetchVideoRows({String? pageUrl, String? category}) async {
+    final String? trimmedCategory = category?.trim();
+    final Map<String, dynamic> queryParameters = <String, dynamic>{
+      'page_size': _videoPageSize,
+      if (trimmedCategory != null && trimmedCategory.isNotEmpty)
+        'category': trimmedCategory,
+    };
+    final videoResponse = await _apiClient.get<dynamic>(
+      pageUrl ?? Endpoints.publicVideos,
+      queryParameters: pageUrl == null ? queryParameters : null,
+    );
+    return _HomeVideoRows(
+      rows: _rows(videoResponse.data),
+      count: _count(videoResponse.data),
+      nextUrl: _next(videoResponse.data),
+      previousUrl: _previous(videoResponse.data),
     );
   }
 
@@ -90,9 +130,23 @@ class RemoteHomeRepository implements HomeRepository {
     return <Map<String, dynamic>>[];
   }
 
+  int? _count(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return _int(data['count']);
+    }
+    return null;
+  }
+
   String? _next(dynamic data) {
     if (data is Map<String, dynamic>) {
       return _str(data['next']);
+    }
+    return null;
+  }
+
+  String? _previous(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return _str(data['previous']);
     }
     return null;
   }
@@ -176,4 +230,18 @@ class RemoteHomeRepository implements HomeRepository {
     if (v is String) return int.tryParse(v);
     return null;
   }
+}
+
+class _HomeVideoRows {
+  const _HomeVideoRows({
+    required this.rows,
+    this.count,
+    this.nextUrl,
+    this.previousUrl,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final int? count;
+  final String? nextUrl;
+  final String? previousUrl;
 }

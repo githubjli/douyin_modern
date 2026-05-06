@@ -99,14 +99,14 @@ class RemoteHomeRepository implements HomeRepository {
 
   HomeVideoItem _mapVideo(Map<String, dynamic> m) {
     final String title = _str(m['title']) ?? 'Untitled video';
-    final String owner = _str(m['owner_name']) ?? 'Creator';
+    final String owner = _videoOwnerName(m) ?? '';
     final String views = _str(m['view_count']) ?? '0';
     return HomeVideoItem(
       id: _str(m['id']) ?? title,
       title: title,
       subtitle: '$owner • $views views',
       thumbnailUrl: _str(m['thumbnail_url']),
-      ownerName: owner,
+      ownerName: owner.isEmpty ? null : owner,
       viewCount: _int(m['view_count']),
       category: _str(m['category']),
       categoryName: _str(m['category_name']),
@@ -152,6 +152,20 @@ class RemoteHomeRepository implements HomeRepository {
       watchUrl: _str(m['watch_url']),
       createdAt: _str(m['created_at']),
     );
+  }
+
+  String? _videoOwnerName(Map<String, dynamic> m) {
+    return _str(m['owner_name']) ??
+        _nestedStr(m['owner'], 'username') ??
+        _nestedStr(m['owner'], 'email') ??
+        _nestedStr(m['creator'], 'name');
+  }
+
+  String? _nestedStr(dynamic value, String key) {
+    if (value is Map<String, dynamic>) {
+      return _str(value[key]);
+    }
+    return null;
   }
 
   String? _str(dynamic v) {

@@ -27,5 +27,12 @@ void main() {
       find.descendant(of: bottomNav, matching: find.byIcon(Icons.add_circle)),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: bottomNav,
+        matching: find.byIcon(Icons.star_border_rounded),
+      ),
+      findsOneWidget,
+    );
   });
 }

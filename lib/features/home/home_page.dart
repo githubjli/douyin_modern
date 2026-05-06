@@ -311,6 +311,19 @@ class _HeroCarousel extends StatelessWidget {
       ),
     );
   }
+
+  String? _resolveImageUrl(dynamic item) {
+    if (item is HomeVideoItem) {
+      return item.thumbnailUrl;
+    }
+    if (item is HomeDramaItem) {
+      return item.coverUrl ?? item.thumbnailUrl;
+    }
+    if (item is HomeLiveItem) {
+      return item.thumbnailUrl;
+    }
+    return null;
+  }
 }
 
 class _HeroDots extends StatelessWidget {

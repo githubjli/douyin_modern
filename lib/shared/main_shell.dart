@@ -108,7 +108,7 @@ class _MainShellState extends State<MainShell> {
             child: SafeArea(
               top: false,
               child: SizedBox(
-                height: 58,
+                height: 55,
                 child: BottomNavigationBar(
                   currentIndex: _index,
                   type: BottomNavigationBarType.fixed,

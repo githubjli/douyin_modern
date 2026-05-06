@@ -147,7 +147,7 @@ class _SearchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
+      height: 38,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
@@ -163,7 +163,7 @@ class _SearchPill extends StatelessWidget {
               'Search videos, dramas, live topics',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(fontSize: 10.5),
+              style: AppTextStyles.caption.copyWith(fontSize: 10),
             ),
           ),
         ],
@@ -181,7 +181,7 @@ class _HomeTopRow extends StatelessWidget {
       children: <Widget>[
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.asset(AppAssets.meowLogo, width: 30, height: 30),
+          child: Image.asset(AppAssets.meowLogo, width: 28, height: 28),
         ),
         const SizedBox(width: AppSpacing.sm),
         const Expanded(child: _SearchPill()),

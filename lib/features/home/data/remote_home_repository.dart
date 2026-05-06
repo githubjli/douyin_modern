@@ -164,6 +164,7 @@ class RemoteHomeRepository implements HomeRepository {
       viewCount: _int(m['view_count']),
       category: _str(m['category']),
       categoryName: _str(m['category_name']),
+      createdAt: _str(m['created_at']),
     );
   }
 
@@ -204,6 +205,8 @@ class RemoteHomeRepository implements HomeRepository {
       effectiveStatus: _str(m['effective_status']),
       djangoStatus: _str(m['django_status']),
       viewerCount: _int(m['viewer_count']),
+      category: _str(m['category']),
+      categoryName: _str(m['category_name']),
       thumbnailUrl: thumb,
       playbackUrl: _str(m['playback_url']),
       watchUrl: _str(m['watch_url']),

@@ -8,6 +8,7 @@ class HomeVideoItem {
     this.viewCount,
     this.category,
     this.categoryName,
+    this.createdAt,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class HomeVideoItem {
   final int? viewCount;
   final String? category;
   final String? categoryName;
+  final String? createdAt;
 }
 
 class HomeVideoPage {
@@ -69,6 +71,8 @@ class HomeLiveItem {
     this.effectiveStatus,
     this.djangoStatus,
     this.viewerCount,
+    this.category,
+    this.categoryName,
     this.thumbnailUrl,
     this.playbackUrl,
     this.watchUrl,
@@ -84,6 +88,8 @@ class HomeLiveItem {
   final String? effectiveStatus;
   final String? djangoStatus;
   final int? viewerCount;
+  final String? category;
+  final String? categoryName;
   final String? thumbnailUrl;
   final String? playbackUrl;
   final String? watchUrl;

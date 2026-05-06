@@ -35,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   String? _notice;
   int _activeHeroIndex = 0;
   int _selectedChannelIndex = 0;
+  int _selectedNewsFilterIndex = 0;
   int _selectedVideoCategoryIndex = 0;
   int _selectedDramaFilterIndex = 0;
   int _selectedLiveFilterIndex = 0;
@@ -48,6 +49,7 @@ class _HomePageState extends State<HomePage> {
 
   static const List<String> _channels = <String>[
     'Home',
+    'News',
     'Videos',
     'Short Drama',
     'Live',
@@ -134,10 +136,11 @@ class _HomePageState extends State<HomePage> {
 
   List<Widget> _channelContent(HomePortalData data, List<dynamic> heroItems) {
     return switch (_selectedChannelIndex) {
-      1 => _videoChannelContent(data),
-      2 => _dramaChannelContent(data),
-      3 => _liveChannelContent(data),
-      4 => const <Widget>[
+      1 => _newsChannelContent(data),
+      2 => _videoChannelContent(data),
+      3 => _dramaChannelContent(data),
+      4 => _liveChannelContent(data),
+      5 => const <Widget>[
           _ChannelEmptyCard(message: 'Shop is coming soon'),
         ],
       _ => <Widget>[
@@ -187,6 +190,37 @@ class _HomePageState extends State<HomePage> {
           _SectionGrid(items: data.featured, kind: _CardKind.video),
         ],
     };
+  }
+
+  List<Widget> _newsChannelContent(HomePortalData data) {
+    final List<dynamic> newsItems = _newsItems(
+      data,
+      _videoItems ?? data.latestVideos,
+    );
+    final List<dynamic> visibleItems = _filterNewsItems(
+      newsItems,
+      _selectedNewsFilterIndex,
+    ).take(30).toList();
+
+    return <Widget>[
+      _NewsChannelHero(item: _newsHeroItem(newsItems)),
+      const SizedBox(height: AppSpacing.sm),
+      _NewsFilterChips(
+        selectedIndex: _selectedNewsFilterIndex,
+        onSelected: (int index) {
+          setState(() => _selectedNewsFilterIndex = index);
+        },
+      ),
+      const SizedBox(height: AppSpacing.md),
+      if (visibleItems.isEmpty)
+        const _ChannelEmptyCard(message: 'No news content yet')
+      else
+        _SectionGrid(
+          items: visibleItems,
+          kind: _CardKind.video,
+          useNewsMetadata: true,
+        ),
+    ];
   }
 
   List<Widget> _dramaChannelContent(HomePortalData data) {
@@ -561,6 +595,104 @@ List<HomeVideoItem> _videoCategorySource(
   return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
+const List<String> _newsFilters = <String>[
+  'All',
+  'Videos',
+  'Live',
+  'Latest',
+];
+
+List<dynamic> _newsItems(
+  HomePortalData data,
+  List<HomeVideoItem> loadedVideos,
+) {
+  return <dynamic>[
+    ...loadedVideos.where(_isNewsVideo),
+    ...data.liveNow.where(_isNewsLive),
+  ];
+}
+
+List<dynamic> _filterNewsItems(List<dynamic> items, int selectedIndex) {
+  final int safeIndex = selectedIndex.clamp(0, _newsFilters.length - 1).toInt();
+  final String filter = _newsFilters[safeIndex];
+  return switch (filter) {
+    'Videos' => items.whereType<HomeVideoItem>().toList(),
+    'Live' => items.whereType<HomeLiveItem>().toList(),
+    'Latest' => _sortNewsByCreatedAt(items),
+    _ => items,
+  };
+}
+
+List<dynamic> _sortNewsByCreatedAt(List<dynamic> items) {
+  if (!items.any((dynamic item) => _newsCreatedAt(item) != null)) return items;
+  final List<dynamic> sorted = List<dynamic>.of(items);
+  sorted.sort((dynamic a, dynamic b) {
+    final DateTime? aDate = _newsCreatedAt(a);
+    final DateTime? bDate = _newsCreatedAt(b);
+    if (aDate == null && bDate == null) return 0;
+    if (aDate == null) return 1;
+    if (bDate == null) return -1;
+    return bDate.compareTo(aDate);
+  });
+  return sorted;
+}
+
+DateTime? _newsCreatedAt(dynamic item) {
+  final String? value = switch (item) {
+    HomeVideoItem video => video.createdAt,
+    HomeLiveItem live => live.createdAt,
+    _ => null,
+  };
+  if (value == null || value.trim().isEmpty) return null;
+  return DateTime.tryParse(value);
+}
+
+dynamic _newsHeroItem(List<dynamic> items) {
+  for (final HomeLiveItem item in items.whereType<HomeLiveItem>()) {
+    final String status = _liveStatus(item);
+    if (status == 'live' || status == 'ready') return item;
+  }
+  for (final HomeVideoItem item in items.whereType<HomeVideoItem>()) {
+    return item;
+  }
+  return items.isEmpty ? null : items.first;
+}
+
+bool _isNewsVideo(HomeVideoItem item) {
+  return _isNewsCategory(item.category) || _isNewsCategory(item.categoryName);
+}
+
+bool _isNewsLive(HomeLiveItem item) {
+  return _isNewsCategory(item.category) || _isNewsCategory(item.categoryName);
+}
+
+bool _isNewsCategory(String? value) {
+  return value?.trim().toLowerCase() == 'news';
+}
+
+String _newsTitle(dynamic item) {
+  if (item is HomeVideoItem) return item.title;
+  if (item is HomeLiveItem) return item.title;
+  return 'News';
+}
+
+String _newsMetadata(dynamic item) {
+  if (item is HomeLiveItem) return _liveMetadata(item);
+  if (item is HomeVideoItem) return _videoMetadata(item);
+  return 'News';
+}
+
+String _newsBadgeLabel(dynamic item) {
+  if (item is HomeLiveItem) return _liveBadgeLabel(item);
+  if (item is HomeVideoItem) return 'Video';
+  return 'News';
+}
+
+String _newsHeroBadgeLabel(dynamic item) {
+  if (item is HomeVideoItem) return 'News';
+  return _newsBadgeLabel(item);
+}
+
 const List<String> _dramaFilters = <String>[
   'All',
   'Free',
@@ -737,6 +869,13 @@ String _videoHeroMetadata(HomeVideoItem video) {
   return category == 'Other' ? video.subtitle : '$category • ${video.subtitle}';
 }
 
+String _videoMetadata(HomeVideoItem video) {
+  final String owner = video.ownerName?.trim().isNotEmpty == true
+      ? video.ownerName!.trim()
+      : 'Creator';
+  return '$owner · ${video.viewCount ?? 0} views';
+}
+
 List<HomeVideoItem> _appendUniqueVideos(
   List<HomeVideoItem> current,
   List<HomeVideoItem> next,
@@ -816,12 +955,14 @@ class _SectionGrid extends StatelessWidget {
     required this.kind,
     this.useDramaMetadata = false,
     this.useLiveMetadata = false,
+    this.useNewsMetadata = false,
   });
 
   final List<dynamic> items;
   final _CardKind kind;
   final bool useDramaMetadata;
   final bool useLiveMetadata;
+  final bool useNewsMetadata;
 
   @override
   Widget build(BuildContext context) {
@@ -848,19 +989,89 @@ class _SectionGrid extends StatelessWidget {
               ? _dramaMetadata(item)
               : useLiveMetadata && item is HomeLiveItem
                   ? _liveMetadata(item)
-                  : item.subtitle as String,
+                  : useNewsMetadata
+                      ? _newsMetadata(item)
+                      : item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
           kind: _cardKindFor(item, kind),
           badgeOverride: useLiveMetadata && item is HomeLiveItem
               ? _liveBadgeLabel(item)
-              : null,
+              : useNewsMetadata
+                  ? _newsBadgeLabel(item)
+                  : null,
           onTap: item is HomeDramaItem
               ? () => _openDramaDetail(context, item)
-              : useLiveMetadata && item is HomeLiveItem
+              : (useLiveMetadata || useNewsMetadata) && item is HomeLiveItem
                   ? () => _showLiveComingSoon(context)
                   : null,
         );
       },
+    );
+  }
+}
+
+class _NewsChannelHero extends StatelessWidget {
+  const _NewsChannelHero({required this.item});
+
+  final dynamic item;
+
+  @override
+  Widget build(BuildContext context) {
+    final dynamic selectedItem = item;
+    return SizedBox(
+      height: 176,
+      child: _PortalCard(
+        title: _newsTitle(selectedItem),
+        subtitle: selectedItem == null
+            ? 'No news content yet'
+            : _newsMetadata(selectedItem),
+        imageUrl: selectedItem == null ? null : _resolveImageUrl(selectedItem),
+        kind: selectedItem is HomeLiveItem ? _CardKind.live : _CardKind.video,
+        badgeOverride:
+            selectedItem == null ? 'News' : _newsHeroBadgeLabel(selectedItem),
+        compactOverlay: true,
+        onTap: selectedItem is HomeLiveItem
+            ? () => _showLiveComingSoon(context)
+            : null,
+      ),
+    );
+  }
+}
+
+class _NewsFilterChips extends StatelessWidget {
+  const _NewsFilterChips({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _newsFilters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, int index) {
+          final bool selected = index == selectedIndex;
+          return ChoiceChip(
+            label: Text(_newsFilters[index]),
+            selected: selected,
+            onSelected: (_) => onSelected(index),
+            selectedColor: AppColors.brandGold,
+            backgroundColor: AppColors.cardBackground,
+            side: const BorderSide(color: AppColors.softBorder),
+            labelStyle: AppTextStyles.caption.copyWith(
+              color: selected ? AppColors.warmBackground : AppColors.cocoaText,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            ),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
     );
   }
 }

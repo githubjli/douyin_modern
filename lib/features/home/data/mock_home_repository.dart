@@ -12,7 +12,16 @@ class MockHomeRepository implements HomeRepository {
         HomeVideoItem(id: 'f2', title: 'City Live Report', subtitle: 'Breaking scenes now'),
       ],
       latestVideos: <HomeVideoItem>[
-        HomeVideoItem(id: 'v1', title: 'Street Food Guide', subtitle: '12m • 48K views'),
+        HomeVideoItem(
+          id: 'v1',
+          title: 'Street Food Guide',
+          subtitle: 'Meow News · 48K views',
+          ownerName: 'Meow News',
+          viewCount: 48000,
+          category: 'news',
+          categoryName: 'News',
+          createdAt: '2026-05-01T12:00:00Z',
+        ),
         HomeVideoItem(id: 'v2', title: 'Morning Fitness', subtitle: '9m • 21K views'),
       ],
       shortDrama: <HomeDramaItem>[
@@ -42,6 +51,8 @@ class MockHomeRepository implements HomeRepository {
           ownerName: 'Finance Live Desk',
           status: 'live',
           viewerCount: 1200,
+          category: 'news',
+          categoryName: 'News',
         ),
         HomeLiveItem(
           id: 'l2',
@@ -50,6 +61,8 @@ class MockHomeRepository implements HomeRepository {
           ownerName: 'Travel Street Cam',
           status: 'ready',
           viewerCount: 890,
+          category: 'travel',
+          categoryName: 'Travel',
         ),
       ],
       recommended: <HomeVideoItem>[

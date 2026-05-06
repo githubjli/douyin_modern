@@ -40,12 +40,16 @@ class _HomePageState extends State<HomePage> {
   int _selectedDramaFilterIndex = 0;
   int _selectedLiveFilterIndex = 0;
   List<HomeVideoItem>? _videoItems;
+  List<HomeVideoItem>? _newsVideoItems;
   List<HomeVideoItem>? _categoryVideoItems;
   String? _videosNextUrl;
+  String? _newsVideosNextUrl;
   String? _categoryVideosNextUrl;
   String? _selectedVideoCategoryQuery;
   bool _loadingMoreVideos = false;
+  bool _loadingMoreNewsVideos = false;
   bool _loadingVideoCategory = false;
+  bool _usingNewsVideoFallback = false;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -79,15 +83,28 @@ class _HomePageState extends State<HomePage> {
 
     portal ??= await widget.mockRepository.getHomePortalData();
     final HomePortalData loadedPortal = portal;
+
+    HomeVideoPage? newsVideoPage;
+    bool usingNewsFallback = false;
+    try {
+      newsVideoPage = await _getVideoPage(category: 'news');
+    } catch (_) {
+      usingNewsFallback = true;
+    }
+
     if (!mounted) return;
     setState(() {
       _data = loadedPortal;
       _videoItems = loadedPortal.latestVideos;
+      _newsVideoItems =
+          newsVideoPage?.items ?? _localNewsVideos(loadedPortal.latestVideos);
       _videosNextUrl = loadedPortal.videosNextUrl;
+      _newsVideosNextUrl = newsVideoPage?.nextUrl;
       _categoryVideoItems = null;
       _categoryVideosNextUrl = null;
       _selectedVideoCategoryIndex = 0;
       _selectedVideoCategoryQuery = null;
+      _usingNewsVideoFallback = usingNewsFallback;
       _loading = false;
     });
   }
@@ -193,10 +210,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Widget> _newsChannelContent(HomePortalData data) {
-    final List<dynamic> newsItems = _newsItems(
-      data,
-      _videoItems ?? data.latestVideos,
-    );
+    final List<HomeVideoItem> newsVideos =
+        _newsVideoItems ?? _localNewsVideos(data.latestVideos);
+    final List<dynamic> newsItems = _newsItems(data, newsVideos);
     final List<dynamic> visibleItems = _filterNewsItems(
       newsItems,
       _selectedNewsFilterIndex,
@@ -211,6 +227,13 @@ class _HomePageState extends State<HomePage> {
           setState(() => _selectedNewsFilterIndex = index);
         },
       ),
+      if (_usingNewsVideoFallback) ...<Widget>[
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Showing locally loaded news videos.',
+          style: AppTextStyles.caption.copyWith(fontSize: 10),
+        ),
+      ],
       const SizedBox(height: AppSpacing.md),
       if (visibleItems.isEmpty)
         const _ChannelEmptyCard(message: 'No news content yet')
@@ -220,6 +243,14 @@ class _HomePageState extends State<HomePage> {
           kind: _CardKind.video,
           useNewsMetadata: true,
         ),
+      if (_newsVideosNextUrl != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.sm),
+        _ChannelMoreButton(
+          label: _loadingMoreNewsVideos ? 'Loading...' : 'Load more',
+          onPressed: _loadMoreNewsVideos,
+          enabled: !_loadingMoreNewsVideos,
+        ),
+      ],
     ];
   }
 
@@ -410,6 +441,33 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       setState(() {
         _loadingMoreVideos = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreNewsVideos() async {
+    final String? nextUrl = _newsVideosNextUrl;
+    if (nextUrl == null || _loadingMoreNewsVideos) return;
+
+    setState(() {
+      _loadingMoreNewsVideos = true;
+    });
+
+    try {
+      final HomeVideoPage page = await _getVideoPage(pageUrl: nextUrl);
+      if (!mounted) return;
+      setState(() {
+        _newsVideoItems = _appendUniqueVideos(
+          _newsVideoItems ?? const <HomeVideoItem>[],
+          _localNewsVideos(page.items),
+        );
+        _newsVideosNextUrl = page.nextUrl;
+        _loadingMoreNewsVideos = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingMoreNewsVideos = false;
       });
     }
   }
@@ -607,9 +665,13 @@ List<dynamic> _newsItems(
   List<HomeVideoItem> loadedVideos,
 ) {
   return <dynamic>[
-    ...loadedVideos.where(_isNewsVideo),
+    ..._localNewsVideos(loadedVideos),
     ...data.liveNow.where(_isNewsLive),
   ];
+}
+
+List<HomeVideoItem> _localNewsVideos(List<HomeVideoItem> videos) {
+  return videos.where(_isNewsVideo).toList();
 }
 
 List<dynamic> _filterNewsItems(List<dynamic> items, int selectedIndex) {

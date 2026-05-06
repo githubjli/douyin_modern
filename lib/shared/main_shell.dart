@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../app/theme/app_colors.dart';
@@ -24,8 +26,6 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
-
-
 
   Future<void> _onTapTab(int value) async {
     if (value == 2) {
@@ -85,46 +85,79 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       extendBody: true,
       body: IndexedStack(index: displayIndex, children: displayPages),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground.withValues(alpha: 0.95),
-          border: const Border(top: BorderSide(color: AppColors.softBorder)),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x66000000),
-              blurRadius: 12,
-              offset: Offset(0, -2),
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground.withValues(alpha: 0.62),
+              border: Border(
+                top: BorderSide(
+                  color: AppColors.softBorder.withValues(alpha: 0.42),
+                  width: 0.5,
+                ),
+              ),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x22000000),
+                  blurRadius: 10,
+                  offset: Offset(0, -1),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _index,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          selectedItemColor: AppColors.brandGold,
-          unselectedItemColor: AppColors.cocoaText,
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
-          showUnselectedLabels: true,
-          onTap: _onTapTab,
-          items: const <BottomNavigationBarItem>[
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.play_arrow_rounded),
-              label: 'Short',
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 64,
+                child: BottomNavigationBar(
+                  currentIndex: _index,
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  iconSize: 24,
+                  selectedItemColor: AppColors.brandGold,
+                  unselectedItemColor: AppColors.cocoaText,
+                  selectedFontSize: 11,
+                  unselectedFontSize: 11,
+                  selectedLabelStyle: const TextStyle(height: 1),
+                  unselectedLabelStyle: const TextStyle(height: 1),
+                  showUnselectedLabels: true,
+                  onTap: _onTapTab,
+                  items: const <BottomNavigationBarItem>[
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_outlined),
+                      activeIcon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.play_circle_outline_rounded),
+                      activeIcon: Icon(Icons.play_circle_fill_rounded),
+                      label: 'Short',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(
+                        Icons.add_circle,
+                        size: 32,
+                        color: AppColors.brandGold,
+                      ),
+                      label: '',
+                      tooltip: 'Create',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.star_border_rounded),
+                      activeIcon: Icon(Icons.star_rounded),
+                      label: 'Member',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.person_outline_rounded),
+                      activeIcon: Icon(Icons.person_rounded),
+                      label: 'Profile',
+                    ),
+                  ],
+                ),
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.add_circle, size: 36, color: AppColors.brandGold),
-              label: '',
-              tooltip: 'Create',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.workspace_premium),
-              label: 'Member',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-          ],
+          ),
         ),
       ),
     );

@@ -4,12 +4,20 @@ class HomeVideoItem {
     required this.title,
     required this.subtitle,
     this.thumbnailUrl,
+    this.ownerName,
+    this.viewCount,
+    this.category,
+    this.categoryName,
   });
 
   final String id;
   final String title;
   final String subtitle;
   final String? thumbnailUrl;
+  final String? ownerName;
+  final int? viewCount;
+  final String? category;
+  final String? categoryName;
 }
 
 class HomeDramaItem {
@@ -63,6 +71,9 @@ class HomePortalData {
     required this.shortDrama,
     required this.liveNow,
     required this.recommended,
+    this.videosNextUrl,
+    this.dramasNextUrl,
+    this.liveNextUrl,
   });
 
   final List<HomeVideoItem> featured;
@@ -70,4 +81,7 @@ class HomePortalData {
   final List<HomeDramaItem> shortDrama;
   final List<HomeLiveItem> liveNow;
   final List<HomeVideoItem> recommended;
+  final String? videosNextUrl;
+  final String? dramasNextUrl;
+  final String? liveNextUrl;
 }

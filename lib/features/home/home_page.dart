@@ -75,7 +75,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     portal ??= await widget.mockRepository.getHomePortalData();
-    final HomePortalData loadedPortal = portal!;
+    final HomePortalData loadedPortal = portal;
     if (!mounted) return;
     setState(() {
       _data = loadedPortal;
@@ -520,16 +520,6 @@ List<dynamic> _heroItemsFor(HomePortalData data) {
     ...data.featured.take(2),
   ];
   return items.isEmpty ? <dynamic>[null] : items;
-}
-
-List<HomeVideoItem> _videoChannelItems(HomePortalData data) {
-  final List<HomeVideoItem> items = <HomeVideoItem>[
-    ...data.latestVideos,
-    ...data.recommended,
-    ...data.featured,
-  ];
-  final Set<String> seen = <String>{};
-  return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
 List<HomeVideoItem> _videoCategorySource(

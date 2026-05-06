@@ -44,6 +44,50 @@ Home should follow a short-drama/video app homepage structure:
 - Text should not dominate the poster image.
 - Keep Home content-first, not dashboard-like.
 
+## Channel Page Pattern
+
+The Videos channel is the accepted baseline pattern for top Home channel pages. Future Short Drama, Live, and Shop channel work should follow this structure unless a task explicitly requests otherwise.
+
+### Visual structure
+
+- The shared top row remains: small Meow logo + search pill + plus action.
+- The Home top channel nav remains shared.
+- Channel pages should use:
+  - hero/banner
+  - optional filter chips
+  - 3-column poster/card grid
+  - subtle More / Load more action when paginated
+
+### Content boundaries
+
+- Home is mixed.
+- Videos channel is video-only.
+- Short Drama channel is drama-only.
+- Live channel is live-only.
+- Shop is placeholder-only until explicitly wired.
+- Do not mix content types inside a channel unless explicitly requested.
+
+### Quantity rules
+
+- Home landing Recommended stays curated and capped to 6.
+- Channel pages should show more content, up to 30 loaded items by default.
+- Channel pages may end with incomplete final rows.
+- Do not add fake placeholders just to fill a grid.
+- If the backend has a next page, show a subtle More / Load more action.
+
+### Filtering rules
+
+- Category/filter chips should filter local loaded data unless backend category filtering is explicitly supported.
+- If filtering only loaded data, do not imply full backend category counts.
+- Preserve pagination metadata when available.
+
+### Codex safety rules
+
+- Do not apply the Home Recommended 6-card cap to channel pages.
+- Do not delete UI/state broadly; make small local changes.
+- When hiding text, remove all references safely or replace with `SizedBox.shrink`.
+- Always keep `flutter analyze` and `flutter test` clean.
+
 ## 4. Short tab baseline
 
 - Short tab is drama-only.

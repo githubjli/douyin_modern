@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
-import '../../shared/brand_page_header.dart';
 import 'data/mock_home_repository.dart';
 import 'data/remote_home_repository.dart';
 import 'domain/home_models.dart';
@@ -33,10 +33,11 @@ class _HomePageState extends State<HomePage> {
   String? _notice;
 
   static const List<String> _channels = <String>[
+    'Home',
     'Videos',
     'Short Drama',
     'Live',
-    'Trending',
+    'Shop',
   ];
 
   @override
@@ -82,49 +83,39 @@ class _HomePageState extends State<HomePage> {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
-          const BrandPageHeader(title: 'Home'),
-          const SizedBox(height: AppSpacing.xs),
-          const Text('Your mixed portal: videos, drama, live, and trends',
-              style: AppTextStyles.caption),
+          const _HomeTopRow(),
           const SizedBox(height: AppSpacing.md),
-          const _SearchPill(),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _channels.length,
-              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
-              itemBuilder: (BuildContext context, int index) {
-                final bool selected = index == 0;
-                return _CategoryChip(label: _channels[index], selected: selected);
-              },
-            ),
-          ),
+          _ChannelNav(channels: _channels),
           if (_notice != null) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
             Text(_notice!, style: AppTextStyles.caption),
           ],
           const SizedBox(height: AppSpacing.md),
-          _HeroCard(data: data),
+          _HeroCarousel(data: data),
+          const SizedBox(height: AppSpacing.xs),
+          const _HeroDots(),
           const SizedBox(height: AppSpacing.md),
-          const _SectionHeader(title: 'Latest Videos', hint: 'View all'),
+          const _SectionHeader(title: 'Recommended for you today', hint: 'For you'),
+          const SizedBox(height: AppSpacing.sm),
+          _SectionGrid(items: data.recommended, kind: _CardKind.video),
+          const SizedBox(height: AppSpacing.md),
+          const _SectionHeader(title: 'Videos', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
           _SectionGrid(items: data.latestVideos, kind: _CardKind.video),
           const SizedBox(height: AppSpacing.md),
-          const _SectionHeader(title: 'Short Drama', hint: 'View all'),
+          const _SectionHeader(title: 'Short Drama', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
           _SectionGrid(items: data.shortDrama, kind: _CardKind.drama),
           const SizedBox(height: AppSpacing.md),
-          const _SectionHeader(title: 'Live Now', hint: 'Live updates'),
+          const _SectionHeader(title: 'Live', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
           data.liveNow.isEmpty
               ? const _LiveEmptyCard()
               : _SectionGrid(items: data.liveNow, kind: _CardKind.live),
           const SizedBox(height: AppSpacing.md),
-          const _SectionHeader(title: 'Recommended', hint: 'For you'),
+          const _SectionHeader(title: 'More', hint: 'Explore'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.recommended, kind: _CardKind.video),
+          _SectionGrid(items: data.featured, kind: _CardKind.video),
         ],
       ),
     );
@@ -155,6 +146,44 @@ class _SearchPill extends StatelessWidget {
                 style: AppTextStyles.caption),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HomeTopRow extends StatelessWidget {
+  const _HomeTopRow();
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: <Widget>[
+      ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.asset(AppAssets.meowLogo, width: 26, height: 26),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      const Expanded(child: _SearchPill()),
+      const SizedBox(width: AppSpacing.sm),
+      const Icon(Icons.add_circle, color: AppColors.brandGold, size: 26),
+    ]);
+  }
+}
+
+class _ChannelNav extends StatelessWidget {
+  const _ChannelNav({required this.channels});
+  final List<String> channels;
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: channels.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+        itemBuilder: (_, int i) => Text(
+          channels[i],
+          style: AppTextStyles.caption.copyWith(
+              color: i == 0 ? AppColors.brandGold : AppColors.cocoaText),
+        ),
       ),
     );
   }
@@ -236,10 +265,10 @@ class _SectionGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+        crossAxisCount: 3,
         crossAxisSpacing: AppSpacing.sm,
         mainAxisSpacing: AppSpacing.sm,
-        childAspectRatio: ratio,
+        childAspectRatio: ratio * 0.75,
       ),
       itemBuilder: (_, int index) {
         final dynamic item = items[index];
@@ -254,28 +283,31 @@ class _SectionGrid extends StatelessWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.data});
-
+class _HeroCarousel extends StatelessWidget {
+  const _HeroCarousel({required this.data});
   final HomePortalData data;
-
   @override
   Widget build(BuildContext context) {
-    final dynamic hero = data.shortDrama.isNotEmpty
-        ? data.shortDrama.first
-        : (data.featured.isNotEmpty ? data.featured.first : null);
-    if (hero == null) return const SizedBox.shrink();
-
-    final _CardKind kind = hero is HomeDramaItem ? _CardKind.drama : _CardKind.video;
-    final String subtitle = hero.subtitle as String;
-
-    return AspectRatio(
-      aspectRatio: 1.45,
-      child: _PortalCard(
-        title: hero.title as String,
-        subtitle: subtitle,
-        imageUrl: _resolveImageUrl(hero),
-        kind: kind,
+    final List<dynamic> items = <dynamic>[...data.shortDrama.take(3), ...data.featured.take(2)];
+    return SizedBox(
+      height: 210,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.isEmpty ? 1 : items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (_, int index) {
+          final dynamic item = items.isEmpty ? null : items[index];
+          final _CardKind kind = item is HomeDramaItem ? _CardKind.drama : _CardKind.video;
+          return AspectRatio(
+            aspectRatio: 1.6,
+            child: _PortalCard(
+              title: item?.title as String? ?? 'Featured Picks',
+              subtitle: item?.subtitle as String? ?? 'Drama and video recommendations',
+              imageUrl: _resolveImageUrl(item),
+              kind: kind,
+            ),
+          );
+        },
       ),
     );
   }
@@ -291,6 +323,28 @@ class _HeroCard extends StatelessWidget {
       return item.thumbnailUrl;
     }
     return null;
+  }
+}
+
+class _HeroDots extends StatelessWidget {
+  const _HeroDots();
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List<Widget>.generate(
+        4,
+        (int i) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: i == 0 ? 12 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -43,7 +43,6 @@ class _HomePageState extends State<HomePage> {
   String? _selectedVideoCategoryQuery;
   bool _loadingMoreVideos = false;
   bool _loadingVideoCategory = false;
-  String? _videoLoadNotice;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -254,8 +253,6 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
       const SizedBox(height: AppSpacing.md),
-      const _SectionHeader(title: 'Videos', hint: 'Videos'),
-      const SizedBox(height: AppSpacing.sm),
       if (_loadingVideoCategory)
         const _ChannelLoadingCard(message: 'Loading videos...')
       else if (visibleVideos.isEmpty)
@@ -281,7 +278,6 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _selectedVideoCategoryIndex = index;
       _selectedVideoCategoryQuery = category.queryValue;
-      _videoLoadNotice = null;
       if (category.label == 'All') {
         _categoryVideoItems = null;
         _categoryVideosNextUrl = null;
@@ -308,8 +304,6 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {
       if (!mounted || _selectedVideoCategoryQuery != category.queryValue) return;
       setState(() {
-        _videoLoadNotice =
-            'Filtering currently loaded videos. Use Load more for additional results.';
         _loadingVideoCategory = false;
       });
     }
@@ -322,7 +316,6 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _loadingMoreVideos = true;
-      _videoLoadNotice = null;
     });
 
     try {
@@ -348,7 +341,6 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _videoLoadNotice = 'Could not load more videos right now.';
         _loadingMoreVideos = false;
       });
     }

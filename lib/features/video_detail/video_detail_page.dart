@@ -434,11 +434,16 @@ class _FollowButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.brandGold,
         side: const BorderSide(color: AppColors.brandGold),
+        minimumSize: const Size(0, 30),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xxs,
         ),
-        textStyle: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700),
+        visualDensity: VisualDensity.compact,
+        textStyle: AppTextStyles.caption.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       child: const Text('Follow'),
     );

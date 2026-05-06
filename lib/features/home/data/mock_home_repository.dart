@@ -16,8 +16,23 @@ class MockHomeRepository implements HomeRepository {
         HomeVideoItem(id: 'v2', title: 'Morning Fitness', subtitle: '9m • 21K views'),
       ],
       shortDrama: <HomeDramaItem>[
-        HomeDramaItem(id: 'd1', title: 'Crimson Oath', subtitle: 'EP 12 • Free 3'),
-        HomeDramaItem(id: 'd2', title: 'Silent Signal', subtitle: 'EP 8 • 2 points'),
+        HomeDramaItem(
+          id: 'd1',
+          title: 'Crimson Oath',
+          subtitle: '12 episodes • Free 3 • Locked 9',
+          totalEpisodes: 12,
+          freeEpisodeCount: 3,
+          lockedEpisodeCount: 9,
+        ),
+        HomeDramaItem(
+          id: 'd2',
+          title: 'Silent Signal',
+          subtitle: '8 episodes • Free 8 • Locked 0',
+          totalEpisodes: 8,
+          freeEpisodeCount: 8,
+          lockedEpisodeCount: 0,
+          isCompleted: true,
+        ),
       ],
       liveNow: <HomeLiveItem>[
         HomeLiveItem(id: 'l1', title: 'Finance Live Desk', subtitle: '1.2K watching'),

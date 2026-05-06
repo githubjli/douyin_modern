@@ -36,6 +36,8 @@ class _HomePageState extends State<HomePage> {
   int _activeHeroIndex = 0;
   int _selectedChannelIndex = 0;
   int _selectedVideoCategoryIndex = 0;
+  int _selectedDramaFilterIndex = 0;
+  int _selectedLiveFilterIndex = 0;
   List<HomeVideoItem>? _videoItems;
   List<HomeVideoItem>? _categoryVideoItems;
   String? _videosNextUrl;
@@ -133,32 +135,8 @@ class _HomePageState extends State<HomePage> {
   List<Widget> _channelContent(HomePortalData data, List<dynamic> heroItems) {
     return switch (_selectedChannelIndex) {
       1 => _videoChannelContent(data),
-      2 => <Widget>[
-          const _SectionHeader(title: 'Short Drama', hint: 'Drama'),
-          const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(
-            items: data.shortDrama.take(30).toList(),
-            kind: _CardKind.drama,
-          ),
-          if (data.dramasNextUrl != null) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            const _ChannelMoreButton(),
-          ],
-        ],
-      3 => <Widget>[
-          const _SectionHeader(title: 'Live', hint: 'Live'),
-          const SizedBox(height: AppSpacing.sm),
-          data.liveNow.isEmpty
-              ? const _LiveEmptyCard()
-              : _SectionGrid(
-                  items: data.liveNow.take(30).toList(),
-                  kind: _CardKind.live,
-                ),
-          if (data.liveNextUrl != null) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            const _ChannelMoreButton(),
-          ],
-        ],
+      2 => _dramaChannelContent(data),
+      3 => _liveChannelContent(data),
       4 => const <Widget>[
           _ChannelEmptyCard(message: 'Shop is coming soon'),
         ],
@@ -211,6 +189,72 @@ class _HomePageState extends State<HomePage> {
     };
   }
 
+  List<Widget> _dramaChannelContent(HomePortalData data) {
+    final List<HomeDramaItem> loadedDramas = data.shortDrama;
+    final HomeDramaItem? heroDrama = _dramaHeroItem(loadedDramas);
+    final List<HomeDramaItem> visibleDramas = _filterDramas(
+      loadedDramas,
+      _selectedDramaFilterIndex,
+    ).take(30).toList();
+
+    return <Widget>[
+      _DramaChannelHero(drama: heroDrama),
+      const SizedBox(height: AppSpacing.sm),
+      _DramaFilterChips(
+        selectedIndex: _selectedDramaFilterIndex,
+        onSelected: (int index) {
+          setState(() => _selectedDramaFilterIndex = index);
+        },
+      ),
+      const SizedBox(height: AppSpacing.md),
+      if (visibleDramas.isEmpty)
+        const _ChannelEmptyCard(message: 'No loaded dramas available yet.')
+      else
+        _SectionGrid(
+          items: visibleDramas,
+          kind: _CardKind.drama,
+          useDramaMetadata: true,
+        ),
+      if (data.dramasNextUrl != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.sm),
+        const _ChannelMoreButton(),
+      ],
+    ];
+  }
+
+  List<Widget> _liveChannelContent(HomePortalData data) {
+    final List<HomeLiveItem> loadedLive = data.liveNow;
+    final HomeLiveItem? heroLive = _liveHeroItem(loadedLive);
+    final List<HomeLiveItem> visibleLive = _filterLiveItems(
+      loadedLive,
+      _selectedLiveFilterIndex,
+    ).take(30).toList();
+
+    return <Widget>[
+      _LiveChannelHero(item: heroLive),
+      const SizedBox(height: AppSpacing.sm),
+      _LiveFilterChips(
+        selectedIndex: _selectedLiveFilterIndex,
+        onSelected: (int index) {
+          setState(() => _selectedLiveFilterIndex = index);
+        },
+      ),
+      const SizedBox(height: AppSpacing.md),
+      if (visibleLive.isEmpty)
+        const _LiveEmptyCard()
+      else
+        _SectionGrid(
+          items: visibleLive,
+          kind: _CardKind.live,
+          useLiveMetadata: true,
+        ),
+      if (data.liveNextUrl != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.sm),
+        const _ChannelMoreButton(),
+      ],
+    ];
+  }
+
   List<Widget> _videoChannelContent(HomePortalData data) {
     final List<HomeVideoItem> loadedVideos = _videoItems ?? data.latestVideos;
     final List<_VideoCategoryOption> categories =
@@ -242,16 +286,6 @@ class _HomePageState extends State<HomePage> {
         selectedIndex: selectedIndex,
         onSelected: (int index) => _selectVideoCategory(categories, index),
       ),
-      if (!isAllSelected || _videoLoadNotice != null) ...<Widget>[
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          _videoLoadNotice ??
-              (usingCategoryPage
-                  ? 'Showing loaded ${selectedCategory.label} videos.'
-                  : 'Filtering currently loaded videos. Use Load more for additional results.'),
-          style: AppTextStyles.caption.copyWith(fontSize: 10),
-        ),
-      ],
       const SizedBox(height: AppSpacing.md),
       if (_loadingVideoCategory)
         const _ChannelLoadingCard(message: 'Loading videos...')
@@ -527,6 +561,127 @@ List<HomeVideoItem> _videoCategorySource(
   return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
+const List<String> _dramaFilters = <String>[
+  'All',
+  'Free',
+  'Locked',
+  'Completed',
+];
+
+List<HomeDramaItem> _filterDramas(
+  List<HomeDramaItem> dramas,
+  int selectedIndex,
+) {
+  final int safeIndex = selectedIndex.clamp(0, _dramaFilters.length - 1).toInt();
+  final String filter = _dramaFilters[safeIndex];
+  return switch (filter) {
+    'Free' => dramas
+        .where((HomeDramaItem drama) => (drama.freeEpisodeCount ?? 0) > 0)
+        .toList(),
+    'Locked' => dramas
+        .where((HomeDramaItem drama) => (drama.lockedEpisodeCount ?? 0) > 0)
+        .toList(),
+    'Completed' => dramas
+        .where((HomeDramaItem drama) => drama.isCompleted == true)
+        .toList(),
+    _ => dramas,
+  };
+}
+
+HomeDramaItem? _dramaHeroItem(List<HomeDramaItem> dramas) {
+  for (final HomeDramaItem drama in dramas) {
+    if (drama.coverUrl?.trim().isNotEmpty ?? false) return drama;
+  }
+  return dramas.isEmpty ? null : dramas.first;
+}
+
+String _dramaMetadata(HomeDramaItem drama) {
+  return '${drama.totalEpisodes ?? 0} episodes • '
+      'Free ${drama.freeEpisodeCount ?? 0} • '
+      'Locked ${drama.lockedEpisodeCount ?? 0}';
+}
+
+const List<String> _liveFilters = <String>[
+  'All',
+  'Live',
+  'Ready',
+  'Ended',
+];
+
+List<HomeLiveItem> _filterLiveItems(
+  List<HomeLiveItem> items,
+  int selectedIndex,
+) {
+  final int safeIndex = selectedIndex.clamp(0, _liveFilters.length - 1).toInt();
+  final String filter = _liveFilters[safeIndex];
+  return switch (filter) {
+    'Live' => items
+        .where((HomeLiveItem item) => _liveStatus(item) == 'live')
+        .toList(),
+    'Ready' => items
+        .where((HomeLiveItem item) => _liveStatus(item) == 'ready')
+        .toList(),
+    'Ended' => items
+        .where((HomeLiveItem item) => _liveStatus(item) == 'ended')
+        .toList(),
+    _ => items,
+  };
+}
+
+HomeLiveItem? _liveHeroItem(List<HomeLiveItem> items) {
+  for (final HomeLiveItem item in items) {
+    if (_liveStatus(item) == 'live') return item;
+  }
+  for (final HomeLiveItem item in items) {
+    if (_liveStatus(item) == 'ready') return item;
+  }
+  return items.isEmpty ? null : items.first;
+}
+
+String _liveStatus(HomeLiveItem item) {
+  final String? rawStatus = item.effectiveStatus?.trim().isNotEmpty == true
+      ? item.effectiveStatus
+      : item.status?.trim().isNotEmpty == true
+          ? item.status
+          : item.djangoStatus;
+  final String normalized = rawStatus?.toLowerCase().trim() ?? '';
+  if (normalized == 'live' ||
+      normalized == 'active' ||
+      normalized == 'streaming' ||
+      normalized == 'started') {
+    return 'live';
+  }
+  if (normalized == 'ready' ||
+      normalized == 'scheduled' ||
+      normalized == 'pending' ||
+      normalized == 'waiting') {
+    return 'ready';
+  }
+  if (normalized == 'ended' ||
+      normalized == 'end' ||
+      normalized == 'finished' ||
+      normalized == 'closed' ||
+      normalized == 'offline') {
+    return 'ended';
+  }
+  return 'ready';
+}
+
+String _liveBadgeLabel(HomeLiveItem item) {
+  return switch (_liveStatus(item)) {
+    'live' => 'LIVE',
+    'ended' => 'Ended',
+    _ => 'Ready',
+  };
+}
+
+String _liveMetadata(HomeLiveItem item) {
+  final String owner = item.ownerName?.trim().isNotEmpty == true
+      ? item.ownerName!.trim()
+      : 'Host';
+  return '$owner · ${item.viewerCount ?? 0} watching';
+}
+
 List<_VideoCategoryOption> _videoCategories(List<HomeVideoItem> videos) {
   final List<_VideoCategoryOption> categories = <_VideoCategoryOption>[
     const _VideoCategoryOption(label: 'All'),
@@ -636,6 +791,12 @@ void _openDramaDetail(BuildContext context, HomeDramaItem drama) {
   );
 }
 
+void _showLiveComingSoon(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Live detail/watch page coming soon.')),
+  );
+}
+
 String? _resolveImageUrl(dynamic item) {
   if (item is HomeVideoItem) {
     return item.thumbnailUrl;
@@ -650,10 +811,17 @@ String? _resolveImageUrl(dynamic item) {
 }
 
 class _SectionGrid extends StatelessWidget {
-  const _SectionGrid({required this.items, required this.kind});
+  const _SectionGrid({
+    required this.items,
+    required this.kind,
+    this.useDramaMetadata = false,
+    this.useLiveMetadata = false,
+  });
 
   final List<dynamic> items;
   final _CardKind kind;
+  final bool useDramaMetadata;
+  final bool useLiveMetadata;
 
   @override
   Widget build(BuildContext context) {
@@ -676,14 +844,152 @@ class _SectionGrid extends StatelessWidget {
         final dynamic item = items[index];
         return _PortalCard(
           title: item.title as String,
-          subtitle: item.subtitle as String,
+          subtitle: useDramaMetadata && item is HomeDramaItem
+              ? _dramaMetadata(item)
+              : useLiveMetadata && item is HomeLiveItem
+                  ? _liveMetadata(item)
+                  : item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
           kind: _cardKindFor(item, kind),
+          badgeOverride: useLiveMetadata && item is HomeLiveItem
+              ? _liveBadgeLabel(item)
+              : null,
           onTap: item is HomeDramaItem
               ? () => _openDramaDetail(context, item)
-              : null,
+              : useLiveMetadata && item is HomeLiveItem
+                  ? () => _showLiveComingSoon(context)
+                  : null,
         );
       },
+    );
+  }
+}
+
+class _DramaChannelHero extends StatelessWidget {
+  const _DramaChannelHero({required this.drama});
+
+  final HomeDramaItem? drama;
+
+  @override
+  Widget build(BuildContext context) {
+    final HomeDramaItem? selectedDrama = drama;
+    return SizedBox(
+      height: 176,
+      child: _PortalCard(
+        title: selectedDrama?.title ?? 'Short Drama',
+        subtitle: selectedDrama == null
+            ? 'Discover bite-size drama stories'
+            : _dramaMetadata(selectedDrama),
+        imageUrl:
+            selectedDrama == null ? null : _resolveImageUrl(selectedDrama),
+        kind: _CardKind.drama,
+        compactOverlay: true,
+        onTap: selectedDrama == null
+            ? null
+            : () => _openDramaDetail(context, selectedDrama),
+      ),
+    );
+  }
+}
+
+class _DramaFilterChips extends StatelessWidget {
+  const _DramaFilterChips({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _dramaFilters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, int index) {
+          final bool selected = index == selectedIndex;
+          return ChoiceChip(
+            label: Text(_dramaFilters[index]),
+            selected: selected,
+            onSelected: (_) => onSelected(index),
+            selectedColor: AppColors.brandGold,
+            backgroundColor: AppColors.cardBackground,
+            side: const BorderSide(color: AppColors.softBorder),
+            labelStyle: AppTextStyles.caption.copyWith(
+              color: selected ? AppColors.warmBackground : AppColors.cocoaText,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            ),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LiveChannelHero extends StatelessWidget {
+  const _LiveChannelHero({required this.item});
+
+  final HomeLiveItem? item;
+
+  @override
+  Widget build(BuildContext context) {
+    final HomeLiveItem? selectedItem = item;
+    return SizedBox(
+      height: 176,
+      child: _PortalCard(
+        title: selectedItem?.title ?? 'Live',
+        subtitle: selectedItem == null
+            ? 'Live discovery is coming soon'
+            : _liveMetadata(selectedItem),
+        imageUrl: selectedItem == null ? null : _resolveImageUrl(selectedItem),
+        kind: _CardKind.live,
+        badgeOverride:
+            selectedItem == null ? 'Ready' : _liveBadgeLabel(selectedItem),
+        compactOverlay: true,
+        onTap: selectedItem == null ? null : () => _showLiveComingSoon(context),
+      ),
+    );
+  }
+}
+
+class _LiveFilterChips extends StatelessWidget {
+  const _LiveFilterChips({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _liveFilters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, int index) {
+          final bool selected = index == selectedIndex;
+          return ChoiceChip(
+            label: Text(_liveFilters[index]),
+            selected: selected,
+            onSelected: (_) => onSelected(index),
+            selectedColor: AppColors.brandGold,
+            backgroundColor: AppColors.cardBackground,
+            side: const BorderSide(color: AppColors.softBorder),
+            labelStyle: AppTextStyles.caption.copyWith(
+              color: selected ? AppColors.warmBackground : AppColors.cocoaText,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            ),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
     );
   }
 }
@@ -824,6 +1130,7 @@ class _PortalCard extends StatelessWidget {
     required this.subtitle,
     required this.kind,
     this.imageUrl,
+    this.badgeOverride,
     this.compactOverlay = false,
     this.onTap,
   });
@@ -832,17 +1139,19 @@ class _PortalCard extends StatelessWidget {
   final String subtitle;
   final _CardKind kind;
   final String? imageUrl;
+  final String? badgeOverride;
   final bool compactOverlay;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final String badge = switch (kind) {
-      _CardKind.featured => 'Video',
-      _CardKind.video => 'Video',
-      _CardKind.drama => 'Drama',
-      _CardKind.live => 'LIVE',
-    };
+    final String badge = badgeOverride ??
+        switch (kind) {
+          _CardKind.featured => 'Video',
+          _CardKind.video => 'Video',
+          _CardKind.drama => 'Drama',
+          _CardKind.live => 'LIVE',
+        };
 
     return GestureDetector(
       onTap: onTap,

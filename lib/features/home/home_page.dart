@@ -323,50 +323,6 @@ class _HeroDots extends StatelessWidget {
   }
 }
 
-class _HeroDots extends StatelessWidget {
-  const _HeroDots();
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(
-        4,
-        (int i) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: i == 0 ? 12 : 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
-            borderRadius: BorderRadius.circular(99),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroDots extends StatelessWidget {
-  const _HeroDots();
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(
-        4,
-        (int i) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: i == 0 ? 12 : 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
-            borderRadius: BorderRadius.circular(99),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PortalCard extends StatelessWidget {
   const _PortalCard({
     required this.title,

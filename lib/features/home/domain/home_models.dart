@@ -63,6 +63,9 @@ class HomePortalData {
     required this.shortDrama,
     required this.liveNow,
     required this.recommended,
+    this.videosNextUrl,
+    this.dramasNextUrl,
+    this.liveNextUrl,
   });
 
   final List<HomeVideoItem> featured;
@@ -70,4 +73,7 @@ class HomePortalData {
   final List<HomeDramaItem> shortDrama;
   final List<HomeLiveItem> liveNow;
   final List<HomeVideoItem> recommended;
+  final String? videosNextUrl;
+  final String? dramasNextUrl;
+  final String? liveNextUrl;
 }

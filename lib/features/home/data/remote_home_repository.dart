@@ -14,10 +14,14 @@ class RemoteHomeRepository implements HomeRepository {
     List<Map<String, dynamic>> videos = <Map<String, dynamic>>[];
     List<Map<String, dynamic>> dramas = <Map<String, dynamic>>[];
     List<Map<String, dynamic>> live = <Map<String, dynamic>>[];
+    String? videosNextUrl;
+    String? dramasNextUrl;
+    String? liveNextUrl;
 
     try {
       final videosResponse = await _apiClient.get<dynamic>(Endpoints.publicVideos);
       videos = _rows(videosResponse.data);
+      videosNextUrl = _next(videosResponse.data);
     } catch (_) {
       assert(() {
         debugPrint('[Home] videos fetch failed');
@@ -28,6 +32,7 @@ class RemoteHomeRepository implements HomeRepository {
     try {
       final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
       dramas = _rows(dramasResponse.data);
+      dramasNextUrl = _next(dramasResponse.data);
     } catch (_) {
       assert(() {
         debugPrint('[Home] dramas fetch failed');
@@ -38,6 +43,7 @@ class RemoteHomeRepository implements HomeRepository {
     try {
       final liveResponse = await _apiClient.get<dynamic>('/api/live/');
       live = _rows(liveResponse.data);
+      liveNextUrl = _next(liveResponse.data);
     } catch (_) {
       assert(() {
         debugPrint('[Home] live fetch failed');
@@ -50,10 +56,10 @@ class RemoteHomeRepository implements HomeRepository {
       return true;
     }());
 
-    final List<HomeVideoItem> latestVideos = videos.take(6).map(_mapVideo).toList();
+    final List<HomeVideoItem> latestVideos = videos.take(30).map(_mapVideo).toList();
     final List<HomeVideoItem> featured = latestVideos.take(2).toList();
-    final List<HomeDramaItem> shortDrama = dramas.take(6).map(_mapDrama).toList();
-    final List<HomeLiveItem> liveNow = live.take(6).map(_mapLive).toList();
+    final List<HomeDramaItem> shortDrama = dramas.take(30).map(_mapDrama).toList();
+    final List<HomeLiveItem> liveNow = live.take(30).map(_mapLive).toList();
 
     final List<HomeVideoItem> recommended =
         (videos.skip(2).take(4).map(_mapVideo).toList()) +
@@ -67,6 +73,9 @@ class RemoteHomeRepository implements HomeRepository {
       shortDrama: shortDrama,
       liveNow: liveNow,
       recommended: recommended,
+      videosNextUrl: videosNextUrl,
+      dramasNextUrl: dramasNextUrl,
+      liveNextUrl: liveNextUrl,
     );
   }
 
@@ -79,6 +88,13 @@ class RemoteHomeRepository implements HomeRepository {
       }
     }
     return <Map<String, dynamic>>[];
+  }
+
+  String? _next(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return _str(data['next']);
+    }
+    return null;
   }
 
   HomeVideoItem _mapVideo(Map<String, dynamic> m) {

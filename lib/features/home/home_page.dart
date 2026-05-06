@@ -120,19 +120,40 @@ class _HomePageState extends State<HomePage> {
       1 => <Widget>[
           const _SectionHeader(title: 'Videos', hint: 'Videos'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: _videoChannelItems(data), kind: _CardKind.video),
+          _SectionGrid(
+            items: _videoChannelItems(data).take(30).toList(),
+            kind: _CardKind.video,
+          ),
+          if (data.videosNextUrl != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            const _ChannelMoreButton(),
+          ],
         ],
       2 => <Widget>[
           const _SectionHeader(title: 'Short Drama', hint: 'Drama'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.shortDrama, kind: _CardKind.drama),
+          _SectionGrid(
+            items: data.shortDrama.take(30).toList(),
+            kind: _CardKind.drama,
+          ),
+          if (data.dramasNextUrl != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            const _ChannelMoreButton(),
+          ],
         ],
       3 => <Widget>[
           const _SectionHeader(title: 'Live', hint: 'Live'),
           const SizedBox(height: AppSpacing.sm),
           data.liveNow.isEmpty
               ? const _LiveEmptyCard()
-              : _SectionGrid(items: data.liveNow, kind: _CardKind.live),
+              : _SectionGrid(
+                  items: data.liveNow.take(30).toList(),
+                  kind: _CardKind.live,
+                ),
+          if (data.liveNextUrl != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            const _ChannelMoreButton(),
+          ],
         ],
       4 => const <Widget>[
           _ChannelEmptyCard(message: 'Shop is coming soon'),
@@ -158,17 +179,26 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Videos', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.latestVideos, kind: _CardKind.video),
+          _SectionGrid(
+            items: data.latestVideos.take(6).toList(),
+            kind: _CardKind.video,
+          ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Short Drama', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.shortDrama, kind: _CardKind.drama),
+          _SectionGrid(
+            items: data.shortDrama.take(6).toList(),
+            kind: _CardKind.drama,
+          ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Live', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
           data.liveNow.isEmpty
               ? const _LiveEmptyCard()
-              : _SectionGrid(items: data.liveNow, kind: _CardKind.live),
+              : _SectionGrid(
+                  items: data.liveNow.take(6).toList(),
+                  kind: _CardKind.live,
+                ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'More', hint: 'Explore'),
           const SizedBox(height: AppSpacing.sm),
@@ -710,6 +740,30 @@ class _LiveEmptyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _ChannelEmptyCard(message: 'No live streams right now.');
+  }
+}
+
+class _ChannelMoreButton extends StatelessWidget {
+  const _ChannelMoreButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: OutlinedButton(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('More loading coming soon.')),
+          );
+        },
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.brandGold,
+          side: const BorderSide(color: AppColors.softBorder),
+          textStyle: AppTextStyles.caption,
+        ),
+        child: const Text('More'),
+      ),
+    );
   }
 }
 

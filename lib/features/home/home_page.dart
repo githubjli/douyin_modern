@@ -36,6 +36,14 @@ class _HomePageState extends State<HomePage> {
   int _activeHeroIndex = 0;
   int _selectedChannelIndex = 0;
   int _selectedVideoCategoryIndex = 0;
+  List<HomeVideoItem>? _videoItems;
+  List<HomeVideoItem>? _categoryVideoItems;
+  String? _videosNextUrl;
+  String? _categoryVideosNextUrl;
+  String? _selectedVideoCategoryQuery;
+  bool _loadingMoreVideos = false;
+  bool _loadingVideoCategory = false;
+  String? _videoLoadNotice;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -67,9 +75,16 @@ class _HomePageState extends State<HomePage> {
     }
 
     portal ??= await widget.mockRepository.getHomePortalData();
+    final HomePortalData loadedPortal = portal;
     if (!mounted) return;
     setState(() {
-      _data = portal;
+      _data = loadedPortal;
+      _videoItems = loadedPortal.latestVideos;
+      _videosNextUrl = loadedPortal.videosNextUrl;
+      _categoryVideoItems = null;
+      _categoryVideosNextUrl = null;
+      _selectedVideoCategoryIndex = 0;
+      _selectedVideoCategoryQuery = null;
       _loading = false;
     });
   }
@@ -198,17 +213,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Widget> _videoChannelContent(HomePortalData data) {
-    final List<HomeVideoItem> videos = _videoChannelItems(data);
-    final List<String> categories = _videoCategories(videos);
+    final List<HomeVideoItem> loadedVideos = _videoItems ?? data.latestVideos;
+    final List<_VideoCategoryOption> categories =
+        _videoCategories(_videoCategorySource(data, loadedVideos));
     final int selectedIndex = categories.isEmpty
         ? 0
         : _selectedVideoCategoryIndex.clamp(0, categories.length - 1).toInt();
-    final String selectedCategory =
-        categories.isEmpty ? 'All' : categories[selectedIndex];
-    final List<HomeVideoItem> filteredVideos =
-        _filterVideosByCategory(videos, selectedCategory).take(30).toList();
+    final _VideoCategoryOption selectedCategory = categories.isEmpty
+        ? const _VideoCategoryOption(label: 'All')
+        : categories[selectedIndex];
+    final bool isAllSelected = selectedCategory.label == 'All';
+    final bool usingCategoryPage = !isAllSelected && _categoryVideoItems != null;
+    final List<HomeVideoItem> visibleVideos = isAllSelected
+        ? loadedVideos
+        : usingCategoryPage
+            ? _categoryVideoItems!
+            : _filterVideosByCategory(loadedVideos, selectedCategory.label);
     final HomeVideoItem? heroVideo =
-        _videoHeroItem(filteredVideos) ?? _videoHeroItem(videos);
+        _videoHeroItem(visibleVideos) ?? _videoHeroItem(loadedVideos);
+    final String? nextUrl = usingCategoryPage ? _categoryVideosNextUrl : _videosNextUrl;
 
     return <Widget>[
       if (heroVideo != null) ...<Widget>[
@@ -216,23 +239,153 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: AppSpacing.sm),
       ],
       _VideoCategoryChips(
-        categories: categories,
+        categories: categories.map((_VideoCategoryOption c) => c.label).toList(),
         selectedIndex: selectedIndex,
-        onSelected: (int index) {
-          setState(() => _selectedVideoCategoryIndex = index);
-        },
+        onSelected: (int index) => _selectVideoCategory(categories, index),
       ),
+      if (!isAllSelected || _videoLoadNotice != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          _videoLoadNotice ??
+              (usingCategoryPage
+                  ? 'Showing loaded ${selectedCategory.label} videos.'
+                  : 'Filtering currently loaded videos. Use Load more for additional results.'),
+          style: AppTextStyles.caption.copyWith(fontSize: 10),
+        ),
+      ],
       const SizedBox(height: AppSpacing.md),
       const _SectionHeader(title: 'Videos', hint: 'Videos'),
       const SizedBox(height: AppSpacing.sm),
-      filteredVideos.isEmpty
-          ? const _ChannelEmptyCard(message: 'No videos available yet.')
-          : _SectionGrid(items: filteredVideos, kind: _CardKind.video),
-      if (data.videosNextUrl != null) ...<Widget>[
+      if (_loadingVideoCategory)
+        const _ChannelLoadingCard(message: 'Loading videos...')
+      else if (visibleVideos.isEmpty)
+        const _ChannelEmptyCard(message: 'No loaded videos available yet.')
+      else
+        _SectionGrid(items: visibleVideos, kind: _CardKind.video),
+      if (nextUrl != null) ...<Widget>[
         const SizedBox(height: AppSpacing.sm),
-        const _ChannelMoreButton(),
+        _ChannelMoreButton(
+          label: _loadingMoreVideos ? 'Loading...' : 'Load more',
+          onPressed: _loadMoreVideos,
+          enabled: !_loadingMoreVideos,
+        ),
       ],
     ];
+  }
+
+  Future<void> _selectVideoCategory(
+    List<_VideoCategoryOption> categories,
+    int index,
+  ) async {
+    final _VideoCategoryOption category = categories[index];
+    setState(() {
+      _selectedVideoCategoryIndex = index;
+      _selectedVideoCategoryQuery = category.queryValue;
+      _videoLoadNotice = null;
+      if (category.label == 'All') {
+        _categoryVideoItems = null;
+        _categoryVideosNextUrl = null;
+        _loadingVideoCategory = false;
+      } else {
+        _loadingVideoCategory = true;
+        _categoryVideoItems = null;
+        _categoryVideosNextUrl = null;
+      }
+    });
+
+    if (category.label == 'All') return;
+
+    try {
+      final HomeVideoPage page = await _getVideoPage(
+        category: category.queryValue ?? category.label,
+      );
+      if (!mounted || _selectedVideoCategoryQuery != category.queryValue) return;
+      setState(() {
+        _categoryVideoItems = _filterVideosByCategory(page.items, category.label);
+        _categoryVideosNextUrl = page.nextUrl;
+        _loadingVideoCategory = false;
+      });
+    } catch (_) {
+      if (!mounted || _selectedVideoCategoryQuery != category.queryValue) return;
+      setState(() {
+        _videoLoadNotice =
+            'Filtering currently loaded videos. Use Load more for additional results.';
+        _loadingVideoCategory = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreVideos() async {
+    final bool loadingCategory = _categoryVideoItems != null;
+    final String? nextUrl = loadingCategory ? _categoryVideosNextUrl : _videosNextUrl;
+    if (nextUrl == null || _loadingMoreVideos) return;
+
+    setState(() {
+      _loadingMoreVideos = true;
+      _videoLoadNotice = null;
+    });
+
+    try {
+      final HomeVideoPage page = await _getVideoPage(pageUrl: nextUrl);
+      if (!mounted) return;
+      setState(() {
+        if (loadingCategory) {
+          final String selectedLabel = _selectedVideoCategoryLabel;
+          _categoryVideoItems = _appendUniqueVideos(
+            _categoryVideoItems ?? const <HomeVideoItem>[],
+            _filterVideosByCategory(page.items, selectedLabel),
+          );
+          _categoryVideosNextUrl = page.nextUrl;
+        } else {
+          _videoItems = _appendUniqueVideos(
+            _videoItems ?? const <HomeVideoItem>[],
+            page.items,
+          );
+          _videosNextUrl = page.nextUrl;
+        }
+        _loadingMoreVideos = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _videoLoadNotice = 'Could not load more videos right now.';
+        _loadingMoreVideos = false;
+      });
+    }
+  }
+
+  String get _selectedVideoCategoryLabel {
+    final HomePortalData? data = _data;
+    if (data == null) return 'All';
+    final List<_VideoCategoryOption> categories =
+        _videoCategories(_videoCategorySource(data, _videoItems ?? data.latestVideos));
+    if (categories.isEmpty) return 'All';
+    final int index = _selectedVideoCategoryIndex.clamp(0, categories.length - 1).toInt();
+    return categories[index].label;
+  }
+
+  Future<HomeVideoPage> _getVideoPage({String? pageUrl, String? category}) {
+    if (!widget.useRemote && widget.mockRepository is MockHomeRepository) {
+      return (widget.mockRepository as MockHomeRepository).getVideoPage(
+        pageUrl: pageUrl,
+        category: category,
+      );
+    }
+    if (_remoteRepo is RemoteHomeRepository) {
+      return (_remoteRepo as RemoteHomeRepository).getVideoPage(
+        pageUrl: pageUrl,
+        category: category,
+      );
+    }
+    if (_remoteRepo is MockHomeRepository) {
+      return (_remoteRepo as MockHomeRepository).getVideoPage(
+        pageUrl: pageUrl,
+        category: category,
+      );
+    }
+    return Future<HomeVideoPage>.error(
+      UnsupportedError('Video paging is not supported by this repository.'),
+    );
   }
 }
 
@@ -354,6 +507,13 @@ class _SectionHeader extends StatelessWidget {
 
 enum _CardKind { featured, video, drama, live }
 
+class _VideoCategoryOption {
+  const _VideoCategoryOption({required this.label, this.queryValue});
+
+  final String label;
+  final String? queryValue;
+}
+
 List<dynamic> _heroItemsFor(HomePortalData data) {
   final List<dynamic> items = <dynamic>[
     ...data.shortDrama.take(3),
@@ -362,9 +522,12 @@ List<dynamic> _heroItemsFor(HomePortalData data) {
   return items.isEmpty ? <dynamic>[null] : items;
 }
 
-List<HomeVideoItem> _videoChannelItems(HomePortalData data) {
+List<HomeVideoItem> _videoCategorySource(
+  HomePortalData data,
+  List<HomeVideoItem> loadedVideos,
+) {
   final List<HomeVideoItem> items = <HomeVideoItem>[
-    ...data.latestVideos,
+    ...loadedVideos,
     ...data.recommended,
     ...data.featured,
   ];
@@ -372,16 +535,29 @@ List<HomeVideoItem> _videoChannelItems(HomePortalData data) {
   return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
-List<String> _videoCategories(List<HomeVideoItem> videos) {
-  final List<String> categories = <String>['All'];
+List<_VideoCategoryOption> _videoCategories(List<HomeVideoItem> videos) {
+  final List<_VideoCategoryOption> categories = <_VideoCategoryOption>[
+    const _VideoCategoryOption(label: 'All'),
+  ];
   final Set<String> seen = <String>{'All'};
   for (final HomeVideoItem video in videos) {
-    final String category = _videoCategory(video);
-    if (seen.add(category)) {
-      categories.add(category);
+    final String label = _videoCategory(video);
+    if (seen.add(label)) {
+      categories.add(_VideoCategoryOption(
+        label: label,
+        queryValue: _videoCategoryQueryValue(video) ?? label,
+      ));
     }
   }
   return categories;
+}
+
+String? _videoCategoryQueryValue(HomeVideoItem video) {
+  final String? category = video.category?.trim();
+  if (category != null && category.isNotEmpty) return category;
+  final String? categoryName = video.categoryName?.trim();
+  if (categoryName != null && categoryName.isNotEmpty) return categoryName;
+  return null;
 }
 
 List<HomeVideoItem> _filterVideosByCategory(
@@ -412,6 +588,17 @@ HomeVideoItem? _videoHeroItem(List<HomeVideoItem> videos) {
 String _videoHeroMetadata(HomeVideoItem video) {
   final String category = _videoCategory(video);
   return category == 'Other' ? video.subtitle : '$category • ${video.subtitle}';
+}
+
+List<HomeVideoItem> _appendUniqueVideos(
+  List<HomeVideoItem> current,
+  List<HomeVideoItem> next,
+) {
+  final Set<String> seen = current.map((HomeVideoItem item) => item.id).toSet();
+  return <HomeVideoItem>[
+    ...current,
+    ...next.where((HomeVideoItem item) => seen.add(item.id)),
+  ];
 }
 
 List<dynamic> _completeRecommendedItems(HomePortalData data) {
@@ -874,24 +1061,65 @@ class _LiveEmptyCard extends StatelessWidget {
 }
 
 class _ChannelMoreButton extends StatelessWidget {
-  const _ChannelMoreButton();
+  const _ChannelMoreButton({
+    this.label = 'More',
+    this.onPressed,
+    this.enabled = true,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.center,
       child: OutlinedButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('More loading coming soon.')),
-          );
-        },
+        onPressed: enabled
+            ? onPressed ??
+                () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('More loading coming soon.')),
+                  );
+                }
+            : null,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.brandGold,
           side: const BorderSide(color: AppColors.softBorder),
           textStyle: AppTextStyles.caption,
         ),
-        child: const Text('More'),
+        child: Text(label),
+      ),
+    );
+  }
+}
+
+class _ChannelLoadingCard extends StatelessWidget {
+  const _ChannelLoadingCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: AppColors.softBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Text(message, style: AppTextStyles.caption),
+        ],
       ),
     );
   }

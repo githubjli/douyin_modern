@@ -31,4 +31,19 @@ class MockHomeRepository implements HomeRepository {
       ],
     );
   }
+
+  Future<HomeVideoPage> getVideoPage({String? pageUrl, String? category}) async {
+    final HomePortalData data = await getHomePortalData();
+    final String? selectedCategory = category?.trim();
+    final List<HomeVideoItem> items = data.latestVideos
+        .where(
+          (HomeVideoItem item) =>
+              selectedCategory == null || selectedCategory.isEmpty
+                  ? true
+                  : item.category == selectedCategory ||
+                      item.categoryName == selectedCategory,
+        )
+        .toList();
+    return HomeVideoPage(items: items, count: items.length);
+  }
 }

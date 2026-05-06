@@ -34,6 +34,7 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   String? _notice;
   int _activeHeroIndex = 0;
+  int _selectedChannelIndex = 0;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -96,12 +97,47 @@ class _HomePageState extends State<HomePage> {
         children: <Widget>[
           const _HomeTopRow(),
           const SizedBox(height: AppSpacing.md),
-          const _ChannelNav(channels: _channels),
+          _ChannelNav(
+            channels: _channels,
+            selectedIndex: _selectedChannelIndex,
+            onSelected: (int index) {
+              setState(() => _selectedChannelIndex = index);
+            },
+          ),
           if (_notice != null) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
             Text(_notice!, style: AppTextStyles.caption),
           ],
           const SizedBox(height: AppSpacing.md),
+          ..._channelContent(data, heroItems),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _channelContent(HomePortalData data, List<dynamic> heroItems) {
+    return switch (_selectedChannelIndex) {
+      1 => <Widget>[
+          const _SectionHeader(title: 'Videos', hint: 'Videos'),
+          const SizedBox(height: AppSpacing.sm),
+          _SectionGrid(items: _videoChannelItems(data), kind: _CardKind.video),
+        ],
+      2 => <Widget>[
+          const _SectionHeader(title: 'Short Drama', hint: 'Drama'),
+          const SizedBox(height: AppSpacing.sm),
+          _SectionGrid(items: data.shortDrama, kind: _CardKind.drama),
+        ],
+      3 => <Widget>[
+          const _SectionHeader(title: 'Live', hint: 'Live'),
+          const SizedBox(height: AppSpacing.sm),
+          data.liveNow.isEmpty
+              ? const _LiveEmptyCard()
+              : _SectionGrid(items: data.liveNow, kind: _CardKind.live),
+        ],
+      4 => const <Widget>[
+          _ChannelEmptyCard(message: 'Shop is coming soon'),
+        ],
+      _ => <Widget>[
           _HeroCarousel(
             items: heroItems,
             controller: _heroController,
@@ -138,8 +174,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: AppSpacing.sm),
           _SectionGrid(items: data.featured, kind: _CardKind.video),
         ],
-      ),
-    );
+    };
   }
 }
 
@@ -195,8 +230,16 @@ class _HomeTopRow extends StatelessWidget {
 }
 
 class _ChannelNav extends StatelessWidget {
-  const _ChannelNav({required this.channels});
+  const _ChannelNav({
+    required this.channels,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
   final List<String> channels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -205,11 +248,22 @@ class _ChannelNav extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: channels.length,
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-        itemBuilder: (_, int i) => Text(
-          channels[i],
-          style: AppTextStyles.caption.copyWith(
-              color: i == 0 ? AppColors.brandGold : AppColors.cocoaText),
-        ),
+        itemBuilder: (_, int i) {
+          final bool selected = i == selectedIndex;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onSelected(i),
+            child: Center(
+              child: Text(
+                channels[i],
+                style: AppTextStyles.caption.copyWith(
+                  color: selected ? AppColors.brandGold : AppColors.cocoaText,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -248,6 +302,16 @@ List<dynamic> _heroItemsFor(HomePortalData data) {
     ...data.featured.take(2),
   ];
   return items.isEmpty ? <dynamic>[null] : items;
+}
+
+List<HomeVideoItem> _videoChannelItems(HomePortalData data) {
+  final List<HomeVideoItem> items = <HomeVideoItem>[
+    ...data.latestVideos,
+    ...data.recommended,
+    ...data.featured,
+  ];
+  final Set<String> seen = <String>{};
+  return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
 List<dynamic> _completeRecommendedItems(HomePortalData data) {
@@ -645,6 +709,17 @@ class _LiveEmptyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return const _ChannelEmptyCard(message: 'No live streams right now.');
+  }
+}
+
+class _ChannelEmptyCard extends StatelessWidget {
+  const _ChannelEmptyCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -652,7 +727,7 @@ class _LiveEmptyCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(color: AppColors.softBorder),
       ),
-      child: const Text('No live streams right now.', style: AppTextStyles.caption),
+      child: Text(message, style: AppTextStyles.caption),
     );
   }
 }

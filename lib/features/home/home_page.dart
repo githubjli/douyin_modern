@@ -286,6 +286,63 @@ class _HeroCarousel extends StatelessWidget {
       ),
     );
   }
+
+  String? _resolveImageUrl(dynamic item) {
+    if (item is HomeVideoItem) {
+      return item.thumbnailUrl;
+    }
+    if (item is HomeDramaItem) {
+      return item.coverUrl ?? item.thumbnailUrl;
+    }
+    if (item is HomeLiveItem) {
+      return item.thumbnailUrl;
+    }
+    return null;
+  }
+}
+
+class _HeroDots extends StatelessWidget {
+  const _HeroDots();
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List<Widget>.generate(
+        4,
+        (int i) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: i == 0 ? 12 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroDots extends StatelessWidget {
+  const _HeroDots();
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List<Widget>.generate(
+        4,
+        (int i) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: i == 0 ? 12 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _HeroDots extends StatelessWidget {

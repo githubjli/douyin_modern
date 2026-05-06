@@ -448,7 +448,7 @@ class _AuthorFollowRow extends StatelessWidget {
                 style: _videoDetailCreatorNameStyle,
               ),
               const SizedBox(height: AppSpacing.xxs),
-              Text(
+              const Text(
                 'Creator · Public video',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

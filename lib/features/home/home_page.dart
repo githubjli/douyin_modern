@@ -178,7 +178,7 @@ class _HomeTopRow extends StatelessWidget {
       children: <Widget>[
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.asset(AppAssets.meowLogo, width: 20, height: 20),
+          child: Image.asset(AppAssets.meowLogo, width: 32, height: 32),
         ),
         const SizedBox(width: AppSpacing.sm),
         const Expanded(child: _SearchPill()),
@@ -220,8 +220,16 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Expanded(child: Text(title, style: AppTextStyles.cardTitle)),
-        Text(hint, style: AppTextStyles.caption),
+        Expanded(
+          child: Text(
+            title,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.cocoaText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Text(hint, style: AppTextStyles.caption.copyWith(fontSize: 11)),
       ],
     );
   }
@@ -434,8 +442,8 @@ class _PortalCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(
                     color: Colors.white,
-                    fontSize: compactOverlay ? 16 : 14,
-                    height: compactOverlay ? 1.2 : 1.1,
+                    fontSize: compactOverlay ? 16 : 11,
+                    height: compactOverlay ? 1.2 : 1.08,
                   ),
                 ),
                 SizedBox(height: compactOverlay ? 2 : AppSpacing.xxs),
@@ -444,9 +452,9 @@ class _PortalCard extends StatelessWidget {
                   maxLines: compactOverlay ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(
-                    color: compactOverlay ? Colors.white70 : Colors.white60,
-                    fontSize: compactOverlay ? 12 : 11,
-                    height: compactOverlay ? null : 1.15,
+                    color: compactOverlay ? Colors.white70 : Colors.white54,
+                    fontSize: compactOverlay ? 12 : 10,
+                    height: compactOverlay ? null : 1.1,
                   ),
                 ),
               ],

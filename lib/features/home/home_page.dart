@@ -35,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   String? _notice;
   int _activeHeroIndex = 0;
   int _selectedChannelIndex = 0;
+  int _selectedVideoCategoryIndex = 0;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -117,18 +118,7 @@ class _HomePageState extends State<HomePage> {
 
   List<Widget> _channelContent(HomePortalData data, List<dynamic> heroItems) {
     return switch (_selectedChannelIndex) {
-      1 => <Widget>[
-          const _SectionHeader(title: 'Videos', hint: 'Videos'),
-          const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(
-            items: _videoChannelItems(data).take(30).toList(),
-            kind: _CardKind.video,
-          ),
-          if (data.videosNextUrl != null) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            const _ChannelMoreButton(),
-          ],
-        ],
+      1 => _videoChannelContent(data),
       2 => <Widget>[
           const _SectionHeader(title: 'Short Drama', hint: 'Drama'),
           const SizedBox(height: AppSpacing.sm),
@@ -205,6 +195,44 @@ class _HomePageState extends State<HomePage> {
           _SectionGrid(items: data.featured, kind: _CardKind.video),
         ],
     };
+  }
+
+  List<Widget> _videoChannelContent(HomePortalData data) {
+    final List<HomeVideoItem> videos = _videoChannelItems(data);
+    final List<String> categories = _videoCategories(videos);
+    final int selectedIndex = categories.isEmpty
+        ? 0
+        : _selectedVideoCategoryIndex.clamp(0, categories.length - 1).toInt();
+    final String selectedCategory =
+        categories.isEmpty ? 'All' : categories[selectedIndex];
+    final List<HomeVideoItem> filteredVideos =
+        _filterVideosByCategory(videos, selectedCategory).take(30).toList();
+    final HomeVideoItem? heroVideo =
+        _videoHeroItem(filteredVideos) ?? _videoHeroItem(videos);
+
+    return <Widget>[
+      if (heroVideo != null) ...<Widget>[
+        _VideoChannelHero(video: heroVideo),
+        const SizedBox(height: AppSpacing.sm),
+      ],
+      _VideoCategoryChips(
+        categories: categories,
+        selectedIndex: selectedIndex,
+        onSelected: (int index) {
+          setState(() => _selectedVideoCategoryIndex = index);
+        },
+      ),
+      const SizedBox(height: AppSpacing.md),
+      const _SectionHeader(title: 'Videos', hint: 'Videos'),
+      const SizedBox(height: AppSpacing.sm),
+      filteredVideos.isEmpty
+          ? const _ChannelEmptyCard(message: 'No videos available yet.')
+          : _SectionGrid(items: filteredVideos, kind: _CardKind.video),
+      if (data.videosNextUrl != null) ...<Widget>[
+        const SizedBox(height: AppSpacing.sm),
+        const _ChannelMoreButton(),
+      ],
+    ];
   }
 }
 
@@ -344,6 +372,48 @@ List<HomeVideoItem> _videoChannelItems(HomePortalData data) {
   return items.where((HomeVideoItem item) => seen.add(item.id)).toList();
 }
 
+List<String> _videoCategories(List<HomeVideoItem> videos) {
+  final List<String> categories = <String>['All'];
+  final Set<String> seen = <String>{'All'};
+  for (final HomeVideoItem video in videos) {
+    final String category = _videoCategory(video);
+    if (seen.add(category)) {
+      categories.add(category);
+    }
+  }
+  return categories;
+}
+
+List<HomeVideoItem> _filterVideosByCategory(
+  List<HomeVideoItem> videos,
+  String category,
+) {
+  if (category == 'All') return videos;
+  return videos
+      .where((HomeVideoItem video) => _videoCategory(video) == category)
+      .toList();
+}
+
+String _videoCategory(HomeVideoItem video) {
+  final String? categoryName = video.categoryName?.trim();
+  if (categoryName != null && categoryName.isNotEmpty) return categoryName;
+  final String? category = video.category?.trim();
+  if (category != null && category.isNotEmpty) return category;
+  return 'Other';
+}
+
+HomeVideoItem? _videoHeroItem(List<HomeVideoItem> videos) {
+  for (final HomeVideoItem video in videos) {
+    if (video.thumbnailUrl?.trim().isNotEmpty ?? false) return video;
+  }
+  return videos.isEmpty ? null : videos.first;
+}
+
+String _videoHeroMetadata(HomeVideoItem video) {
+  final String category = _videoCategory(video);
+  return category == 'Other' ? video.subtitle : '$category • ${video.subtitle}';
+}
+
 List<dynamic> _completeRecommendedItems(HomePortalData data) {
   final List<dynamic> items = <dynamic>[...data.recommended];
   final Set<String> seen = items.map(_homeItemKey).toSet();
@@ -435,6 +505,66 @@ class _SectionGrid extends StatelessWidget {
               : null,
         );
       },
+    );
+  }
+}
+
+class _VideoChannelHero extends StatelessWidget {
+  const _VideoChannelHero({required this.video});
+
+  final HomeVideoItem video;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 176,
+      child: _PortalCard(
+        title: video.title,
+        subtitle: _videoHeroMetadata(video),
+        imageUrl: video.thumbnailUrl,
+        kind: _CardKind.video,
+        compactOverlay: true,
+      ),
+    );
+  }
+}
+
+class _VideoCategoryChips extends StatelessWidget {
+  const _VideoCategoryChips({
+    required this.categories,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<String> categories;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, int index) {
+          final bool selected = index == selectedIndex;
+          return ChoiceChip(
+            label: Text(categories[index]),
+            selected: selected,
+            onSelected: (_) => onSelected(index),
+            selectedColor: AppColors.brandGold,
+            backgroundColor: AppColors.cardBackground,
+            side: const BorderSide(color: AppColors.softBorder),
+            labelStyle: AppTextStyles.caption.copyWith(
+              color: selected ? AppColors.warmBackground : AppColors.cocoaText,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            ),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
     );
   }
 }

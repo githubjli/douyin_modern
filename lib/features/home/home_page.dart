@@ -144,22 +144,24 @@ class _SearchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(color: AppColors.softBorder),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
-      child: const Row(
+      child: Row(
         children: <Widget>[
-          Icon(Icons.search, color: AppColors.mutedOliveText),
-          SizedBox(width: AppSpacing.sm),
+          const Icon(Icons.search, color: AppColors.mutedOliveText, size: 18),
+          const SizedBox(width: AppSpacing.xs),
           Expanded(
-            child: Text('Search videos, dramas, live topics',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.caption),
+            child: Text(
+              'Search videos, dramas, live topics',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(fontSize: 11),
+            ),
           ),
         ],
       ),
@@ -171,16 +173,19 @@ class _HomeTopRow extends StatelessWidget {
   const _HomeTopRow();
   @override
   Widget build(BuildContext context) {
-    return Row(children: <Widget>[
-      ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.asset(AppAssets.meowLogo, width: 20, height: 20),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      const Expanded(child: _SearchPill()),
-      const SizedBox(width: AppSpacing.sm),
-      const Icon(Icons.add_circle, color: AppColors.brandGold, size: 26),
-    ]);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.asset(AppAssets.meowLogo, width: 20, height: 20),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        const Expanded(child: _SearchPill()),
+        const SizedBox(width: AppSpacing.sm),
+        const Icon(Icons.add_circle, color: AppColors.brandGold, size: 26),
+      ],
+    );
   }
 }
 

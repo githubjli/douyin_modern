@@ -85,7 +85,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
               _VideoDescription(description: _video.description!.trim()),
             ],
             const SizedBox(height: AppSpacing.lg),
-            Text('Recommendations', style: AppTextStyles.sectionTitle),
+            const Text('Recommendations', style: AppTextStyles.sectionTitle),
             const SizedBox(height: AppSpacing.sm),
             if (recommendations.isEmpty)
               const _VideoDetailEmptyCard(message: 'No video recommendations yet.')
@@ -358,7 +358,7 @@ class _VideoInfoSection extends StatelessWidget {
             _InfoBadge(label: _categoryLabel(video)),
             if (loading) ...<Widget>[
               const SizedBox(width: AppSpacing.xs),
-              Text('Loading details...', style: AppTextStyles.caption),
+              const Text('Loading details...', style: AppTextStyles.caption),
             ],
           ],
         ),
@@ -525,7 +525,7 @@ class _VideoRecommendationGrid extends StatelessWidget {
                     ),
                   ),
                 ),
-                Positioned(
+                const Positioned(
                   top: AppSpacing.xs,
                   left: AppSpacing.xs,
                   child: _InfoBadge(label: 'Video'),

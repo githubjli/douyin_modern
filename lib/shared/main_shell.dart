@@ -90,7 +90,7 @@ class _MainShellState extends State<MainShell> {
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: AppColors.cardBackground.withValues(alpha: 0.46),
+              color: AppColors.cardBackground.withValues(alpha: 0.40),
               border: Border(
                 top: BorderSide(
                   color: AppColors.softBorder.withValues(alpha: 0.36),

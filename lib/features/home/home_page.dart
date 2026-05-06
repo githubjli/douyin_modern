@@ -5,6 +5,7 @@ import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../drama_detail/drama_detail_page.dart';
 import 'data/mock_home_repository.dart';
 import 'data/remote_home_repository.dart';
 import 'domain/home_models.dart';
@@ -28,9 +29,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final HomeRepository _remoteRepo;
+  final PageController _heroController = PageController();
   HomePortalData? _data;
   bool _loading = true;
   String? _notice;
+  int _activeHeroIndex = 0;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -73,11 +76,19 @@ class _HomePageState extends State<HomePage> {
       p.latestVideos.isEmpty && p.shortDrama.isEmpty && p.liveNow.isEmpty;
 
   @override
+  void dispose() {
+    _heroController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final HomePortalData? data = _data;
     if (_loading || data == null) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    final List<dynamic> heroItems = _heroItemsFor(data);
 
     return SafeArea(
       child: ListView(
@@ -91,13 +102,23 @@ class _HomePageState extends State<HomePage> {
             Text(_notice!, style: AppTextStyles.caption),
           ],
           const SizedBox(height: AppSpacing.md),
-          _HeroCarousel(data: data),
+          _HeroCarousel(
+            items: heroItems,
+            controller: _heroController,
+            onPageChanged: (int index) {
+              setState(() => _activeHeroIndex = index);
+            },
+            onDramaTap: (HomeDramaItem drama) => _openDramaDetail(context, drama),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          const _HeroDots(),
+          _HeroDots(count: heroItems.length, activeIndex: _activeHeroIndex),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Recommended for you today', hint: 'For you'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.recommended, kind: _CardKind.video),
+          _SectionGrid(
+            items: _completeRecommendedItems(data),
+            kind: _CardKind.video,
+          ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Videos', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
@@ -128,22 +149,24 @@ class _SearchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(color: AppColors.softBorder),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
-      child: const Row(
+      child: Row(
         children: <Widget>[
-          Icon(Icons.search, color: AppColors.mutedOliveText),
-          SizedBox(width: AppSpacing.sm),
+          const Icon(Icons.search, color: AppColors.mutedOliveText, size: 18),
+          const SizedBox(width: AppSpacing.xs),
           Expanded(
-            child: Text('Search videos, dramas, live topics',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.caption),
+            child: Text(
+              'Search videos, dramas, live topics',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(fontSize: 10),
+            ),
           ),
         ],
       ),
@@ -155,16 +178,19 @@ class _HomeTopRow extends StatelessWidget {
   const _HomeTopRow();
   @override
   Widget build(BuildContext context) {
-    return Row(children: <Widget>[
-      ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.asset(AppAssets.meowLogo, width: 20, height: 20),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      const Expanded(child: _SearchPill()),
-      const SizedBox(width: AppSpacing.sm),
-      const Icon(Icons.add_circle, color: AppColors.brandGold, size: 26),
-    ]);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.asset(AppAssets.meowLogo, width: 28, height: 28),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        const Expanded(child: _SearchPill()),
+        const SizedBox(width: AppSpacing.sm),
+        const Icon(Icons.add_circle, color: AppColors.brandGold, size: 26),
+      ],
+    );
   }
 }
 
@@ -199,14 +225,73 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Expanded(child: Text(title, style: AppTextStyles.cardTitle)),
-        Text(hint, style: AppTextStyles.caption),
+        Expanded(
+          child: Text(
+            title,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.cocoaText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Text(hint, style: AppTextStyles.caption.copyWith(fontSize: 11)),
       ],
     );
   }
 }
 
 enum _CardKind { featured, video, drama, live }
+
+List<dynamic> _heroItemsFor(HomePortalData data) {
+  final List<dynamic> items = <dynamic>[
+    ...data.shortDrama.take(3),
+    ...data.featured.take(2),
+  ];
+  return items.isEmpty ? <dynamic>[null] : items;
+}
+
+List<dynamic> _completeRecommendedItems(HomePortalData data) {
+  final List<dynamic> items = <dynamic>[...data.recommended];
+  final Set<String> seen = items.map(_homeItemKey).toSet();
+  final List<dynamic> candidates = <dynamic>[
+    ...data.latestVideos,
+    ...data.featured,
+    ...data.shortDrama,
+    ...data.liveNow,
+  ];
+
+  for (final dynamic candidate in candidates) {
+    if (items.length >= 6) break;
+    if (seen.add(_homeItemKey(candidate))) {
+      items.add(candidate);
+    }
+  }
+
+  if (items.length >= 6) return items.take(6).toList();
+  if (items.length >= 3) return items.take(3).toList();
+  return items;
+}
+
+String _homeItemKey(dynamic item) {
+  if (item is HomeVideoItem) return 'video:${item.id}';
+  if (item is HomeDramaItem) return 'drama:${item.id}';
+  if (item is HomeLiveItem) return 'live:${item.id}';
+  return Object.hash(item.runtimeType, item).toString();
+}
+
+_CardKind _cardKindFor(dynamic item, _CardKind fallback) {
+  if (item is HomeDramaItem) return _CardKind.drama;
+  if (item is HomeLiveItem) return _CardKind.live;
+  return fallback;
+}
+
+void _openDramaDetail(BuildContext context, HomeDramaItem drama) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => DramaDetailPage(drama: drama),
+    ),
+  );
+}
 
 String? _resolveImageUrl(dynamic item) {
   if (item is HomeVideoItem) {
@@ -250,7 +335,10 @@ class _SectionGrid extends StatelessWidget {
           title: item.title as String,
           subtitle: item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
-          kind: kind,
+          kind: _cardKindFor(item, kind),
+          onTap: item is HomeDramaItem
+              ? () => _openDramaDetail(context, item)
+              : null,
         );
       },
     );
@@ -258,107 +346,67 @@ class _SectionGrid extends StatelessWidget {
 }
 
 class _HeroCarousel extends StatelessWidget {
-  const _HeroCarousel({required this.data});
-  final HomePortalData data;
+  const _HeroCarousel({
+    required this.items,
+    required this.controller,
+    required this.onPageChanged,
+    required this.onDramaTap,
+  });
+
+  final List<dynamic> items;
+  final PageController controller;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<HomeDramaItem> onDramaTap;
+
   @override
   Widget build(BuildContext context) {
-    final List<dynamic> items = <dynamic>[...data.shortDrama.take(3), ...data.featured.take(2)];
     return SizedBox(
       height: 176,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.isEmpty ? 1 : items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+      child: PageView.builder(
+        controller: controller,
+        itemCount: items.length,
+        onPageChanged: onPageChanged,
         itemBuilder: (_, int index) {
-          final dynamic item = items.isEmpty ? null : items[index];
-          final _CardKind kind = item is HomeDramaItem ? _CardKind.drama : _CardKind.video;
-          return SizedBox(
-            width: MediaQuery.sizeOf(context).width - (AppSpacing.md * 2),
-            child: _PortalCard(
-              title: item?.title as String? ?? 'Featured Picks',
-              subtitle: item?.subtitle as String? ?? 'Drama and video recommendations',
-              imageUrl: _resolveImageUrl(item),
-              kind: kind,
-              compactOverlay: true,
-            ),
+          final dynamic item = items[index];
+          final _CardKind kind =
+              item is HomeDramaItem ? _CardKind.drama : _CardKind.video;
+          return _PortalCard(
+            title: item?.title as String? ?? 'Featured Picks',
+            subtitle:
+                item?.subtitle as String? ?? 'Drama and video recommendations',
+            imageUrl: _resolveImageUrl(item),
+            kind: kind,
+            compactOverlay: true,
+            onTap: item is HomeDramaItem ? () => onDramaTap(item) : null,
           );
         },
       ),
     );
   }
-
-  String? _resolveImageUrl(dynamic item) {
-    if (item is HomeVideoItem) {
-      return item.thumbnailUrl;
-    }
-    if (item is HomeDramaItem) {
-      return item.coverUrl ?? item.thumbnailUrl;
-    }
-    if (item is HomeLiveItem) {
-      return item.thumbnailUrl;
-    }
-    return null;
-  }
 }
 
 class _HeroDots extends StatelessWidget {
-  const _HeroDots();
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(
-        4,
-        (int i) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: i == 0 ? 12 : 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
-            borderRadius: BorderRadius.circular(99),
-          ),
-        ),
-      ),
-    );
-  }
-}
+  const _HeroDots({required this.count, required this.activeIndex});
 
-class _HeroDots extends StatelessWidget {
-  const _HeroDots();
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(
-        4,
-        (int i) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: i == 0 ? 12 : 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
-            borderRadius: BorderRadius.circular(99),
-          ),
-        ),
-      ),
-    );
-  }
-}
+  final int count;
+  final int activeIndex;
 
-class _HeroDots extends StatelessWidget {
-  const _HeroDots();
   @override
   Widget build(BuildContext context) {
+    final int selectedIndex =
+        count == 0 ? 0 : activeIndex.clamp(0, count - 1).toInt();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List<Widget>.generate(
-        4,
+        count,
         (int i) => Container(
           margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: i == 0 ? 12 : 6,
+          width: i == selectedIndex ? 12 : 6,
           height: 6,
           decoration: BoxDecoration(
-            color: i == 0 ? AppColors.brandGold : AppColors.softBorder,
+            color:
+                i == selectedIndex ? AppColors.brandGold : AppColors.softBorder,
             borderRadius: BorderRadius.circular(99),
           ),
         ),
@@ -374,6 +422,7 @@ class _PortalCard extends StatelessWidget {
     required this.kind,
     this.imageUrl,
     this.compactOverlay = false,
+    this.onTap,
   });
 
   final String title;
@@ -381,6 +430,7 @@ class _PortalCard extends StatelessWidget {
   final _CardKind kind;
   final String? imageUrl;
   final bool compactOverlay;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -391,74 +441,85 @@ class _PortalCard extends StatelessWidget {
       _CardKind.live => 'LIVE',
     };
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          _CardCover(imageUrl: imageUrl, kind: kind),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Color(0x11000000),
-                  Color(0x66000000),
-                  Color(0xCC000000),
-                ],
-                stops: <double>[0.2, 0.6, 1],
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            _CardCover(imageUrl: imageUrl, kind: kind),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x0D000000),
+                    Color(0x55000000),
+                    Color(0xB3000000),
+                  ],
+                  stops: <double>[0.2, 0.6, 1],
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: AppSpacing.xs,
-            left: AppSpacing.xs,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs, vertical: 2),
-              decoration: BoxDecoration(
-                color: kind == _CardKind.live
-                    ? AppColors.brandGold
-                    : AppColors.cardBackground.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                border: Border.all(color: AppColors.softBorder),
-              ),
-              child: Text(
-                badge,
-                style: AppTextStyles.caption.copyWith(
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs, vertical: 2),
+                decoration: BoxDecoration(
                   color: kind == _CardKind.live
-                      ? AppColors.warmBackground
-                      : AppColors.brandGold,
+                      ? AppColors.brandGold
+                      : AppColors.cardBackground.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  border: Border.all(color: AppColors.softBorder),
+                ),
+                child: Text(
+                  badge,
+                  style: AppTextStyles.caption.copyWith(
+                    color: kind == _CardKind.live
+                        ? AppColors.warmBackground
+                        : AppColors.brandGold,
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
-            right: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
-            bottom: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  title,
-                  maxLines: compactOverlay ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.cardTitle.copyWith(color: Colors.white),
-                ),
-                SizedBox(height: compactOverlay ? 2 : AppSpacing.xxs),
-                Text(
-                  subtitle,
-                  maxLines: compactOverlay ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.caption.copyWith(color: Colors.white70),
-                ),
-              ],
+            Positioned(
+              left: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+              right: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+              bottom: compactOverlay ? AppSpacing.xs : AppSpacing.sm,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    title,
+                    maxLines: compactOverlay ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: compactOverlay ? 16 : 11,
+                      height: compactOverlay ? 1.2 : 1.08,
+                    ),
+                  ),
+                  SizedBox(height: compactOverlay ? 2 : AppSpacing.xxs),
+                  Text(
+                    subtitle,
+                    maxLines: compactOverlay ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: compactOverlay ? Colors.white70 : Colors.white54,
+                      fontSize: compactOverlay ? 12 : 10,
+                      height: compactOverlay ? null : 1.1,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

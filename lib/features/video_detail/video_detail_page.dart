@@ -83,10 +83,6 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
             _AuthorFollowRow(video: _video, onFollow: _showActionPlaceholder),
             const SizedBox(height: AppSpacing.sm),
             _VideoActionRow(onAction: _showActionPlaceholder),
-            if (_video.description?.trim().isNotEmpty ?? false) ...<Widget>[
-              const SizedBox(height: AppSpacing.md),
-              _VideoDescription(description: _video.description!.trim()),
-            ],
             const SizedBox(height: AppSpacing.lg),
             const Text('Recommendations', style: AppTextStyles.sectionTitle),
             const SizedBox(height: AppSpacing.sm),
@@ -520,17 +516,6 @@ class _ActionButton extends StatelessWidget {
         textStyle: AppTextStyles.caption.copyWith(fontSize: 11),
       ),
     );
-  }
-}
-
-class _VideoDescription extends StatelessWidget {
-  const _VideoDescription({required this.description});
-
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(description, style: AppTextStyles.body);
   }
 }
 

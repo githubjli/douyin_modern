@@ -113,7 +113,10 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Recommended for you today', hint: 'For you'),
           const SizedBox(height: AppSpacing.sm),
-          _SectionGrid(items: data.recommended, kind: _CardKind.video),
+          _SectionGrid(
+            items: _completeRecommendedItems(data),
+            kind: _CardKind.video,
+          ),
           const SizedBox(height: AppSpacing.md),
           const _SectionHeader(title: 'Videos', hint: 'More'),
           const SizedBox(height: AppSpacing.sm),
@@ -144,7 +147,7 @@ class _SearchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 42,
+      height: 40,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
@@ -160,7 +163,7 @@ class _SearchPill extends StatelessWidget {
               'Search videos, dramas, live topics',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(fontSize: 11),
+              style: AppTextStyles.caption.copyWith(fontSize: 10.5),
             ),
           ),
         ],
@@ -178,7 +181,7 @@ class _HomeTopRow extends StatelessWidget {
       children: <Widget>[
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.asset(AppAssets.meowLogo, width: 32, height: 32),
+          child: Image.asset(AppAssets.meowLogo, width: 30, height: 30),
         ),
         const SizedBox(width: AppSpacing.sm),
         const Expanded(child: _SearchPill()),
@@ -245,6 +248,41 @@ List<dynamic> _heroItemsFor(HomePortalData data) {
   return items.isEmpty ? <dynamic>[null] : items;
 }
 
+List<dynamic> _completeRecommendedItems(HomePortalData data) {
+  final List<dynamic> items = <dynamic>[...data.recommended];
+  final Set<String> seen = items.map(_homeItemKey).toSet();
+  final List<dynamic> candidates = <dynamic>[
+    ...data.latestVideos,
+    ...data.featured,
+    ...data.shortDrama,
+    ...data.liveNow,
+  ];
+
+  for (final dynamic candidate in candidates) {
+    if (items.length >= 6) break;
+    if (seen.add(_homeItemKey(candidate))) {
+      items.add(candidate);
+    }
+  }
+
+  if (items.length >= 6) return items.take(6).toList();
+  if (items.length >= 3) return items.take(3).toList();
+  return items;
+}
+
+String _homeItemKey(dynamic item) {
+  if (item is HomeVideoItem) return 'video:${item.id}';
+  if (item is HomeDramaItem) return 'drama:${item.id}';
+  if (item is HomeLiveItem) return 'live:${item.id}';
+  return Object.hash(item.runtimeType, item).toString();
+}
+
+_CardKind _cardKindFor(dynamic item, _CardKind fallback) {
+  if (item is HomeDramaItem) return _CardKind.drama;
+  if (item is HomeLiveItem) return _CardKind.live;
+  return fallback;
+}
+
 String? _resolveImageUrl(dynamic item) {
   if (item is HomeVideoItem) {
     return item.thumbnailUrl;
@@ -287,7 +325,7 @@ class _SectionGrid extends StatelessWidget {
           title: item.title as String,
           subtitle: item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
-          kind: kind,
+          kind: _cardKindFor(item, kind),
         );
       },
     );

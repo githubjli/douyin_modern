@@ -124,6 +124,10 @@ class RemoteHomeRepository implements HomeRepository {
       subtitle: '$total episodes • Free $free • Locked $locked',
       coverUrl: _str(m['cover_url']),
       thumbnailUrl: _str(m['thumbnail_url']),
+      ownerName: owner,
+      viewCount: _int(m['view_count']),
+      category: _str(m['category']),
+      categoryName: _str(m['category_name']),
     );
   }
 

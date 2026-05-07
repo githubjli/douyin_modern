@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
+import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
 
 void main() {
@@ -13,6 +14,13 @@ void main() {
       perks: 'Backend perks',
     ),
   ];
+
+  const MembershipStatus activeStatus = MembershipStatus(
+    planTitle: 'Basic Monthly',
+    status: 'active',
+    endsAt: '2026-06-01T00:00:00Z',
+    isActive: true,
+  );
 
   const List<MembershipPlan> mockPlans = <MembershipPlan>[
     MembershipPlan(
@@ -67,6 +75,36 @@ void main() {
     expect(find.text('Mock perks'), findsOneWidget);
   });
 
+  testWidgets('shows active membership status above plan cards',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: _PlanRepository.value(remotePlans, status: activeStatus),
+    );
+
+    expect(find.text('Active membership'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsOneWidget);
+    expect(
+      find.text('active · Ends at 2026-06-01T00:00:00Z'),
+      findsOneWidget,
+    );
+    expect(find.text('Backend Pro'), findsOneWidget);
+  });
+
+  testWidgets('status failure does not block plan cards',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: _PlanRepository(
+        plans: remotePlans,
+        statusError: Exception('unauthorized'),
+      ),
+    );
+
+    expect(find.text('Membership status'), findsOneWidget);
+    expect(find.text('Backend Pro'), findsOneWidget);
+  });
+
   testWidgets('falls back to mock plans when repository returns empty',
       (WidgetTester tester) async {
     await pumpMembershipPage(
@@ -96,20 +134,42 @@ void main() {
 }
 
 class _PlanRepository implements MembershipRepository {
-  const _PlanRepository._(this._load);
+  const _PlanRepository({
+    this.plans = const <MembershipPlan>[],
+    this.status,
+    this.plansError,
+    this.statusError,
+  });
 
-  factory _PlanRepository.value(List<MembershipPlan> plans) {
-    return _PlanRepository._(() async => plans);
+  factory _PlanRepository.value(
+    List<MembershipPlan> plans, {
+    MembershipStatus? status,
+  }) {
+    return _PlanRepository(plans: plans, status: status);
   }
 
   factory _PlanRepository.error(Object error) {
-    return _PlanRepository._(() => Future<List<MembershipPlan>>.error(error));
+    return _PlanRepository(plansError: error);
   }
 
-  final Future<List<MembershipPlan>> Function() _load;
+  final List<MembershipPlan> plans;
+  final MembershipStatus? status;
+  final Object? plansError;
+  final Object? statusError;
 
   @override
-  Future<List<MembershipPlan>> getPlans() => _load();
+  Future<List<MembershipPlan>> getPlans() async {
+    final Object? error = plansError;
+    if (error != null) throw error;
+    return plans;
+  }
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async {
+    final Object? error = statusError;
+    if (error != null) throw error;
+    return status;
+  }
 }
 
 class _TrackingPlanRepository implements MembershipRepository {
@@ -119,5 +179,11 @@ class _TrackingPlanRepository implements MembershipRepository {
   Future<List<MembershipPlan>> getPlans() async {
     called = true;
     return const <MembershipPlan>[];
+  }
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async {
+    called = true;
+    return null;
   }
 }

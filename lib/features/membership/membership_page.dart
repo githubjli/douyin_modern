@@ -9,6 +9,7 @@ import 'data/mock_membership_repository.dart';
 import 'data/remote_membership_repository.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
+import 'domain/membership_status.dart';
 
 class MembershipPage extends StatefulWidget {
   const MembershipPage({
@@ -29,12 +30,14 @@ class MembershipPage extends StatefulWidget {
 class _MembershipPageState extends State<MembershipPage> {
   late MembershipRepository _repository;
   late Future<List<MembershipPlan>> _plansFuture;
+  late Future<MembershipStatus?> _statusFuture;
 
   @override
   void initState() {
     super.initState();
     _repository = _defaultRepository();
     _plansFuture = _loadPlans();
+    _statusFuture = _loadStatus();
   }
 
   @override
@@ -45,6 +48,7 @@ class _MembershipPageState extends State<MembershipPage> {
         oldWidget.useRemote != widget.useRemote) {
       _repository = _defaultRepository();
       _plansFuture = _loadPlans();
+      _statusFuture = _loadStatus();
     }
   }
 
@@ -52,6 +56,14 @@ class _MembershipPageState extends State<MembershipPage> {
     if (!widget.useRemote) return widget.mockRepository;
     return widget.repository ??
         RemoteMembershipRepository(apiClient: ApiClient());
+  }
+
+  Future<MembershipStatus?> _loadStatus() async {
+    try {
+      return await _repository.getCurrentStatus();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<MembershipPlan>> _loadPlans() async {
@@ -102,6 +114,16 @@ class _MembershipPageState extends State<MembershipPage> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
+          FutureBuilder<MembershipStatus?>(
+            future: _statusFuture,
+            builder: (
+              BuildContext context,
+              AsyncSnapshot<MembershipStatus?> snapshot,
+            ) {
+              return _MembershipStatusCard(status: snapshot.data);
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
           FutureBuilder<List<MembershipPlan>>(
             future: _plansFuture,
             builder: (
@@ -131,6 +153,56 @@ class _MembershipPageState extends State<MembershipPage> {
         ],
       ),
     );
+  }
+}
+
+class _MembershipStatusCard extends StatelessWidget {
+  const _MembershipStatusCard({required this.status});
+
+  final MembershipStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final MembershipStatus? currentStatus = status;
+    final bool isActive = currentStatus?.isActive == true;
+    final String title = isActive ? 'Active membership' : 'Membership status';
+    final String subtitle = isActive
+        ? currentStatus!.planTitle
+        : 'Sign in to view membership status. Choose a plan below.';
+    final String? statusText = isActive ? _activeStatusText(currentStatus) : null;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: AppTextStyles.cardTitle),
+          const SizedBox(height: AppSpacing.xs),
+          Text(subtitle, style: AppTextStyles.caption),
+          if (statusText != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              statusText,
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.deepGold,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _activeStatusText(MembershipStatus status) {
+    final String? endsAt = status.endsAt;
+    if (endsAt == null || endsAt.trim().isEmpty) return status.status;
+    return '${status.status} · Ends at ${endsAt.trim()}';
   }
 }
 

@@ -59,6 +59,38 @@ void main() {
     expect(plans.last.price, '50');
     expect(plans.last.perks, 'Best value');
   });
+
+  test('loads active current membership status from membership me endpoint',
+      () async {
+    final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
+      'plan': <String, dynamic>{'name': 'Basic Monthly'},
+      'status': 'active',
+      'starts_at': '2026-05-01T00:00:00Z',
+      'ends_at': '2026-06-01T00:00:00Z',
+    });
+    final RemoteMembershipRepository repository =
+        RemoteMembershipRepository(apiClient: apiClient);
+
+    final status = await repository.getCurrentStatus();
+
+    expect(apiClient.requestedPath, Endpoints.membershipMe);
+    expect(apiClient.requestedAuthenticated, isTrue);
+    expect(status?.planTitle, 'Basic Monthly');
+    expect(status?.status, 'active');
+    expect(status?.startsAt, '2026-05-01T00:00:00Z');
+    expect(status?.endsAt, '2026-06-01T00:00:00Z');
+    expect(status?.isActive, isTrue);
+  });
+
+  test('maps null current membership status as no active membership', () async {
+    final RemoteMembershipRepository repository = RemoteMembershipRepository(
+      apiClient: _FakeApiClient(null),
+    );
+
+    final status = await repository.getCurrentStatus();
+
+    expect(status, isNull);
+  });
 }
 
 class _FakeApiClient extends ApiClient {
@@ -66,6 +98,7 @@ class _FakeApiClient extends ApiClient {
 
   final dynamic data;
   String? requestedPath;
+  bool? requestedAuthenticated;
 
   @override
   Future<Response<T>> get<T>(
@@ -74,6 +107,7 @@ class _FakeApiClient extends ApiClient {
     bool authenticated = false,
   }) async {
     requestedPath = path;
+    requestedAuthenticated = authenticated;
     return Response<T>(
       data: data as T,
       requestOptions: RequestOptions(path: path),

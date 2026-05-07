@@ -2,6 +2,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
+import '../domain/membership_status.dart';
 
 class RemoteMembershipRepository implements MembershipRepository {
   RemoteMembershipRepository({required ApiClient apiClient})
@@ -15,6 +16,18 @@ class RemoteMembershipRepository implements MembershipRepository {
     return _rows(response.data).map(_mapPlan).toList();
   }
 
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async {
+    final response = await _apiClient.get<dynamic>(
+      Endpoints.membershipMe,
+      authenticated: true,
+    );
+    final dynamic data = response.data;
+    if (data == null) return null;
+    if (data is! Map<String, dynamic>) return null;
+    return _mapStatus(data);
+  }
+
   List<Map<String, dynamic>> _rows(dynamic data) {
     if (data is List) return data.whereType<Map<String, dynamic>>().toList();
     if (data is Map<String, dynamic>) {
@@ -24,6 +37,46 @@ class RemoteMembershipRepository implements MembershipRepository {
       }
     }
     return <Map<String, dynamic>>[];
+  }
+
+  MembershipStatus? _mapStatus(Map<String, dynamic> data) {
+    if (data.isEmpty) return null;
+
+    final String planTitle = _statusPlanTitle(data);
+    final String status = _nonEmptyStr(data['status']) ?? 'inactive';
+    return MembershipStatus(
+      planTitle: planTitle,
+      status: status,
+      startsAt: _nonEmptyStr(data['starts_at']) ??
+          _nonEmptyStr(data['current_period_start']),
+      endsAt: _nonEmptyStr(data['ends_at']) ??
+          _nonEmptyStr(data['current_period_end']),
+      isActive: _statusIsActive(data['is_active'] ?? data['active'], status),
+    );
+  }
+
+  String _statusPlanTitle(Map<String, dynamic> data) {
+    final dynamic plan = data['plan'];
+    return _nestedStr(plan, 'title') ??
+        _nestedStr(plan, 'name') ??
+        _nonEmptyStr(plan) ??
+        _nonEmptyStr(data['plan_title']) ??
+        _nonEmptyStr(data['plan_name']) ??
+        'Membership';
+  }
+
+  bool _statusIsActive(dynamic value, String status) {
+    if (value is bool) return value;
+    if (value is String) {
+      final String normalized = value.toLowerCase().trim();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+    }
+
+    final String normalizedStatus = status.toLowerCase().trim();
+    return normalizedStatus == 'active' ||
+        normalizedStatus == 'trialing' ||
+        normalizedStatus == 'trial';
   }
 
   MembershipPlan _mapPlan(Map<String, dynamic> data) {
@@ -81,6 +134,11 @@ class RemoteMembershipRepository implements MembershipRepository {
           .toList();
       if (items.isNotEmpty) return items.join(', ');
     }
+    return null;
+  }
+
+  String? _nestedStr(dynamic value, String key) {
+    if (value is Map<String, dynamic>) return _nonEmptyStr(value[key]);
     return null;
   }
 

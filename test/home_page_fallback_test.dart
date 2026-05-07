@@ -21,6 +21,10 @@ void main() {
     required HomeRepository remoteRepository,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -33,11 +37,6 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
-
-  tearDown(() async {
-    final binding = TestWidgetsFlutterBinding.instance;
-    await binding.setSurfaceSize(null);
-  });
 
   testWidgets('empty remote portal falls back to mock Home content',
       (WidgetTester tester) async {

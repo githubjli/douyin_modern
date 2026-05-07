@@ -6,12 +6,21 @@ import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
 
 void main() {
-  const List<MembershipPlan> remotePlans = <MembershipPlan>[
+  const List<MembershipPlan> backendPlans = <MembershipPlan>[
     MembershipPlan(
-      id: 'pro',
+      id: 'backend-pro',
       title: 'Backend Pro',
       price: 'USD 9.99 / month',
       perks: 'Backend perks',
+    ),
+  ];
+
+  const List<MembershipPlan> mockPlans = <MembershipPlan>[
+    MembershipPlan(
+      id: 'mock-monthly',
+      title: 'Mock Monthly',
+      price: '¥5 / month',
+      perks: 'Mock perks',
     ),
   ];
 
@@ -22,18 +31,12 @@ void main() {
     isActive: true,
   );
 
-  const List<MembershipPlan> mockPlans = <MembershipPlan>[
-    MembershipPlan(
-      id: 'mock',
-      title: 'Mock Monthly',
-      price: '¥5 / month',
-      perks: 'Mock perks',
-    ),
-  ];
-
   Future<void> pumpMembershipPage(
     WidgetTester tester, {
     required MembershipRepository repository,
+    MembershipRepository mockRepository = const _MembershipRepositoryFake(
+      plans: mockPlans,
+    ),
     bool useRemote = true,
   }) async {
     await tester.pumpWidget(
@@ -41,7 +44,7 @@ void main() {
         home: Scaffold(
           body: MembershipPage(
             repository: repository,
-            mockRepository: _PlanRepository.value(mockPlans),
+            mockRepository: mockRepository,
             useRemote: useRemote,
           ),
         ),
@@ -50,26 +53,30 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> scrollToText(WidgetTester tester, String text) async {
-    final Finder target = find.text(text).first;
-    if (tester.any(target)) {
-      await tester.ensureVisible(target);
-    } else {
-      await tester.scrollUntilVisible(
-        target,
-        320,
-        scrollable: find.byType(Scrollable).first,
-        maxScrolls: 20,
-      );
+  Future<void> dragUntilTextVisible(
+    WidgetTester tester,
+    String text, {
+    int maxDrags = 12,
+  }) async {
+    final Finder textFinder = find.text(text);
+    final Finder scrollable = find.byType(Scrollable).first;
+
+    for (int i = 0; i < maxDrags && textFinder.evaluate().isEmpty; i++) {
+      await tester.drag(scrollable, const Offset(0, -300));
+      await tester.pumpAndSettle();
     }
-    await tester.pumpAndSettle();
+
+    expect(
+      textFinder,
+      findsWidgets,
+      reason: 'Expected to find "$text" after scrolling the Membership page.',
+    );
   }
 
-  testWidgets('renders main structure and backend plans',
-      (WidgetTester tester) async {
+  testWidgets('renders main Membership structure', (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository.value(remotePlans),
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
     );
 
     expect(find.text('Membership'), findsOneWidget);
@@ -77,11 +84,19 @@ void main() {
     expect(find.text('Exclusive for Members'), findsOneWidget);
     expect(find.text('Your Benefits'), findsNothing);
 
-    await scrollToText(tester, 'Choose your plan');
+    await dragUntilTextVisible(tester, 'Choose your plan');
 
     expect(find.text('Choose your plan'), findsOneWidget);
+  });
 
-    await scrollToText(tester, 'Backend Pro');
+  testWidgets('shows backend membership plans when repository returns plans',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+    );
+
+    await dragUntilTextVisible(tester, 'Backend Pro');
 
     expect(find.text('Backend Pro'), findsOneWidget);
     expect(find.text('USD 9.99 / month'), findsOneWidget);
@@ -93,24 +108,24 @@ void main() {
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository.error(Exception('offline')),
+      repository: _MembershipRepositoryFake(plansError: Exception('offline')),
     );
 
-    await scrollToText(tester, 'Mock Monthly');
+    await dragUntilTextVisible(tester, 'Mock Monthly');
 
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
     expect(find.text('Mock perks'), findsOneWidget);
   });
 
-  testWidgets('shows active membership status above plan cards',
+  testWidgets('shows active membership status and current plan state',
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository.value(
-        const <MembershipPlan>[
+      repository: const _MembershipRepositoryFake(
+        plans: <MembershipPlan>[
           MembershipPlan(
-            id: 'basic',
+            id: 'basic-monthly',
             title: 'Basic Monthly',
             price: 'USD 9.99 / month',
             perks: 'Backend perks',
@@ -121,21 +136,21 @@ void main() {
     );
 
     expect(find.text('Active'), findsOneWidget);
-    expect(find.text('Basic Monthly'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsWidgets);
     expect(find.text('Valid until June 1, 2026'), findsOneWidget);
     expect(find.text('Manage'), findsOneWidget);
 
-    await scrollToText(tester, 'Current plan');
+    await dragUntilTextVisible(tester, 'USD 9.99 / month');
 
     expect(find.text('Current plan'), findsWidgets);
   });
 
-  testWidgets('shows softer copy when a plan has no price',
+  testWidgets('shows soft price fallback when plan price is unavailable',
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository.value(
-        const <MembershipPlan>[
+      repository: const _MembershipRepositoryFake(
+        plans: <MembershipPlan>[
           MembershipPlan(
             title: 'Preview Plan',
             price: 'Price unavailable',
@@ -145,7 +160,7 @@ void main() {
       ),
     );
 
-    await scrollToText(tester, 'Pricing coming soon');
+    await dragUntilTextVisible(tester, 'Pricing coming soon');
 
     expect(find.text('Pricing coming soon'), findsOneWidget);
     expect(find.text('Price unavailable'), findsNothing);
@@ -155,15 +170,15 @@ void main() {
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository(
-        plans: remotePlans,
+      repository: _MembershipRepositoryFake(
+        plans: backendPlans,
         statusError: Exception('unauthorized'),
       ),
     );
 
     expect(find.text('Sign in required'), findsOneWidget);
 
-    await scrollToText(tester, 'Backend Pro');
+    await dragUntilTextVisible(tester, 'Backend Pro');
 
     expect(find.text('Backend Pro'), findsOneWidget);
   });
@@ -172,20 +187,20 @@ void main() {
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository.value(const <MembershipPlan>[]),
+      repository: const _MembershipRepositoryFake(plans: <MembershipPlan>[]),
     );
 
-    await scrollToText(tester, 'Mock Monthly');
+    await dragUntilTextVisible(tester, 'Mock Monthly');
 
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
     expect(find.text('Mock perks'), findsOneWidget);
   });
 
-  testWidgets(
-      'uses mock plans without calling repository when remote is disabled',
+  testWidgets('remote disabled uses mock plans without calling repository',
       (WidgetTester tester) async {
-    final _TrackingPlanRepository repository = _TrackingPlanRepository();
+    final _TrackingMembershipRepository repository =
+        _TrackingMembershipRepository();
 
     await pumpMembershipPage(
       tester,
@@ -195,30 +210,19 @@ void main() {
 
     expect(repository.called, isFalse);
 
-    await scrollToText(tester, 'Mock Monthly');
+    await dragUntilTextVisible(tester, 'Mock Monthly');
 
     expect(find.text('Mock Monthly'), findsOneWidget);
   });
 }
 
-class _PlanRepository implements MembershipRepository {
-  const _PlanRepository({
+class _MembershipRepositoryFake implements MembershipRepository {
+  const _MembershipRepositoryFake({
     this.plans = const <MembershipPlan>[],
     this.status,
     this.plansError,
     this.statusError,
   });
-
-  factory _PlanRepository.value(
-    List<MembershipPlan> plans, {
-    MembershipStatus? status,
-  }) {
-    return _PlanRepository(plans: plans, status: status);
-  }
-
-  factory _PlanRepository.error(Object error) {
-    return _PlanRepository(plansError: error);
-  }
 
   final List<MembershipPlan> plans;
   final MembershipStatus? status;
@@ -240,7 +244,7 @@ class _PlanRepository implements MembershipRepository {
   }
 }
 
-class _TrackingPlanRepository implements MembershipRepository {
+class _TrackingMembershipRepository implements MembershipRepository {
   bool called = false;
 
   @override

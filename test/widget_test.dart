@@ -9,6 +9,7 @@ void main() {
       enableFeedVideo: false,
       enableRemoteFeed: false,
       enableRemoteHome: false,
+      enableRemoteMembership: false,
     ));
 
     final Finder bottomNav = find.byType(BottomNavigationBar);

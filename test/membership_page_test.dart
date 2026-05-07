@@ -51,12 +51,12 @@ void main() {
   }
 
   Future<void> scrollToText(WidgetTester tester, String text) async {
-    final Finder finder = find.text(text);
-    if (tester.any(finder)) {
-      await tester.ensureVisible(finder);
+    final Finder target = find.text(text).first;
+    if (tester.any(target)) {
+      await tester.ensureVisible(target);
     } else {
       await tester.scrollUntilVisible(
-        finder,
+        target,
         320,
         scrollable: find.byType(Scrollable).first,
         maxScrolls: 20,

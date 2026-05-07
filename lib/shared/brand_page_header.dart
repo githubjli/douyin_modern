@@ -14,11 +14,11 @@ class BrandPageHeader extends StatelessWidget {
     return Row(
       children: <Widget>[
         ClipRRect(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          borderRadius: BorderRadius.circular(6),
           child: Image.asset(
             AppAssets.meowLogo,
-            width: 24,
-            height: 24,
+            width: 28,
+            height: 28,
             fit: BoxFit.cover,
           ),
         ),

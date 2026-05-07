@@ -94,7 +94,7 @@ class _MembershipPageState extends State<MembershipPage> {
             },
           ),
           const SizedBox(height: AppSpacing.md),
-          const _BenefitsSection(),
+          const _VipPicksSection(),
           const SizedBox(height: AppSpacing.md),
           FutureBuilder<List<MembershipPlan>>(
             future: _plansFuture,
@@ -167,6 +167,7 @@ class _MembershipHeroCard extends StatelessWidget {
             : 'Renew';
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 220),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -202,18 +203,22 @@ class _MembershipHeroCard extends StatelessWidget {
               _StatusChip(label: chipLabel, isActive: isActive),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.lg),
           Text(
             planTitle,
-            style: AppTextStyles.cardTitle.copyWith(
+            style: AppTextStyles.sectionTitle.copyWith(
               color: AppColors.brandGold,
-              fontSize: 18,
+              fontSize: 22,
+              height: 1.15,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: AppSpacing.sm),
           Text(dateLabel, style: AppTextStyles.caption),
-          const SizedBox(height: AppSpacing.lg),
-          _PrimaryActionButton(label: actionLabel),
+          const SizedBox(height: AppSpacing.xl),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _PrimaryActionButton(label: actionLabel),
+          ),
         ],
       ),
     );
@@ -229,10 +234,7 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xxs,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 3),
       decoration: BoxDecoration(
         color: isActive
             ? AppColors.brandGold.withValues(alpha: 0.18)
@@ -246,6 +248,7 @@ class _StatusChip extends StatelessWidget {
         label,
         style: AppTextStyles.caption.copyWith(
           color: isActive ? AppColors.brandGold : AppColors.mutedOliveText,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -257,6 +260,69 @@ class _PrimaryActionButton extends StatelessWidget {
   const _PrimaryActionButton({required this.label});
 
   final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.brandGold,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: AppTextStyles.body.copyWith(
+          color: AppColors.warmBackground,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _VipPicksSection extends StatelessWidget {
+  const _VipPicksSection();
+
+  static const List<_VipPick> _picks = <_VipPick>[
+    _VipPick('Golden Hour Room', 'Exclusive creator room', 'VIP'),
+    _VipPick('Midnight Drama Cut', 'Member-only episode', 'Exclusive'),
+    _VipPick('Creator Masterclass', 'Priority learning drop', 'VIP'),
+    _VipPick('Early Access Vault', 'Preview tomorrow's picks', 'Exclusive'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'VIP Picks',
+          style: AppTextStyles.cardTitle.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _picks.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 0.95,
+          ),
+          itemBuilder: (_, int index) => _VipPickCard(pick: _picks[index]),
+        ),
+      ],
+    );
+  }
+}
+
+class _VipPick {
+  const _VipPick(this.title, this.subtitle, this.badge);
 
   @override
   Widget build(BuildContext context) {
@@ -318,35 +384,128 @@ class _BenefitSpec {
   final IconData icon;
   final String title;
   final String subtitle;
+  final String badge;
 }
 
-class _BenefitCard extends StatelessWidget {
-  const _BenefitCard({required this.benefit});
+class _VipPickCard extends StatelessWidget {
+  const _VipPickCard({required this.pick});
 
-  final _BenefitSpec benefit;
+  final _VipPick pick;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 154,
-      padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(color: AppColors.softBorder),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(benefit.icon, color: AppColors.brandGold, size: 20),
-          const SizedBox(height: AppSpacing.xs),
-          Text(benefit.title, style: AppTextStyles.caption),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            benefit.subtitle,
-            style: AppTextStyles.caption.copyWith(fontSize: 10),
-          ),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            const _VipPickCover(),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x1A000000),
+                    Color(0x33000000),
+                    Color(0xCC000000),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: _VipBadge(label: pick.badge),
+            ),
+            Positioned(
+              left: AppSpacing.sm,
+              right: AppSpacing.sm,
+              bottom: AppSpacing.sm,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    pick.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    pick.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white70,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VipPickCover extends StatelessWidget {
+  const _VipPickCover();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFF5A4324),
+            Color(0xFF2D2923),
+            Color(0xFF1E1D1B),
+          ],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.workspace_premium, color: AppColors.brandGold, size: 32),
+      ),
+    );
+  }
+}
+
+class _VipBadge extends StatelessWidget {
+  const _VipBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.brandGold.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.warmBackground,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -367,7 +526,7 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(
@@ -391,7 +550,7 @@ class _PlanCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(plan.perks, style: AppTextStyles.caption),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.lg),
           Row(
             children: <Widget>[
               Expanded(

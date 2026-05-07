@@ -60,7 +60,7 @@ void main() {
     expect(find.text('Backend Pro'), findsOneWidget);
     expect(find.text('USD 9.99 / month'), findsOneWidget);
     expect(find.text('Backend perks'), findsOneWidget);
-    expect(find.text('VIP Picks'), findsOneWidget);
+    expect(find.text('Exclusive for Members'), findsOneWidget);
     expect(find.text('Your Benefits'), findsNothing);
     expect(find.text('Mock Monthly'), findsNothing);
   });
@@ -130,7 +130,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Sign in required'), findsOneWidget);
     expect(find.text('Backend Pro'), findsOneWidget);
   });
 

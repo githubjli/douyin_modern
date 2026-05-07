@@ -27,4 +27,5 @@ class Endpoints {
   static String dramaProgress(int dramaId) => '/api/dramas/$dramaId/progress/';
 
   static const String membershipPlans = '/api/membership/plans/';
+  static const String membershipMe = '/api/membership/me/';
 }

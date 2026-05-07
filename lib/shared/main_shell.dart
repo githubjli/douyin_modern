@@ -14,11 +14,13 @@ class MainShell extends StatefulWidget {
     this.enableFeedVideo = true,
     this.enableRemoteFeed = true,
     this.enableRemoteHome = true,
+    this.enableRemoteMembership = true,
   });
 
   final bool enableFeedVideo;
   final bool enableRemoteFeed;
   final bool enableRemoteHome;
+  final bool enableRemoteMembership;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -78,7 +80,7 @@ class _MainShellState extends State<MainShell> {
         enableRemoteFeed: widget.enableRemoteFeed,
         isActive: _index == 1,
       ),
-      const MembershipPage(),
+      MembershipPage(useRemote: widget.enableRemoteMembership),
       const ProfilePage(),
     ];
 

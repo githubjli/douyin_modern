@@ -79,16 +79,43 @@ void main() {
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
-      repository: _PlanRepository.value(remotePlans, status: activeStatus),
+      repository: _PlanRepository.value(
+        const <MembershipPlan>[
+          MembershipPlan(
+            id: 'basic',
+            title: 'Basic Monthly',
+            price: 'USD 9.99 / month',
+            perks: 'Backend perks',
+          ),
+        ],
+        status: activeStatus,
+      ),
     );
 
-    expect(find.text('Active membership'), findsOneWidget);
-    expect(find.text('Basic Monthly'), findsOneWidget);
-    expect(
-      find.text('active · Ends at 2026-06-01T00:00:00Z'),
-      findsOneWidget,
+    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsWidgets);
+    expect(find.text('Valid until June 1, 2026'), findsOneWidget);
+    expect(find.text('Manage'), findsOneWidget);
+    expect(find.text('Current plan'), findsOneWidget);
+  });
+
+  testWidgets('shows softer copy when a plan has no price',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: _PlanRepository.value(
+        const <MembershipPlan>[
+          MembershipPlan(
+            title: 'Preview Plan',
+            price: 'Price unavailable',
+            perks: 'Coming soon perks',
+          ),
+        ],
+      ),
     );
-    expect(find.text('Backend Pro'), findsOneWidget);
+
+    expect(find.text('Pricing coming soon'), findsOneWidget);
+    expect(find.text('Price unavailable'), findsNothing);
   });
 
   testWidgets('status failure does not block plan cards',
@@ -101,7 +128,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Membership status'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
     expect(find.text('Backend Pro'), findsOneWidget);
   });
 

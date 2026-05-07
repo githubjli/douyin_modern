@@ -166,10 +166,12 @@ class _MembershipStatusCard extends StatelessWidget {
     final MembershipStatus? currentStatus = status;
     final bool isActive = currentStatus?.isActive == true;
     final String title = isActive ? 'Active membership' : 'Membership status';
-    final String subtitle = isActive
-        ? currentStatus!.planTitle
+    final String subtitle = currentStatus != null && isActive
+        ? currentStatus.planTitle
         : 'Sign in to view membership status. Choose a plan below.';
-    final String? statusText = isActive ? _activeStatusText(currentStatus) : null;
+    final String? statusText = currentStatus != null && isActive
+        ? _activeStatusText(currentStatus)
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),

@@ -50,18 +50,42 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('shows backend membership plans when repository returns plans',
+  Future<void> scrollToText(WidgetTester tester, String text) async {
+    final Finder finder = find.text(text);
+    if (tester.any(finder)) {
+      await tester.ensureVisible(finder);
+    } else {
+      await tester.scrollUntilVisible(
+        finder,
+        320,
+        scrollable: find.byType(Scrollable).first,
+        maxScrolls: 20,
+      );
+    }
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('renders main structure and backend plans',
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
       repository: _PlanRepository.value(remotePlans),
     );
 
+    expect(find.text('Membership'), findsOneWidget);
+    expect(find.text('Meow Plus'), findsOneWidget);
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+    expect(find.text('Your Benefits'), findsNothing);
+
+    await scrollToText(tester, 'Choose your plan');
+
+    expect(find.text('Choose your plan'), findsOneWidget);
+
+    await scrollToText(tester, 'Backend Pro');
+
     expect(find.text('Backend Pro'), findsOneWidget);
     expect(find.text('USD 9.99 / month'), findsOneWidget);
     expect(find.text('Backend perks'), findsOneWidget);
-    expect(find.text('Exclusive for Members'), findsOneWidget);
-    expect(find.text('Your Benefits'), findsNothing);
     expect(find.text('Mock Monthly'), findsNothing);
   });
 
@@ -71,6 +95,8 @@ void main() {
       tester,
       repository: _PlanRepository.error(Exception('offline')),
     );
+
+    await scrollToText(tester, 'Mock Monthly');
 
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
@@ -95,10 +121,13 @@ void main() {
     );
 
     expect(find.text('Active'), findsOneWidget);
-    expect(find.text('Basic Monthly'), findsWidgets);
+    expect(find.text('Basic Monthly'), findsOneWidget);
     expect(find.text('Valid until June 1, 2026'), findsOneWidget);
     expect(find.text('Manage'), findsOneWidget);
-    expect(find.text('Current plan'), findsOneWidget);
+
+    await scrollToText(tester, 'Current plan');
+
+    expect(find.text('Current plan'), findsWidgets);
   });
 
   testWidgets('shows softer copy when a plan has no price',
@@ -116,6 +145,8 @@ void main() {
       ),
     );
 
+    await scrollToText(tester, 'Pricing coming soon');
+
     expect(find.text('Pricing coming soon'), findsOneWidget);
     expect(find.text('Price unavailable'), findsNothing);
   });
@@ -131,6 +162,9 @@ void main() {
     );
 
     expect(find.text('Sign in required'), findsOneWidget);
+
+    await scrollToText(tester, 'Backend Pro');
+
     expect(find.text('Backend Pro'), findsOneWidget);
   });
 
@@ -140,6 +174,8 @@ void main() {
       tester,
       repository: _PlanRepository.value(const <MembershipPlan>[]),
     );
+
+    await scrollToText(tester, 'Mock Monthly');
 
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
@@ -158,6 +194,9 @@ void main() {
     );
 
     expect(repository.called, isFalse);
+
+    await scrollToText(tester, 'Mock Monthly');
+
     expect(find.text('Mock Monthly'), findsOneWidget);
   });
 }

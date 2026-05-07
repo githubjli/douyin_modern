@@ -26,6 +26,7 @@ void main() {
   Future<void> pumpMembershipPage(
     WidgetTester tester, {
     required MembershipRepository repository,
+    bool useRemote = true,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -33,6 +34,7 @@ void main() {
           body: MembershipPage(
             repository: repository,
             mockRepository: _PlanRepository.value(mockPlans),
+            useRemote: useRemote,
           ),
         ),
       ),
@@ -76,6 +78,21 @@ void main() {
     expect(find.text('¥5 / month'), findsOneWidget);
     expect(find.text('Mock perks'), findsOneWidget);
   });
+
+  testWidgets(
+      'uses mock plans without calling repository when remote is disabled',
+      (WidgetTester tester) async {
+    final _TrackingPlanRepository repository = _TrackingPlanRepository();
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      useRemote: false,
+    );
+
+    expect(repository.called, isFalse);
+    expect(find.text('Mock Monthly'), findsOneWidget);
+  });
 }
 
 class _PlanRepository implements MembershipRepository {
@@ -95,3 +112,12 @@ class _PlanRepository implements MembershipRepository {
   Future<List<MembershipPlan>> getPlans() => _load();
 }
 
+class _TrackingPlanRepository implements MembershipRepository {
+  bool called = false;
+
+  @override
+  Future<List<MembershipPlan>> getPlans() async {
+    called = true;
+    return const <MembershipPlan>[];
+  }
+}

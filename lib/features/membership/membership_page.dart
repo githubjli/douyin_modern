@@ -15,10 +15,12 @@ class MembershipPage extends StatefulWidget {
     super.key,
     this.repository,
     this.mockRepository = const MockMembershipRepository(),
+    this.useRemote = true,
   });
 
   final MembershipRepository? repository;
   final MembershipRepository mockRepository;
+  final bool useRemote;
 
   @override
   State<MembershipPage> createState() => _MembershipPageState();
@@ -31,8 +33,7 @@ class _MembershipPageState extends State<MembershipPage> {
   @override
   void initState() {
     super.initState();
-    _repository =
-        widget.repository ?? RemoteMembershipRepository(apiClient: ApiClient());
+    _repository = _defaultRepository();
     _plansFuture = _loadPlans();
   }
 
@@ -40,11 +41,17 @@ class _MembershipPageState extends State<MembershipPage> {
   void didUpdateWidget(covariant MembershipPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.repository != widget.repository ||
-        oldWidget.mockRepository != widget.mockRepository) {
-      _repository = widget.repository ??
-          RemoteMembershipRepository(apiClient: ApiClient());
+        oldWidget.mockRepository != widget.mockRepository ||
+        oldWidget.useRemote != widget.useRemote) {
+      _repository = _defaultRepository();
       _plansFuture = _loadPlans();
     }
+  }
+
+  MembershipRepository _defaultRepository() {
+    if (!widget.useRemote) return widget.mockRepository;
+    return widget.repository ??
+        RemoteMembershipRepository(apiClient: ApiClient());
   }
 
   Future<List<MembershipPlan>> _loadPlans() async {

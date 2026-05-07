@@ -80,34 +80,46 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _load() async {
     HomePortalData? portal;
+    bool usingPortalFallback = !widget.useRemote;
     if (widget.useRemote) {
       try {
-        portal = await _remoteRepo.getHomePortalData();
-        if (_isEmpty(portal)) {
+        final HomePortalData remotePortal =
+            await _remoteRepo.getHomePortalData();
+        if (_isEmpty(remotePortal)) {
           _notice = 'Showing local content.';
+          usingPortalFallback = true;
+        } else {
+          portal = remotePortal;
         }
       } catch (_) {
         _notice = 'Network unavailable. Showing local content.';
+        usingPortalFallback = true;
       }
     }
 
     portal ??= await widget.mockRepository.getHomePortalData();
     final HomePortalData loadedPortal = portal;
+    final List<HomeVideoItem> localNewsVideos =
+        _localNewsVideos(loadedPortal.latestVideos);
 
     HomeVideoPage? newsVideoPage;
     bool usingNewsFallback = false;
-    try {
-      newsVideoPage = await _getVideoPage(category: 'news');
-    } catch (_) {
-      usingNewsFallback = true;
+    if (!usingPortalFallback) {
+      try {
+        newsVideoPage = await _getVideoPage(category: 'news');
+        if (newsVideoPage.items.isEmpty && localNewsVideos.isNotEmpty) {
+          newsVideoPage = null;
+        }
+      } catch (_) {
+        usingNewsFallback = localNewsVideos.isEmpty;
+      }
     }
 
     if (!mounted) return;
     setState(() {
       _data = loadedPortal;
       _videoItems = loadedPortal.latestVideos;
-      _newsVideoItems =
-          newsVideoPage?.items ?? _localNewsVideos(loadedPortal.latestVideos);
+      _newsVideoItems = newsVideoPage?.items ?? localNewsVideos;
       _videosNextUrl = loadedPortal.videosNextUrl;
       _newsVideosNextUrl = newsVideoPage?.nextUrl;
       _categoryVideoItems = null;
@@ -120,7 +132,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool _isEmpty(HomePortalData p) =>
-      p.latestVideos.isEmpty && p.shortDrama.isEmpty && p.liveNow.isEmpty;
+      p.featured.isEmpty &&
+      p.latestVideos.isEmpty &&
+      p.shortDrama.isEmpty &&
+      p.liveNow.isEmpty &&
+      p.recommended.isEmpty;
 
   @override
   void dispose() {

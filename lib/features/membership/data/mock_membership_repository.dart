@@ -1,5 +1,6 @@
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
+import '../domain/membership_status.dart';
 
 class MockMembershipRepository implements MembershipRepository {
   const MockMembershipRepository();
@@ -19,4 +20,7 @@ class MockMembershipRepository implements MembershipRepository {
       ),
     ];
   }
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async => null;
 }

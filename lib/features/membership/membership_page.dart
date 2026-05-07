@@ -324,6 +324,64 @@ class _VipPicksSection extends StatelessWidget {
 class _VipPick {
   const _VipPick(this.title, this.subtitle, this.badge);
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.brandGold,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: AppTextStyles.body.copyWith(
+          color: AppColors.warmBackground,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _BenefitsSection extends StatelessWidget {
+  const _BenefitsSection();
+
+  static const List<_BenefitSpec> _benefits = <_BenefitSpec>[
+    _BenefitSpec(Icons.verified_rounded, 'Premium badge', 'Stand out in Meow'),
+    _BenefitSpec(Icons.meeting_room_rounded, 'Exclusive rooms', 'Member chats'),
+    _BenefitSpec(Icons.theaters_rounded, 'Member-only dramas', 'Bonus stories'),
+    _BenefitSpec(Icons.flash_on_rounded, 'Priority access', 'Early features'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Your Benefits',
+          style: AppTextStyles.cardTitle.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: <Widget>[
+            for (final _BenefitSpec benefit in _benefits)
+              _BenefitCard(benefit: benefit),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _BenefitSpec {
+  const _BenefitSpec(this.icon, this.title, this.subtitle);
+
+  final IconData icon;
   final String title;
   final String subtitle;
   final String badge;

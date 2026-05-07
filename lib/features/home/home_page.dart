@@ -80,14 +80,20 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _load() async {
     HomePortalData? portal;
+    bool usingPortalFallback = false;
+
     if (widget.useRemote) {
       try {
         portal = await _remoteRepo.getHomePortalData();
         if (_isEmpty(portal)) {
           _notice = 'Showing local content.';
+          portal = await widget.mockRepository.getHomePortalData();
+          usingPortalFallback = true;
         }
       } catch (_) {
         _notice = 'Network unavailable. Showing local content.';
+        portal = await widget.mockRepository.getHomePortalData();
+        usingPortalFallback = true;
       }
     }
 
@@ -95,32 +101,45 @@ class _HomePageState extends State<HomePage> {
     final HomePortalData loadedPortal = portal;
 
     HomeVideoPage? newsVideoPage;
-    bool usingNewsFallback = false;
-    try {
-      newsVideoPage = await _getVideoPage(category: 'news');
-    } catch (_) {
-      usingNewsFallback = true;
+    if (!usingPortalFallback) {
+      try {
+        newsVideoPage = await _getVideoPage(category: 'news');
+      } catch (_) {
+        newsVideoPage = null;
+      }
     }
+
+    final List<HomeVideoItem> localNewsVideos =
+        _localNewsVideos(loadedPortal.latestVideos);
+    final bool useLocalNewsVideos = newsVideoPage == null ||
+        (newsVideoPage.items.isEmpty && localNewsVideos.isNotEmpty);
+    final List<HomeVideoItem> resolvedNewsVideos =
+        useLocalNewsVideos ? localNewsVideos : newsVideoPage!.items;
+    final String? resolvedNewsNextUrl =
+        useLocalNewsVideos ? null : newsVideoPage!.nextUrl;
 
     if (!mounted) return;
     setState(() {
       _data = loadedPortal;
       _videoItems = loadedPortal.latestVideos;
-      _newsVideoItems =
-          newsVideoPage?.items ?? _localNewsVideos(loadedPortal.latestVideos);
+      _newsVideoItems = resolvedNewsVideos;
       _videosNextUrl = loadedPortal.videosNextUrl;
-      _newsVideosNextUrl = newsVideoPage?.nextUrl;
+      _newsVideosNextUrl = resolvedNewsNextUrl;
       _categoryVideoItems = null;
       _categoryVideosNextUrl = null;
       _selectedVideoCategoryIndex = 0;
       _selectedVideoCategoryQuery = null;
-      _usingNewsVideoFallback = usingNewsFallback;
+      _usingNewsVideoFallback = false;
       _loading = false;
     });
   }
 
   bool _isEmpty(HomePortalData p) =>
-      p.latestVideos.isEmpty && p.shortDrama.isEmpty && p.liveNow.isEmpty;
+      p.featured.isEmpty &&
+      p.latestVideos.isEmpty &&
+      p.shortDrama.isEmpty &&
+      p.liveNow.isEmpty &&
+      p.recommended.isEmpty;
 
   @override
   void dispose() {

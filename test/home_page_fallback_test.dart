@@ -138,7 +138,7 @@ void main() {
 
     await pumpHomePage(tester, remoteRepository: remoteRepository);
 
-    await tester.tap(find.text('Videos'));
+    await tester.tap(find.text('Videos').hitTestable().first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Sports'));

@@ -9,7 +9,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/auth/token_storage.dart';
 import '../../core/network/api_client.dart';
-import '../../core/network/api_error.dart';
+import '../../core/network/api_error_classifier.dart';
 import '../../core/network/endpoints.dart';
 import '../home/domain/home_models.dart';
 
@@ -146,7 +146,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
       unawaited(_syncVideoController());
     } catch (error) {
       if (!mounted) return;
-      if (_isAuthDenied(error)) {
+      if (isAuthDeniedError(error)) {
         setState(() {
           _detailAuthDenied = true;
           _video = _lockedForAuthDenied(_video);
@@ -156,21 +156,12 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         unawaited(_syncVideoController());
         return;
       }
-      if (_isTransientError(error)) {
+      if (isTransientError(error)) {
         setState(() {
           _loadingDetail = false;
         });
       }
     }
-  }
-
-  bool _isAuthDenied(Object error) {
-    return error is ApiError &&
-        (error.statusCode == 401 || error.statusCode == 403);
-  }
-
-  bool _isTransientError(Object error) {
-    return !_isAuthDenied(error);
   }
 
   HomeVideoItem _lockedForAuthDenied(HomeVideoItem video) {

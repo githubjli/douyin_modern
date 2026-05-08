@@ -5,7 +5,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
-import '../../core/network/api_error.dart';
+import '../../core/network/api_error_classifier.dart';
 import '../auth/data/remote_auth_repository.dart';
 import '../auth/domain/auth_repository.dart';
 import '../home/data/remote_home_repository.dart';
@@ -148,10 +148,13 @@ class _MembershipPageState extends State<MembershipPage> {
       }
       return session.isSignedIn;
     } catch (error) {
-      if (_isAuthDenied(error)) {
+      if (isAuthDeniedError(error)) {
         _lastKnownSignedIn = false;
         _lastKnownStatus = null;
         return false;
+      }
+      if (isTransientError(error)) {
+        return _lastKnownSignedIn ?? false;
       }
       return _lastKnownSignedIn ?? false;
     }
@@ -163,10 +166,13 @@ class _MembershipPageState extends State<MembershipPage> {
       _lastKnownStatus = status;
       return status;
     } catch (error) {
-      if (_isAuthDenied(error)) {
+      if (isAuthDeniedError(error)) {
         _lastKnownSignedIn = false;
         _lastKnownStatus = null;
         return null;
+      }
+      if (isTransientError(error)) {
+        return _lastKnownStatus;
       }
       return _lastKnownStatus;
     }

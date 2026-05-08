@@ -197,22 +197,24 @@ class _VipHeroCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Container(
+          SizedBox(
             width: 50,
             height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: <Color>[AppColors.brandGold, Color(0xFF8F6424)],
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[AppColors.brandGold, Color(0xFF8F6424)],
+                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
               ),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-            ),
-            child: const Icon(
-              Icons.person,
-              color: AppColors.warmBackground,
-              size: 28,
+              child: const Icon(
+                Icons.person,
+                color: AppColors.warmBackground,
+                size: 28,
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -229,7 +231,6 @@ class _VipHeroCard extends StatelessWidget {
                     fontSize: 18,
                     height: 1.08,
                   ),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(

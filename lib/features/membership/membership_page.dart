@@ -168,10 +168,6 @@ class _VipHeroCard extends StatelessWidget {
     final MembershipStatus? currentStatus = status;
     final bool isActive = currentStatus?.isActive == true;
     final String name = isActive ? 'Member' : 'Meow Plus';
-    final String level = isActive ? currentStatus!.planTitle : 'Not subscribed';
-    final String expiry = isActive
-        ? _validUntilLabel(currentStatus!.endsAt)
-        : 'Choose a plan to unlock VIP access';
     final String cta = isActive ? 'Manage' : 'Subscribe';
 
     return Container(
@@ -235,14 +231,9 @@ class _VipHeroCard extends StatelessWidget {
                   ),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
                 ),
-                child: const Icon(
-                  Icons.person,
-                  color: AppColors.warmBackground,
-                  size: 27,
-                ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  level,
+                  isActive ? currentStatus!.planTitle : 'Not subscribed',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.body.copyWith(
@@ -254,7 +245,9 @@ class _VipHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  expiry,
+                  isActive
+                      ? _validUntilLabel(currentStatus!.endsAt)
+                      : 'Choose a plan to unlock VIP access',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(fontSize: 12),

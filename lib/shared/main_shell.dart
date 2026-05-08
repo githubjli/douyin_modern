@@ -80,7 +80,10 @@ class _MainShellState extends State<MainShell> {
         enableRemoteFeed: widget.enableRemoteFeed,
         isActive: _index == 1,
       ),
-      MembershipPage(useRemote: widget.enableRemoteMembership),
+      MembershipPage(
+        useRemote: widget.enableRemoteMembership,
+        isActive: _index == 3,
+      ),
       const ProfilePage(),
     ];
 
@@ -134,7 +137,7 @@ class _MainShellState extends State<MainShell> {
                     BottomNavigationBarItem(
                       icon: Icon(Icons.play_circle_outline_rounded),
                       activeIcon: Icon(Icons.play_circle_fill_rounded),
-                      label: 'Short',
+                      label: 'Shorts',
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(

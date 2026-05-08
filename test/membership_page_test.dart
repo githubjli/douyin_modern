@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/features/auth/domain/auth_repository.dart';
+import 'package:meow_media/features/auth/domain/auth_session.dart';
+import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
+import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
   const List<MembershipPlan> backendPlans = <MembershipPlan>[
@@ -38,6 +42,10 @@ void main() {
       plans: mockPlans,
     ),
     bool useRemote = true,
+    bool isActive = true,
+    Future<List<HomeVideoItem>>? vipVideosFuture,
+    Future<bool>? signedInFuture,
+    AuthRepository? authRepository,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -46,6 +54,12 @@ void main() {
             repository: repository,
             mockRepository: mockRepository,
             useRemote: useRemote,
+            isActive: isActive,
+            vipVideosFuture: vipVideosFuture ??
+                Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]),
+            signedInFuture: signedInFuture ??
+                (authRepository == null ? Future<bool>.value(true) : null),
+            authRepository: authRepository,
           ),
         ),
       ),
@@ -84,9 +98,90 @@ void main() {
     expect(find.text('Exclusive for Members'), findsOneWidget);
     expect(find.text('Your Benefits'), findsNothing);
 
-    await dragUntilTextVisible(tester, 'Choose your plan');
+    await dragUntilTextVisible(tester, 'Membership Plans');
 
-    expect(find.text('Choose your plan'), findsOneWidget);
+    expect(find.text('Membership Plans'), findsOneWidget);
+    expect(find.text('Backend Pro'), findsOneWidget);
+    expect(find.text('Quarterly'), findsOneWidget);
+    expect(find.text('Yearly'), findsOneWidget);
+  });
+
+
+  testWidgets('signed-out state shows Sign in CTA',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      signedInFuture: Future<bool>.value(false),
+    );
+
+    expect(find.text('Membership'), findsOneWidget);
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Sign in to unlock VIP access'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Subscribe'), findsNothing);
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    expect(find.text('Membership Plans'), findsOneWidget);
+  });
+
+  testWidgets('signed-in no-membership state shows Subscribe CTA',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      signedInFuture: Future<bool>.value(true),
+    );
+
+    expect(find.text('Membership'), findsOneWidget);
+    expect(find.text('Meow Plus'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Choose a plan to unlock VIP access'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    expect(find.text('Membership Plans'), findsOneWidget);
+  });
+
+
+  testWidgets('refreshes membership state when tab becomes active',
+      (WidgetTester tester) async {
+    final _MutableMembershipRepository repository = _MutableMembershipRepository(
+      plans: backendPlans,
+    );
+    final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
+      isSignedIn: false,
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      authRepository: authRepository,
+      isActive: false,
+    );
+
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Sign in required'), findsOneWidget);
+
+    repository.status = activeStatus;
+    authRepository.isSignedIn = true;
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      authRepository: authRepository,
+    );
+
+    expect(find.text('Member'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsWidgets);
+    expect(find.text('Valid until June 1, 2026'), findsOneWidget);
+    expect(repository.statusCalls, greaterThanOrEqualTo(2));
+    expect(authRepository.sessionCalls, greaterThanOrEqualTo(2));
   });
 
   testWidgets('shows backend membership plans when repository returns plans',
@@ -102,6 +197,8 @@ void main() {
     expect(find.text('USD 9.99 / month'), findsOneWidget);
     expect(find.text('Backend perks'), findsOneWidget);
     expect(find.text('Mock Monthly'), findsNothing);
+    expect(find.text('Quarterly'), findsOneWidget);
+    expect(find.text('Yearly'), findsOneWidget);
   });
 
   testWidgets('falls back to mock plans when repository throws',
@@ -135,14 +232,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
     expect(find.text('Valid until June 1, 2026'), findsOneWidget);
-    expect(find.text('Manage'), findsOneWidget);
+    expect(find.text('Manage'), findsWidgets);
 
     await dragUntilTextVisible(tester, 'USD 9.99 / month');
 
-    expect(find.text('Current plan'), findsWidgets);
+    expect(find.text('Current'), findsWidgets);
   });
 
   testWidgets('shows soft price fallback when plan price is unavailable',
@@ -176,7 +273,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Choose a plan to unlock VIP access'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
 
     await dragUntilTextVisible(tester, 'Backend Pro');
 
@@ -195,6 +294,48 @@ void main() {
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
     expect(find.text('Mock perks'), findsOneWidget);
+  });
+
+  testWidgets('renders VIP videos and opens shared video detail flow',
+      (WidgetTester tester) async {
+    const HomeVideoItem vipVideo = HomeVideoItem(
+      id: 'vip-video',
+      title: 'Members Only Cut',
+      subtitle: 'VIP Studio • 120 views',
+      ownerName: 'VIP Studio',
+      viewCount: 120,
+      accessType: 'membership',
+      isLocked: true,
+      thumbnailUrl: '',
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      vipVideosFuture: Future<List<HomeVideoItem>>.value(
+        const <HomeVideoItem>[vipVideo],
+      ),
+    );
+
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+
+    const Key vipCardKey = ValueKey<String>(
+      'membership-vip-video-card-vip-video',
+    );
+    final Finder vipCard = find.byKey(vipCardKey);
+
+    expect(vipCard, findsOneWidget);
+
+    await tester.ensureVisible(vipCard);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Members Only Cut'), findsOneWidget);
+    expect(find.text('Locked'), findsOneWidget);
+
+    await tester.tap(vipCard);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VideoDetailPage), findsOneWidget);
   });
 
   testWidgets('remote disabled uses mock plans without calling repository',
@@ -241,6 +382,61 @@ class _MembershipRepositoryFake implements MembershipRepository {
     final Object? error = statusError;
     if (error != null) throw error;
     return status;
+  }
+}
+
+
+class _MutableMembershipRepository implements MembershipRepository {
+  _MutableMembershipRepository({required this.plans, this.status});
+
+  final List<MembershipPlan> plans;
+  MembershipStatus? status;
+  int statusCalls = 0;
+
+  @override
+  Future<List<MembershipPlan>> getPlans() async => plans;
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async {
+    statusCalls += 1;
+    return status;
+  }
+}
+
+class _AuthRepositoryFake implements AuthRepository {
+  _AuthRepositoryFake({required this.isSignedIn});
+
+  bool isSignedIn;
+  int sessionCalls = 0;
+
+  @override
+  Future<AuthSession> getCurrentSession() async {
+    sessionCalls += 1;
+    return AuthSession(
+      isSignedIn: isSignedIn,
+      userId: isSignedIn ? 'user-1' : null,
+      displayName: isSignedIn ? 'Meow User' : 'Guest',
+    );
+  }
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
   }
 }
 

@@ -134,7 +134,7 @@ class _MainShellState extends State<MainShell> {
                     BottomNavigationBarItem(
                       icon: Icon(Icons.play_circle_outline_rounded),
                       activeIcon: Icon(Icons.play_circle_fill_rounded),
-                      label: 'Short',
+                      label: 'Shorts',
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(

@@ -170,6 +170,11 @@ HomeVideoItem? _mapDetail(dynamic data, HomeVideoItem fallback) {
     category: _str(data['category']) ?? fallback.category,
     categoryName: _str(data['category_name']) ?? fallback.categoryName,
     createdAt: _str(data['created_at']) ?? fallback.createdAt,
+    accessType: _str(data['access_type']) ?? fallback.accessType,
+    previewSeconds: _int(data['preview_seconds']) ?? fallback.previewSeconds,
+    canWatch: _bool(data['can_watch']) ?? fallback.canWatch,
+    isLocked: _bool(data['is_locked']) ?? fallback.isLocked,
+    lockReason: _str(data['lock_reason']) ?? fallback.lockReason,
   );
 }
 
@@ -188,6 +193,16 @@ String? _nestedStr(dynamic value, String key) {
 String? _str(dynamic value) {
   if (value is String) return value;
   if (value is num) return value.toString();
+  return null;
+}
+
+bool? _bool(dynamic value) {
+  if (value is bool) return value;
+  if (value is String) {
+    final String normalized = value.toLowerCase().trim();
+    if (normalized == 'true') return true;
+    if (normalized == 'false') return false;
+  }
   return null;
 }
 

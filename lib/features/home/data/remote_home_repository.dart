@@ -7,7 +7,7 @@ import '../domain/home_repository.dart';
 class RemoteHomeRepository implements HomeRepository {
   RemoteHomeRepository({required ApiClient apiClient}) : _apiClient = apiClient;
 
-  static const int _videoPageSize = 30;
+  static const int defaultVideoPageSize = 30;
 
   final ApiClient _apiClient;
 
@@ -87,10 +87,17 @@ class RemoteHomeRepository implements HomeRepository {
     );
   }
 
-  Future<HomeVideoPage> getVideoPage({String? pageUrl, String? category}) async {
+  Future<HomeVideoPage> getVideoPage({
+    String? pageUrl,
+    String? category,
+    String? accessType,
+    int pageSize = defaultVideoPageSize,
+  }) async {
     final _HomeVideoRows page = await _fetchVideoRows(
       pageUrl: pageUrl,
       category: category,
+      accessType: accessType,
+      pageSize: pageSize,
     );
     return HomeVideoPage(
       items: page.rows.map(_mapVideo).toList(),
@@ -100,12 +107,20 @@ class RemoteHomeRepository implements HomeRepository {
     );
   }
 
-  Future<_HomeVideoRows> _fetchVideoRows({String? pageUrl, String? category}) async {
+  Future<_HomeVideoRows> _fetchVideoRows({
+    String? pageUrl,
+    String? category,
+    String? accessType,
+    int pageSize = defaultVideoPageSize,
+  }) async {
     final String? trimmedCategory = category?.trim();
+    final String? trimmedAccessType = accessType?.trim();
     final Map<String, dynamic> queryParameters = <String, dynamic>{
-      'page_size': _videoPageSize,
+      'page_size': pageSize,
       if (trimmedCategory != null && trimmedCategory.isNotEmpty)
         'category': trimmedCategory,
+      if (trimmedAccessType != null && trimmedAccessType.isNotEmpty)
+        'access_type': trimmedAccessType,
     };
     final videoResponse = await _apiClient.get<dynamic>(
       pageUrl ?? Endpoints.publicVideos,
@@ -167,6 +182,11 @@ class RemoteHomeRepository implements HomeRepository {
       category: _str(m['category']),
       categoryName: _str(m['category_name']),
       createdAt: _str(m['created_at']),
+      accessType: _str(m['access_type']),
+      previewSeconds: _int(m['preview_seconds']),
+      canWatch: _bool(m['can_watch']),
+      isLocked: _bool(m['is_locked']),
+      lockReason: _str(m['lock_reason']),
     );
   }
 

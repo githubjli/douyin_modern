@@ -17,6 +17,11 @@
 - **Membership** is a first-class tab.
 - **Profile** is the user center.
 
+## UI Style Guide
+- For UI work, read `UI_STYLE_GUIDE.md` first.
+- Treat Home as the visual baseline.
+- Keep the logo size and header placement consistent with Home.
+
 ## Prohibited Changes (Unless Explicitly Requested)
 Do **not** change the following unless a task explicitly requests it:
 - Launcher icons
@@ -36,6 +41,12 @@ Do **not** change the following unless a task explicitly requests it:
 ## Change Policy
 - Keep changes small, focused, and easy to review.
 - Avoid unrelated refactors.
+
+## Flutter Quality
+- Flutter changes must keep `flutter analyze` clean.
+- Do not leave analyzer warnings, infos, or lint issues unresolved.
+- Prefer const constructors when suggested by analyzer.
+- Run `flutter analyze` and `flutter test` before finalizing.
 
 ## Testing Policy
 - Run before finalizing changes:

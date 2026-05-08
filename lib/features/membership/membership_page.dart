@@ -78,33 +78,36 @@ class _MembershipPageState extends State<MembershipPage> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: ListView(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           AppSpacing.md,
           AppSpacing.md,
           96,
         ),
-        children: <Widget>[
-          const _MembershipHeader(),
-          const SizedBox(height: 18),
-          FutureBuilder<MembershipStatus?>(
-            future: _statusFuture,
-            builder: (
-              BuildContext context,
-              AsyncSnapshot<MembershipStatus?> snapshot,
-            ) {
-              return _VipHeroCard(status: snapshot.data);
-            },
-          ),
-          const SizedBox(height: 22),
-          _PlanSection(
-            plansFuture: _plansFuture,
-            statusFuture: _statusFuture,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          const _ExclusiveSection(),
-        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            const _MembershipHeader(),
+            const SizedBox(height: 18),
+            FutureBuilder<MembershipStatus?>(
+              future: _statusFuture,
+              builder: (
+                BuildContext context,
+                AsyncSnapshot<MembershipStatus?> snapshot,
+              ) {
+                return _VipHeroCard(status: snapshot.data);
+              },
+            ),
+            const SizedBox(height: 22),
+            _PlanSection(
+              plansFuture: _plansFuture,
+              statusFuture: _statusFuture,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            const _ExclusiveSection(),
+          ],
+        ),
       ),
     );
   }

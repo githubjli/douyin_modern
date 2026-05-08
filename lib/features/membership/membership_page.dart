@@ -5,6 +5,9 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../home/data/remote_home_repository.dart';
+import '../home/domain/home_models.dart';
+import '../video_detail/video_detail_page.dart';
 import 'data/mock_membership_repository.dart';
 import 'data/remote_membership_repository.dart';
 import 'domain/membership_plan.dart';
@@ -17,11 +20,15 @@ class MembershipPage extends StatefulWidget {
     this.repository,
     this.mockRepository = const MockMembershipRepository(),
     this.useRemote = true,
+    this.vipVideosFuture,
+    this.videoRepository,
   });
 
   final MembershipRepository? repository;
   final MembershipRepository mockRepository;
   final bool useRemote;
+  final Future<List<HomeVideoItem>>? vipVideosFuture;
+  final RemoteHomeRepository? videoRepository;
 
   @override
   State<MembershipPage> createState() => _MembershipPageState();
@@ -29,15 +36,19 @@ class MembershipPage extends StatefulWidget {
 
 class _MembershipPageState extends State<MembershipPage> {
   late MembershipRepository _repository;
+  late RemoteHomeRepository _videoRepository;
   late Future<List<MembershipPlan>> _plansFuture;
   late Future<MembershipStatus?> _statusFuture;
+  late Future<List<HomeVideoItem>> _vipVideosFuture;
 
   @override
   void initState() {
     super.initState();
     _repository = _defaultRepository();
+    _videoRepository = _defaultVideoRepository();
     _plansFuture = _loadPlans();
     _statusFuture = _loadStatus();
+    _vipVideosFuture = widget.vipVideosFuture ?? _loadVipVideos();
   }
 
   @override
@@ -45,16 +56,24 @@ class _MembershipPageState extends State<MembershipPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.repository != widget.repository ||
         oldWidget.mockRepository != widget.mockRepository ||
-        oldWidget.useRemote != widget.useRemote) {
+        oldWidget.useRemote != widget.useRemote ||
+        oldWidget.vipVideosFuture != widget.vipVideosFuture ||
+        oldWidget.videoRepository != widget.videoRepository) {
       _repository = _defaultRepository();
+      _videoRepository = _defaultVideoRepository();
       _plansFuture = _loadPlans();
       _statusFuture = _loadStatus();
+      _vipVideosFuture = widget.vipVideosFuture ?? _loadVipVideos();
     }
   }
 
   MembershipRepository _defaultRepository() {
     if (!widget.useRemote) return widget.mockRepository;
     return widget.repository ?? RemoteMembershipRepository(apiClient: ApiClient());
+  }
+
+  RemoteHomeRepository _defaultVideoRepository() {
+    return widget.videoRepository ?? RemoteHomeRepository(apiClient: ApiClient());
   }
 
   Future<MembershipStatus?> _loadStatus() async {
@@ -73,6 +92,27 @@ class _MembershipPageState extends State<MembershipPage> {
       // Fall through to the bundled mock plans so Membership stays usable.
     }
     return widget.mockRepository.getPlans();
+  }
+
+  Future<List<HomeVideoItem>> _loadVipVideos() async {
+    if (!widget.useRemote) return const <HomeVideoItem>[];
+    try {
+      final HomeVideoPage page = await _videoRepository.getVideoPage(
+        accessType: 'membership',
+        pageSize: 4,
+      );
+      final List<HomeVideoItem> membershipVideos = _membershipVideos(page.items);
+      if (membershipVideos.isNotEmpty) return membershipVideos.take(4).toList();
+    } catch (_) {
+      // Fall through to an unfiltered fetch; older backends may ignore access_type.
+    }
+
+    try {
+      final HomeVideoPage page = await _videoRepository.getVideoPage(pageSize: 12);
+      return _membershipVideos(page.items).take(4).toList();
+    } catch (_) {
+      return const <HomeVideoItem>[];
+    }
   }
 
   @override
@@ -105,7 +145,7 @@ class _MembershipPageState extends State<MembershipPage> {
               statusFuture: _statusFuture,
             ),
             const SizedBox(height: AppSpacing.md),
-            const _ExclusiveSection(),
+            _ExclusiveSection(videosFuture: _vipVideosFuture),
           ],
         ),
       ),
@@ -411,38 +451,100 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _ExclusiveSection extends StatelessWidget {
-  const _ExclusiveSection();
+  const _ExclusiveSection({required this.videosFuture});
+
+  final Future<List<HomeVideoItem>> videosFuture;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        const _SectionTitle(title: 'Exclusive for Members'),
-        const SizedBox(height: AppSpacing.xs),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _vipPicks.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: AppSpacing.sm,
-            crossAxisSpacing: AppSpacing.sm,
-            childAspectRatio: 16 / 9,
-          ),
-          itemBuilder: (BuildContext context, int index) {
-            return _ExclusiveCard(pick: _vipPicks[index]);
-          },
-        ),
-      ],
+    return FutureBuilder<List<HomeVideoItem>>(
+      future: videosFuture,
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<List<HomeVideoItem>> snapshot,
+      ) {
+        final List<HomeVideoItem> videos = snapshot.data ?? const <HomeVideoItem>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const _SectionTitle(title: 'Exclusive for Members'),
+            const SizedBox(height: AppSpacing.xs),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: videos.isEmpty ? _vipPicks.length : videos.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: AppSpacing.sm,
+                crossAxisSpacing: AppSpacing.sm,
+                childAspectRatio: 16 / 9,
+              ),
+              itemBuilder: (BuildContext context, int index) {
+                if (videos.isEmpty) {
+                  return _ExclusiveFallbackCard(pick: _vipPicks[index]);
+                }
+                return _ExclusiveVideoCard(
+                  video: videos[index],
+                  recommendations: videos,
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
-class _ExclusiveCard extends StatelessWidget {
-  const _ExclusiveCard({required this.pick});
+class _ExclusiveVideoCard extends StatelessWidget {
+  const _ExclusiveVideoCard({
+    required this.video,
+    required this.recommendations,
+  });
+
+  final HomeVideoItem video;
+  final List<HomeVideoItem> recommendations;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _openMembershipVideoDetail(context, video, recommendations),
+      child: _ExclusiveCardFrame(
+        imageUrl: video.thumbnailUrl,
+        title: video.title,
+        subtitle: _membershipVideoSubtitle(video),
+      ),
+    );
+  }
+}
+
+class _ExclusiveFallbackCard extends StatelessWidget {
+  const _ExclusiveFallbackCard({required this.pick});
 
   final _VipPick pick;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ExclusiveCardFrame(
+      title: pick.title,
+      subtitle: pick.subtitle,
+      colors: pick.colors,
+    );
+  }
+}
+
+class _ExclusiveCardFrame extends StatelessWidget {
+  const _ExclusiveCardFrame({
+    required this.title,
+    required this.subtitle,
+    this.imageUrl,
+    this.colors,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? imageUrl;
+  final List<Color>? colors;
 
   @override
   Widget build(BuildContext context) {
@@ -451,7 +553,7 @@ class _ExclusiveCard extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          _VipGradient(colors: pick.colors),
+          _VipCardCover(imageUrl: imageUrl, colors: colors),
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -479,7 +581,7 @@ class _ExclusiveCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  pick.title,
+                  title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(
@@ -490,7 +592,7 @@ class _ExclusiveCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  pick.subtitle,
+                  subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(
@@ -503,6 +605,36 @@ class _ExclusiveCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _VipCardCover extends StatelessWidget {
+  const _VipCardCover({this.imageUrl, this.colors});
+
+  final String? imageUrl;
+  final List<Color>? colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? trimmedUrl = imageUrl?.trim();
+    if (trimmedUrl == null || trimmedUrl.isEmpty) {
+      return _VipGradient(colors: colors ?? _defaultVipGradientColors);
+    }
+    return Image.network(
+      trimmedUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) {
+        return _VipGradient(colors: colors ?? _defaultVipGradientColors);
+      },
+      loadingBuilder: (
+        BuildContext context,
+        Widget child,
+        ImageChunkEvent? loadingProgress,
+      ) {
+        if (loadingProgress == null) return child;
+        return _VipGradient(colors: colors ?? _defaultVipGradientColors);
+      },
     );
   }
 }
@@ -641,6 +773,37 @@ class _VipPick {
   final String title;
   final String subtitle;
   final List<Color> colors;
+}
+
+const List<Color> _defaultVipGradientColors = <Color>[
+  Color(0xFF5A4324),
+  Color(0xFF24201F),
+];
+
+List<HomeVideoItem> _membershipVideos(List<HomeVideoItem> videos) {
+  return videos.where((HomeVideoItem video) => video.isMembershipVideo).toList();
+}
+
+String _membershipVideoSubtitle(HomeVideoItem video) {
+  final String owner = video.ownerName?.trim().isNotEmpty == true
+      ? video.ownerName!.trim()
+      : 'VIP video';
+  return '$owner · ${video.viewCount ?? 0} views';
+}
+
+void _openMembershipVideoDetail(
+  BuildContext context,
+  HomeVideoItem video,
+  List<HomeVideoItem> recommendations,
+) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => VideoDetailPage(
+        video: video,
+        recommendations: recommendations,
+      ),
+    ),
+  );
 }
 
 const List<MembershipPlan> _placeholderPlans = <MembershipPlan>[

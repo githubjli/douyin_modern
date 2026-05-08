@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
+import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
   const List<MembershipPlan> backendPlans = <MembershipPlan>[
@@ -38,6 +40,7 @@ void main() {
       plans: mockPlans,
     ),
     bool useRemote = true,
+    Future<List<HomeVideoItem>>? vipVideosFuture,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -46,6 +49,8 @@ void main() {
             repository: repository,
             mockRepository: mockRepository,
             useRemote: useRemote,
+            vipVideosFuture: vipVideosFuture ??
+                Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]),
           ),
         ),
       ),
@@ -202,6 +207,35 @@ void main() {
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
     expect(find.text('Mock perks'), findsOneWidget);
+  });
+
+  testWidgets('renders VIP videos and opens shared video detail flow',
+      (WidgetTester tester) async {
+    const HomeVideoItem vipVideo = HomeVideoItem(
+      id: 'vip-video',
+      title: 'Members Only Cut',
+      subtitle: 'VIP Studio • 120 views',
+      ownerName: 'VIP Studio',
+      viewCount: 120,
+      accessType: 'membership',
+      thumbnailUrl: '',
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      vipVideosFuture: Future<List<HomeVideoItem>>.value(
+        const <HomeVideoItem>[vipVideo],
+      ),
+    );
+
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+    expect(find.text('Members Only Cut'), findsOneWidget);
+
+    await tester.tap(find.text('Members Only Cut'));
+    await tester.pump();
+
+    expect(find.byType(VideoDetailPage), findsOneWidget);
   });
 
   testWidgets('remote disabled uses mock plans without calling repository',

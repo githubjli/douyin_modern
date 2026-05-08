@@ -92,12 +92,14 @@ class RemoteHomeRepository implements HomeRepository {
     String? category,
     String? accessType,
     int pageSize = defaultVideoPageSize,
+    bool authenticated = false,
   }) async {
     final _HomeVideoRows page = await _fetchVideoRows(
       pageUrl: pageUrl,
       category: category,
       accessType: accessType,
       pageSize: pageSize,
+      authenticated: authenticated,
     );
     return HomeVideoPage(
       items: page.rows.map(_mapVideo).toList(),
@@ -112,6 +114,7 @@ class RemoteHomeRepository implements HomeRepository {
     String? category,
     String? accessType,
     int pageSize = defaultVideoPageSize,
+    bool authenticated = false,
   }) async {
     final String? trimmedCategory = category?.trim();
     final String? trimmedAccessType = accessType?.trim();
@@ -125,6 +128,7 @@ class RemoteHomeRepository implements HomeRepository {
     final videoResponse = await _apiClient.get<dynamic>(
       pageUrl ?? Endpoints.publicVideos,
       queryParameters: pageUrl == null ? queryParameters : null,
+      authenticated: authenticated,
     );
     return _HomeVideoRows(
       rows: _rows(videoResponse.data),

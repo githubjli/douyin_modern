@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
 import 'package:meow_media/features/auth/domain/auth_session.dart';
+import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
@@ -47,6 +49,7 @@ void main() {
     Future<List<HomeVideoItem>>? vipVideosFuture,
     Future<bool>? signedInFuture,
     AuthRepository? authRepository,
+    RemoteHomeRepository? videoRepository,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -57,10 +60,15 @@ void main() {
             useRemote: useRemote,
             isActive: isActive,
             vipVideosFuture: vipVideosFuture ??
-                Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]),
+                (videoRepository == null
+                    ? Future<List<HomeVideoItem>>.value(
+                        const <HomeVideoItem>[],
+                      )
+                    : null),
             signedInFuture: signedInFuture ??
                 (authRepository == null ? Future<bool>.value(true) : null),
             authRepository: authRepository,
+            videoRepository: videoRepository,
           ),
         ),
       ),
@@ -415,6 +423,78 @@ void main() {
     expect(find.text('Mock perks'), findsOneWidget);
   });
 
+  testWidgets('loads VIP videos with authenticated public video requests',
+      (WidgetTester tester) async {
+    final _TrackingHomeRepository videoRepository = _TrackingHomeRepository(
+      pages: <HomeVideoPage>[
+        const HomeVideoPage(
+          items: <HomeVideoItem>[
+            HomeVideoItem(
+              id: 'vip-video',
+              title: 'Members Only Cut',
+              subtitle: 'VIP Studio • 120 views',
+              ownerName: 'VIP Studio',
+              viewCount: 120,
+              accessType: 'membership',
+              canWatch: true,
+              isLocked: false,
+              videoUrl: 'https://example.com/vip.mp4',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      vipVideosFuture: null,
+      videoRepository: videoRepository,
+    );
+
+    expect(videoRepository.calls, hasLength(1));
+    expect(videoRepository.calls.single.accessType, 'membership');
+    expect(videoRepository.calls.single.pageSize, 4);
+    expect(videoRepository.calls.single.authenticated, isTrue);
+    expect(find.text('Members Only Cut'), findsOneWidget);
+  });
+
+  testWidgets('loads VIP fallback videos with authenticated requests',
+      (WidgetTester tester) async {
+    final _TrackingHomeRepository videoRepository = _TrackingHomeRepository(
+      pages: <HomeVideoPage>[
+        const HomeVideoPage(items: <HomeVideoItem>[]),
+        const HomeVideoPage(
+          items: <HomeVideoItem>[
+            HomeVideoItem(
+              id: 'vip-fallback-video',
+              title: 'Fallback Members Cut',
+              subtitle: 'VIP Studio • 80 views',
+              accessType: 'membership',
+              canWatch: true,
+              isLocked: false,
+              videoUrl: 'https://example.com/fallback.mp4',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      videoRepository: videoRepository,
+    );
+
+    expect(videoRepository.calls, hasLength(2));
+    expect(videoRepository.calls.first.accessType, 'membership');
+    expect(videoRepository.calls.first.authenticated, isTrue);
+    expect(videoRepository.calls.last.accessType, isNull);
+    expect(videoRepository.calls.last.pageSize, 12);
+    expect(videoRepository.calls.last.authenticated, isTrue);
+    expect(find.text('Fallback Members Cut'), findsOneWidget);
+  });
+
   testWidgets('renders VIP videos and opens shared video detail flow',
       (WidgetTester tester) async {
     const HomeVideoItem vipVideo = HomeVideoItem(
@@ -563,6 +643,54 @@ class _AuthRepositoryFake implements AuthRepository {
   }) {
     throw UnimplementedError();
   }
+}
+
+
+class _TrackingHomeRepository extends RemoteHomeRepository {
+  _TrackingHomeRepository({required this.pages}) : super(apiClient: ApiClient());
+
+  final List<HomeVideoPage> pages;
+  final List<_VideoPageCall> calls = <_VideoPageCall>[];
+  int _nextPageIndex = 0;
+
+  @override
+  Future<HomeVideoPage> getVideoPage({
+    String? pageUrl,
+    String? category,
+    String? accessType,
+    int pageSize = RemoteHomeRepository.defaultVideoPageSize,
+    bool authenticated = false,
+  }) async {
+    calls.add(
+      _VideoPageCall(
+        pageUrl: pageUrl,
+        category: category,
+        accessType: accessType,
+        pageSize: pageSize,
+        authenticated: authenticated,
+      ),
+    );
+    if (_nextPageIndex >= pages.length) {
+      return const HomeVideoPage(items: <HomeVideoItem>[]);
+    }
+    return pages[_nextPageIndex++];
+  }
+}
+
+class _VideoPageCall {
+  const _VideoPageCall({
+    required this.pageUrl,
+    required this.category,
+    required this.accessType,
+    required this.pageSize,
+    required this.authenticated,
+  });
+
+  final String? pageUrl;
+  final String? category;
+  final String? accessType;
+  final int pageSize;
+  final bool authenticated;
 }
 
 class _TrackingMembershipRepository implements MembershipRepository {

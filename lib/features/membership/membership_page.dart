@@ -194,6 +194,7 @@ class _MembershipPageState extends State<MembershipPage> {
       final HomeVideoPage page = await _videoRepository.getVideoPage(
         accessType: 'membership',
         pageSize: 4,
+        authenticated: true,
       );
       final List<HomeVideoItem> membershipVideos = _membershipVideos(page.items);
       if (membershipVideos.isNotEmpty) return membershipVideos.take(4).toList();
@@ -202,7 +203,10 @@ class _MembershipPageState extends State<MembershipPage> {
     }
 
     try {
-      final HomeVideoPage page = await _videoRepository.getVideoPage(pageSize: 12);
+      final HomeVideoPage page = await _videoRepository.getVideoPage(
+        pageSize: 12,
+        authenticated: true,
+      );
       return _membershipVideos(page.items).take(4).toList();
     } catch (_) {
       return const <HomeVideoItem>[];

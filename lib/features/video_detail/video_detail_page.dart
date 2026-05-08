@@ -136,7 +136,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         _detailPath(widget.video.id),
         authenticated: true,
       );
-      final HomeVideoItem detail = _mapDetail(response.data, widget.video);
+      final HomeVideoItem detail = _mapDetail(response.data, _video);
       if (!mounted) return;
       setState(() {
         _detailAuthDenied = false;

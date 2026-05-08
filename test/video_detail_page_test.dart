@@ -156,6 +156,68 @@ void main() {
   );
 
   testWidgets(
+    'partial remote detail does not relock previously unlocked VIP state',
+    (WidgetTester tester) async {
+      const Key detailKey = ValueKey<String>('vip-detail-partial');
+      const HomeVideoItem lockedListVideo = HomeVideoItem(
+        id: '103',
+        title: 'Locked Local VIP',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
+      );
+      final _FakeApiClient unlockClient = _FakeApiClient(<String, dynamic>{
+        'id': 103,
+        'title': 'Unlocked Remote VIP',
+        'access_type': 'membership',
+        'can_watch': true,
+        'is_locked': false,
+        'file_url': 'https://example.com/member.mp4',
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoDetailPage(
+            key: detailKey,
+            video: lockedListVideo,
+            apiClient: unlockClient,
+            signedInFuture: Future<bool>.value(true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.text('VIP video locked'), findsNothing);
+
+      final _FakeApiClient partialClient = _FakeApiClient(<String, dynamic>{
+        'id': 103,
+        'title': 'Partial Remote VIP',
+        'access_type': 'membership',
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoDetailPage(
+            key: detailKey,
+            video: lockedListVideo,
+            apiClient: partialClient,
+            signedInFuture: Future<bool>.value(true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(partialClient.requestedAuthenticated, isTrue);
+      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.text('VIP video locked'), findsNothing);
+      expect(find.text('Subscribe'), findsNothing);
+      expect(find.text('Sign in'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'explicit locked remote detail response keeps VIP locked',
     (WidgetTester tester) async {
       final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{

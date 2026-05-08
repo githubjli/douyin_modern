@@ -257,16 +257,8 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     _videoController = null;
     if (controller != null) {
       controller.removeListener(_handleVideoControllerChanged);
-      controller.dispose();
+      unawaited(controller.dispose());
     }
-    super.dispose();
-  }
-
-  @override
-  void dispose() {
-    final VideoPlayerController? controller = _videoController;
-    _videoController = null;
-    controller?.dispose();
     super.dispose();
   }
 

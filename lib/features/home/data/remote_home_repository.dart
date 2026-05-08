@@ -12,7 +12,7 @@ class RemoteHomeRepository implements HomeRepository {
   final ApiClient _apiClient;
 
   @override
-  Future<HomePortalData> getHomePortalData() async {
+  Future<HomePortalData> getHomePortalData({bool authenticated = false}) async {
     List<Map<String, dynamic>> videos = <Map<String, dynamic>>[];
     List<Map<String, dynamic>> dramas = <Map<String, dynamic>>[];
     List<Map<String, dynamic>> live = <Map<String, dynamic>>[];
@@ -23,7 +23,9 @@ class RemoteHomeRepository implements HomeRepository {
     String? liveNextUrl;
 
     try {
-      final _HomeVideoRows videosPage = await _fetchVideoRows();
+      final _HomeVideoRows videosPage = await _fetchVideoRows(
+        authenticated: authenticated,
+      );
       videos = videosPage.rows;
       videosCount = videosPage.count;
       videosNextUrl = videosPage.nextUrl;

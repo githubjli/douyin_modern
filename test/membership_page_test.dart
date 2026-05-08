@@ -230,10 +230,19 @@ void main() {
     );
 
     expect(find.text('Exclusive for Members'), findsOneWidget);
-    expect(find.text('Members Only Cut'), findsOneWidget);
 
-    await tester.tap(find.text('Members Only Cut'));
-    await tester.pump();
+    const Key vipCardKey = ValueKey<String>(
+      'membership-vip-video-card-vip-video',
+    );
+    final Finder vipCard = find.byKey(vipCardKey);
+
+    expect(vipCard, findsOneWidget);
+
+    await tester.ensureVisible(vipCard);
+    await tester.pumpAndSettle();
+
+    await tester.tap(vipCard);
+    await tester.pumpAndSettle();
 
     expect(find.byType(VideoDetailPage), findsOneWidget);
   });

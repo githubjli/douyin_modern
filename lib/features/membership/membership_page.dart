@@ -508,6 +508,7 @@ class _ExclusiveVideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      key: ValueKey<String>('membership-vip-video-card-${video.id}'),
       onTap: () => _openMembershipVideoDetail(context, video, recommendations),
       child: _ExclusiveCardFrame(
         imageUrl: video.thumbnailUrl,

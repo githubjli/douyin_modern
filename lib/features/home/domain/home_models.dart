@@ -11,6 +11,11 @@ class HomeVideoItem {
     this.category,
     this.categoryName,
     this.createdAt,
+    this.accessType,
+    this.previewSeconds,
+    this.canWatch,
+    this.isLocked,
+    this.lockReason,
   });
 
   final String id;
@@ -24,6 +29,14 @@ class HomeVideoItem {
   final String? category;
   final String? categoryName;
   final String? createdAt;
+  final String? accessType;
+  final int? previewSeconds;
+  final bool? canWatch;
+  final bool? isLocked;
+  final String? lockReason;
+
+  bool get isMembershipVideo =>
+      accessType?.trim().toLowerCase() == 'membership';
 }
 
 class HomeVideoPage {

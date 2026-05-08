@@ -229,6 +229,7 @@ class _VipHeroCard extends StatelessWidget {
                     fontSize: 18,
                     height: 1.08,
                   ),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
@@ -482,7 +483,7 @@ class _ExclusiveCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(
                     color: Colors.white,
-                    fontSize: 13,
+                    fontSize: 14,
                     height: 1.12,
                   ),
                 ),

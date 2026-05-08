@@ -445,7 +445,7 @@ class _ExclusiveCard extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
+          const Positioned(
             top: AppSpacing.xs,
             left: AppSpacing.xs,
             child: _VipStatusBadge(label: 'VIP'),

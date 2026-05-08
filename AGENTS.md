@@ -42,6 +42,12 @@ Do **not** change the following unless a task explicitly requests it:
 - Keep changes small, focused, and easy to review.
 - Avoid unrelated refactors.
 
+## Flutter Quality
+- Flutter changes must keep `flutter analyze` clean.
+- Do not leave analyzer warnings, infos, or lint issues unresolved.
+- Prefer const constructors when suggested by analyzer.
+- Run `flutter analyze` and `flutter test` before finalizing.
+
 ## Testing Policy
 - Run before finalizing changes:
   - `flutter analyze`

@@ -387,7 +387,7 @@ class _MembershipRepositoryFake implements MembershipRepository {
 
 
 class _MutableMembershipRepository implements MembershipRepository {
-  _MutableMembershipRepository({required this.plans, this.status});
+  _MutableMembershipRepository({required this.plans});
 
   final List<MembershipPlan> plans;
   MembershipStatus? status;

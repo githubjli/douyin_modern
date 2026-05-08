@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
@@ -68,8 +71,13 @@ class VideoDetailPage extends StatefulWidget {
 class _VideoDetailPageState extends State<VideoDetailPage> {
   late final ApiClient _apiClient;
   late HomeVideoItem _video;
+  VideoPlayerController? _videoController;
+  String? _controllerVideoUrl;
   bool _loadingDetail = false;
   bool _isSignedIn = false;
+  bool _initializingVideo = false;
+  bool _videoInitializationFailed = false;
+  bool _videoPlaying = false;
 
   @override
   void initState() {
@@ -77,6 +85,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     _apiClient = widget.apiClient ?? ApiClient();
     _video = widget.video;
     _loadSignedInState();
+    unawaited(_syncVideoController());
     if (widget.loadRemoteDetail) {
       _loadDetail();
     }
@@ -120,13 +129,137 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         _video = detail ?? widget.video;
         _loadingDetail = false;
       });
+      unawaited(_syncVideoController());
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _video = widget.video;
         _loadingDetail = false;
       });
+      unawaited(_syncVideoController());
     }
+  }
+
+  Future<void> _syncVideoController() async {
+    final String? playableUrl = _playableVideoUrl(_video);
+    if (playableUrl == null) {
+      await _disposeVideoController();
+      if (!mounted) return;
+      setState(() {
+        _controllerVideoUrl = null;
+        _initializingVideo = false;
+        _videoInitializationFailed = false;
+        _videoPlaying = false;
+      });
+      return;
+    }
+
+    final VideoPlayerController? currentController = _videoController;
+    if (_controllerVideoUrl == playableUrl &&
+        currentController != null &&
+        (currentController.value.isInitialized || _initializingVideo)) {
+      return;
+    }
+
+    await _disposeVideoController();
+    if (!mounted) return;
+
+    late final Uri uri;
+    try {
+      uri = Uri.parse(playableUrl);
+    } catch (_) {
+      setState(() {
+        _controllerVideoUrl = playableUrl;
+        _initializingVideo = false;
+        _videoInitializationFailed = true;
+        _videoPlaying = false;
+      });
+      return;
+    }
+
+    final VideoPlayerController controller = VideoPlayerController.networkUrl(
+      uri,
+    )..addListener(_handleVideoControllerChanged);
+    setState(() {
+      _videoController = controller;
+      _controllerVideoUrl = playableUrl;
+      _initializingVideo = true;
+      _videoInitializationFailed = false;
+      _videoPlaying = false;
+    });
+
+    try {
+      await controller.initialize();
+      await controller.setLooping(false);
+      if (!mounted) return;
+      if (_videoController != controller) return;
+      setState(() {
+        _initializingVideo = false;
+        _videoInitializationFailed = false;
+        _videoPlaying = controller.value.isPlaying;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      if (_videoController != controller) return;
+      setState(() {
+        _videoController = null;
+        _controllerVideoUrl = playableUrl;
+        _initializingVideo = false;
+        _videoInitializationFailed = true;
+        _videoPlaying = false;
+      });
+      controller.removeListener(_handleVideoControllerChanged);
+      await controller.dispose();
+    }
+  }
+
+  void _handleVideoControllerChanged() {
+    final VideoPlayerController? controller = _videoController;
+    final bool isPlaying = controller?.value.isPlaying == true;
+    if (!mounted || _videoPlaying == isPlaying) return;
+    setState(() {
+      _videoPlaying = isPlaying;
+    });
+  }
+
+  Future<void> _togglePlayback() async {
+    if (!_canPreviewPlayback(_video)) return;
+
+    if (_videoController == null ||
+        _videoController?.value.isInitialized != true) {
+      await _syncVideoController();
+    }
+
+    final VideoPlayerController? controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    if (controller.value.isPlaying) {
+      await controller.pause();
+    } else {
+      await controller.play();
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _disposeVideoController() async {
+    final VideoPlayerController? controller = _videoController;
+    _videoController = null;
+    _videoPlaying = false;
+    if (controller != null) {
+      controller.removeListener(_handleVideoControllerChanged);
+      await controller.dispose();
+    }
+  }
+
+  @override
+  void dispose() {
+    final VideoPlayerController? controller = _videoController;
+    _videoController = null;
+    if (controller != null) {
+      controller.removeListener(_handleVideoControllerChanged);
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -142,7 +275,15 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: <Widget>[
-            _VideoMediaHeader(video: _video, isSignedIn: _isSignedIn),
+            _VideoMediaHeader(
+              video: _video,
+              isSignedIn: _isSignedIn,
+              controller: _videoController,
+              initializingVideo: _initializingVideo,
+              videoInitializationFailed: _videoInitializationFailed,
+              isPlaying: _videoPlaying,
+              onTogglePlayback: () => unawaited(_togglePlayback()),
+            ),
             const SizedBox(height: AppSpacing.sm),
             _VideoInfoSection(video: _video, loading: _loadingDetail),
             const SizedBox(height: AppSpacing.xs),
@@ -282,15 +423,29 @@ String _viewsLabel(HomeVideoItem video) {
 }
 
 class _VideoMediaHeader extends StatelessWidget {
-  const _VideoMediaHeader({required this.video, required this.isSignedIn});
+  const _VideoMediaHeader({
+    required this.video,
+    required this.isSignedIn,
+    required this.controller,
+    required this.initializingVideo,
+    required this.videoInitializationFailed,
+    required this.isPlaying,
+    required this.onTogglePlayback,
+  });
 
   final HomeVideoItem video;
   final bool isSignedIn;
+  final VideoPlayerController? controller;
+  final bool initializingVideo;
+  final bool videoInitializationFailed;
+  final bool isPlaying;
+  final VoidCallback onTogglePlayback;
 
   @override
   Widget build(BuildContext context) {
     final bool lockedVip = _isLockedVip(video);
     final bool canPreviewPlayback = _canPreviewPlayback(video);
+    final bool isInitialized = controller?.value.isInitialized == true;
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: ClipRRect(
@@ -298,7 +453,18 @@ class _VideoMediaHeader extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            _VideoDetailCover(imageUrl: video.thumbnailUrl),
+            if (isInitialized)
+              ColoredBox(
+                color: Colors.black,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: controller!.value.aspectRatio,
+                    child: VideoPlayer(controller!),
+                  ),
+                ),
+              )
+            else
+              _VideoDetailCover(imageUrl: video.thumbnailUrl),
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -308,6 +474,13 @@ class _VideoMediaHeader extends StatelessWidget {
                 ),
               ),
             ),
+            if (canPreviewPlayback && !lockedVip)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTogglePlayback,
+                ),
+              ),
             Positioned(
               top: AppSpacing.sm,
               left: AppSpacing.sm,
@@ -321,25 +494,24 @@ class _VideoMediaHeader extends StatelessWidget {
                 ctaLabel: isSignedIn ? 'Subscribe' : 'Sign in',
                 onCta: () => _showLockedVipPlaceholder(context, isSignedIn),
               )
-            else
-              Center(
-                child: Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: canPreviewPlayback
-                        ? AppColors.brandGold.withValues(alpha: 0.92)
-                        : AppColors.cardBackground.withValues(alpha: 0.84),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    canPreviewPlayback
-                        ? Icons.play_arrow_rounded
-                        : Icons.image_outlined,
-                    color: canPreviewPlayback
-                        ? AppColors.warmBackground
-                        : AppColors.brandGold,
-                    size: canPreviewPlayback ? 38 : 30,
+            else if (!isPlaying)
+              IgnorePointer(
+                child: Center(
+                  child: Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: canPreviewPlayback
+                          ? AppColors.brandGold.withValues(alpha: 0.92)
+                          : AppColors.cardBackground.withValues(alpha: 0.84),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _VideoPlaybackIcon(
+                      canPreviewPlayback: canPreviewPlayback,
+                      initializingVideo: initializingVideo,
+                      videoInitializationFailed: videoInitializationFailed,
+                      isPlaying: isPlaying,
+                    ),
                   ),
                 ),
               ),
@@ -347,18 +519,60 @@ class _VideoMediaHeader extends StatelessWidget {
               left: AppSpacing.md,
               right: AppSpacing.md,
               bottom: AppSpacing.md,
-              child: Text(
-                lockedVip
-                    ? 'VIP locked'
-                    : canPreviewPlayback
-                        ? 'Playback preview'
-                        : 'Thumbnail preview',
-                style: AppTextStyles.caption.copyWith(color: Colors.white70),
+              child: IgnorePointer(
+                child: Text(
+                  lockedVip
+                      ? 'VIP locked'
+                      : canPreviewPlayback
+                          ? 'Playback preview'
+                          : 'Thumbnail preview',
+                  style: AppTextStyles.caption.copyWith(color: Colors.white70),
+                ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _VideoPlaybackIcon extends StatelessWidget {
+  const _VideoPlaybackIcon({
+    required this.canPreviewPlayback,
+    required this.initializingVideo,
+    required this.videoInitializationFailed,
+    required this.isPlaying,
+  });
+
+  final bool canPreviewPlayback;
+  final bool initializingVideo;
+  final bool videoInitializationFailed;
+  final bool isPlaying;
+
+  @override
+  Widget build(BuildContext context) {
+    if (initializingVideo) {
+      return const Padding(
+        padding: EdgeInsets.all(AppSpacing.sm),
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: AppColors.warmBackground,
+        ),
+      );
+    }
+
+    final IconData icon = !canPreviewPlayback || videoInitializationFailed
+        ? Icons.image_outlined
+        : isPlaying
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded;
+    return Icon(
+      icon,
+      color: canPreviewPlayback && !videoInitializationFailed
+          ? AppColors.warmBackground
+          : AppColors.brandGold,
+      size: canPreviewPlayback && !videoInitializationFailed ? 38 : 30,
     );
   }
 }
@@ -375,6 +589,13 @@ bool _canPreviewPlayback(HomeVideoItem video) {
   }
   if (video.isMembershipVideo) return video.canWatch == true;
   return true;
+}
+
+String? _playableVideoUrl(HomeVideoItem video) {
+  if (!_canPreviewPlayback(video)) return null;
+  final String? trimmed = video.videoUrl?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return trimmed;
 }
 
 void _showLockedVipPlaceholder(BuildContext context, bool isSignedIn) {

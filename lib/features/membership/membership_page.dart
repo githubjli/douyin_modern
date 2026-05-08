@@ -613,7 +613,6 @@ class _VipStatusBadge extends StatelessWidget {
         style: AppTextStyles.caption.copyWith(
           color: AppColors.brandGold,
           fontSize: 10,
-          fontSize: 13,
           fontWeight: FontWeight.w800,
           height: 1.1,
         ),

@@ -178,11 +178,6 @@ class _MembershipPageState extends State<MembershipPage> {
     }
   }
 
-  bool _isAuthDenied(Object error) {
-    return error is ApiError &&
-        (error.statusCode == 401 || error.statusCode == 403);
-  }
-
   Future<List<MembershipPlan>> _loadPlans() async {
     try {
       final List<MembershipPlan> plans = await _repository.getPlans();

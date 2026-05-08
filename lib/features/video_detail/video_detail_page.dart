@@ -4,6 +4,7 @@ import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../core/auth/token_storage.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../home/domain/home_models.dart';
@@ -51,12 +52,14 @@ class VideoDetailPage extends StatefulWidget {
     this.recommendations = const <HomeVideoItem>[],
     this.apiClient,
     this.loadRemoteDetail = true,
+    this.signedInFuture,
   });
 
   final HomeVideoItem video;
   final List<HomeVideoItem> recommendations;
   final ApiClient? apiClient;
   final bool loadRemoteDetail;
+  final Future<bool>? signedInFuture;
 
   @override
   State<VideoDetailPage> createState() => _VideoDetailPageState();
@@ -66,15 +69,39 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   late final ApiClient _apiClient;
   late HomeVideoItem _video;
   bool _loadingDetail = false;
+  bool _isSignedIn = false;
 
   @override
   void initState() {
     super.initState();
     _apiClient = widget.apiClient ?? ApiClient();
     _video = widget.video;
+    _loadSignedInState();
     if (widget.loadRemoteDetail) {
       _loadDetail();
     }
+  }
+
+  Future<void> _loadSignedInState() async {
+    try {
+      final bool isSignedIn = widget.signedInFuture != null
+          ? await widget.signedInFuture!
+          : await _hasAccessToken();
+      if (!mounted) return;
+      setState(() {
+        _isSignedIn = isSignedIn;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isSignedIn = false;
+      });
+    }
+  }
+
+  Future<bool> _hasAccessToken() async {
+    final String? token = await TokenStorage().readAccessToken();
+    return token?.trim().isNotEmpty == true;
   }
 
   Future<void> _loadDetail() async {
@@ -114,7 +141,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: <Widget>[
-            _VideoMediaHeader(video: _video),
+            _VideoMediaHeader(video: _video, isSignedIn: _isSignedIn),
             const SizedBox(height: AppSpacing.sm),
             _VideoInfoSection(video: _video, loading: _loadingDetail),
             const SizedBox(height: AppSpacing.xs),
@@ -128,7 +155,9 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
             ),
             const SizedBox(height: AppSpacing.sm),
             if (recommendations.isEmpty)
-              const _VideoDetailEmptyCard(message: 'No video recommendations yet.')
+              const _VideoDetailEmptyCard(
+                message: 'No video recommendations yet.',
+              )
             else
               _VideoRecommendationGrid(items: recommendations),
           ],
@@ -158,18 +187,27 @@ HomeVideoItem? _mapDetail(dynamic data, HomeVideoItem fallback) {
   return HomeVideoItem(
     id: _str(data['id']) ?? fallback.id,
     title: title,
-    subtitle: owner.isEmpty ? fallback.subtitle : '$owner · ${views ?? 0} views',
+    subtitle: owner.isEmpty
+        ? fallback.subtitle
+        : '$owner · ${views ?? 0} views',
     thumbnailUrl: _str(data['thumbnail_url']) ?? fallback.thumbnailUrl,
     videoUrl: _str(data['video_url']) ??
         _str(data['playback_url']) ??
         _str(data['file_url']) ??
         fallback.videoUrl,
-    description: _str(data['description']) ?? _str(data['summary']) ?? fallback.description,
+    description: _str(data['description']) ??
+        _str(data['summary']) ??
+        fallback.description,
     ownerName: owner.isEmpty ? fallback.ownerName : owner,
     viewCount: views,
     category: _str(data['category']) ?? fallback.category,
     categoryName: _str(data['category_name']) ?? fallback.categoryName,
     createdAt: _str(data['created_at']) ?? fallback.createdAt,
+    accessType: _str(data['access_type']) ?? fallback.accessType,
+    previewSeconds: _int(data['preview_seconds']) ?? fallback.previewSeconds,
+    canWatch: _bool(data['can_watch']) ?? fallback.canWatch,
+    isLocked: _bool(data['is_locked']) ?? fallback.isLocked,
+    lockReason: _str(data['lock_reason']) ?? fallback.lockReason,
   );
 }
 
@@ -188,6 +226,16 @@ String? _nestedStr(dynamic value, String key) {
 String? _str(dynamic value) {
   if (value is String) return value;
   if (value is num) return value.toString();
+  return null;
+}
+
+bool? _bool(dynamic value) {
+  if (value is bool) return value;
+  if (value is String) {
+    final String normalized = value.toLowerCase().trim();
+    if (normalized == 'true') return true;
+    if (normalized == 'false') return false;
+  }
   return null;
 }
 
@@ -233,12 +281,15 @@ String _viewsLabel(HomeVideoItem video) {
 }
 
 class _VideoMediaHeader extends StatelessWidget {
-  const _VideoMediaHeader({required this.video});
+  const _VideoMediaHeader({required this.video, required this.isSignedIn});
 
   final HomeVideoItem video;
+  final bool isSignedIn;
 
   @override
   Widget build(BuildContext context) {
+    final bool lockedVip = _isLockedVip(video);
+    final bool canPreviewPlayback = _canPreviewPlayback(video);
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: ClipRRect(
@@ -264,31 +315,131 @@ class _VideoMediaHeader extends StatelessWidget {
                 onTap: () => Navigator.of(context).pop(),
               ),
             ),
-            Center(
-              child: Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: AppColors.brandGold.withValues(alpha: 0.92),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: AppColors.warmBackground,
-                  size: 38,
+            if (lockedVip)
+              _LockedVipOverlay(
+                ctaLabel: isSignedIn ? 'Subscribe' : 'Sign in',
+                onCta: () => _showLockedVipPlaceholder(context, isSignedIn),
+              )
+            else
+              Center(
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: canPreviewPlayback
+                        ? AppColors.brandGold.withValues(alpha: 0.92)
+                        : AppColors.cardBackground.withValues(alpha: 0.84),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    canPreviewPlayback
+                        ? Icons.play_arrow_rounded
+                        : Icons.image_outlined,
+                    color: canPreviewPlayback
+                        ? AppColors.warmBackground
+                        : AppColors.brandGold,
+                    size: canPreviewPlayback ? 38 : 30,
+                  ),
                 ),
               ),
-            ),
             Positioned(
               left: AppSpacing.md,
               right: AppSpacing.md,
               bottom: AppSpacing.md,
               child: Text(
-                video.videoUrl?.trim().isNotEmpty == true
-                    ? 'Playback preview'
-                    : 'Thumbnail preview',
+                lockedVip
+                    ? 'VIP locked'
+                    : canPreviewPlayback
+                        ? 'Playback preview'
+                        : 'Thumbnail preview',
                 style: AppTextStyles.caption.copyWith(color: Colors.white70),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+bool _isLockedVip(HomeVideoItem video) {
+  return video.isMembershipVideo &&
+      (video.canWatch == false || video.isLocked == true);
+}
+
+bool _canPreviewPlayback(HomeVideoItem video) {
+  final bool hasVideoUrl = video.videoUrl?.trim().isNotEmpty == true;
+  if (!hasVideoUrl || video.canWatch == false || video.isLocked == true) {
+    return false;
+  }
+  if (video.isMembershipVideo) return video.canWatch == true;
+  return true;
+}
+
+void _showLockedVipPlaceholder(BuildContext context, bool isSignedIn) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isSignedIn
+            ? 'Subscribe to unlock this VIP video.'
+            : 'Sign in to watch VIP videos.',
+      ),
+    ),
+  );
+}
+
+class _LockedVipOverlay extends StatelessWidget {
+  const _LockedVipOverlay({required this.ctaLabel, required this.onCta});
+
+  final String ctaLabel;
+  final VoidCallback onCta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.58),
+          border: Border.all(
+            color: AppColors.brandGold.withValues(alpha: 0.55),
+          ),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.lock_outline,
+              color: AppColors.brandGold,
+              size: 30,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'VIP video locked',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.sectionTitle.copyWith(
+                color: Colors.white,
+                fontSize: 15,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Unlock this member-only video to keep watching.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.caption.copyWith(color: Colors.white70),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ElevatedButton(
+              onPressed: onCta,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brandGold,
+                foregroundColor: AppColors.warmBackground,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(ctaLabel),
             ),
           ],
         ),
@@ -310,7 +461,11 @@ class _VideoDetailCover extends StatelessWidget {
       trimmed,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => const _VideoPlaceholder(),
-      loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? progress) {
+      loadingBuilder: (
+        BuildContext context,
+        Widget child,
+        ImageChunkEvent? progress,
+      ) {
         if (progress == null) return child;
         return const _VideoPlaceholder();
       },

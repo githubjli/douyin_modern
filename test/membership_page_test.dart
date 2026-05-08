@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
+import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
   const List<MembershipPlan> backendPlans = <MembershipPlan>[
@@ -38,6 +40,7 @@ void main() {
       plans: mockPlans,
     ),
     bool useRemote = true,
+    Future<List<HomeVideoItem>>? vipVideosFuture,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -46,6 +49,8 @@ void main() {
             repository: repository,
             mockRepository: mockRepository,
             useRemote: useRemote,
+            vipVideosFuture: vipVideosFuture ??
+                Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]),
           ),
         ),
       ),
@@ -84,9 +89,12 @@ void main() {
     expect(find.text('Exclusive for Members'), findsOneWidget);
     expect(find.text('Your Benefits'), findsNothing);
 
-    await dragUntilTextVisible(tester, 'Choose your plan');
+    await dragUntilTextVisible(tester, 'Membership Plans');
 
-    expect(find.text('Choose your plan'), findsOneWidget);
+    expect(find.text('Membership Plans'), findsOneWidget);
+    expect(find.text('Backend Pro'), findsOneWidget);
+    expect(find.text('Quarterly'), findsOneWidget);
+    expect(find.text('Yearly'), findsOneWidget);
   });
 
   testWidgets('shows backend membership plans when repository returns plans',
@@ -102,6 +110,8 @@ void main() {
     expect(find.text('USD 9.99 / month'), findsOneWidget);
     expect(find.text('Backend perks'), findsOneWidget);
     expect(find.text('Mock Monthly'), findsNothing);
+    expect(find.text('Quarterly'), findsOneWidget);
+    expect(find.text('Yearly'), findsOneWidget);
   });
 
   testWidgets('falls back to mock plans when repository throws',
@@ -135,14 +145,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
     expect(find.text('Valid until June 1, 2026'), findsOneWidget);
-    expect(find.text('Manage'), findsOneWidget);
+    expect(find.text('Manage'), findsWidgets);
 
     await dragUntilTextVisible(tester, 'USD 9.99 / month');
 
-    expect(find.text('Current plan'), findsWidgets);
+    expect(find.text('Current'), findsWidgets);
   });
 
   testWidgets('shows soft price fallback when plan price is unavailable',
@@ -176,7 +186,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Choose a plan to unlock VIP access'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
 
     await dragUntilTextVisible(tester, 'Backend Pro');
 
@@ -195,6 +207,48 @@ void main() {
     expect(find.text('Mock Monthly'), findsOneWidget);
     expect(find.text('¥5 / month'), findsOneWidget);
     expect(find.text('Mock perks'), findsOneWidget);
+  });
+
+  testWidgets('renders VIP videos and opens shared video detail flow',
+      (WidgetTester tester) async {
+    const HomeVideoItem vipVideo = HomeVideoItem(
+      id: 'vip-video',
+      title: 'Members Only Cut',
+      subtitle: 'VIP Studio • 120 views',
+      ownerName: 'VIP Studio',
+      viewCount: 120,
+      accessType: 'membership',
+      isLocked: true,
+      thumbnailUrl: '',
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      vipVideosFuture: Future<List<HomeVideoItem>>.value(
+        const <HomeVideoItem>[vipVideo],
+      ),
+    );
+
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+
+    const Key vipCardKey = ValueKey<String>(
+      'membership-vip-video-card-vip-video',
+    );
+    final Finder vipCard = find.byKey(vipCardKey);
+
+    expect(vipCard, findsOneWidget);
+
+    await tester.ensureVisible(vipCard);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Members Only Cut'), findsOneWidget);
+    expect(find.text('Locked'), findsOneWidget);
+
+    await tester.tap(vipCard);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VideoDetailPage), findsOneWidget);
   });
 
   testWidgets('remote disabled uses mock plans without calling repository',

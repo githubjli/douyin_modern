@@ -77,6 +77,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   bool _isSignedIn = false;
   bool _initializingVideo = false;
   bool _videoInitializationFailed = false;
+  bool _videoPlaying = false;
 
   @override
   void initState() {
@@ -148,6 +149,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         _controllerVideoUrl = null;
         _initializingVideo = false;
         _videoInitializationFailed = false;
+        _videoPlaying = false;
       });
       return;
     }
@@ -170,18 +172,20 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         _controllerVideoUrl = playableUrl;
         _initializingVideo = false;
         _videoInitializationFailed = true;
+        _videoPlaying = false;
       });
       return;
     }
 
     final VideoPlayerController controller = VideoPlayerController.networkUrl(
       uri,
-    );
+    )..addListener(_handleVideoControllerChanged);
     setState(() {
       _videoController = controller;
       _controllerVideoUrl = playableUrl;
       _initializingVideo = true;
       _videoInitializationFailed = false;
+      _videoPlaying = false;
     });
 
     try {
@@ -192,6 +196,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
       setState(() {
         _initializingVideo = false;
         _videoInitializationFailed = false;
+        _videoPlaying = controller.value.isPlaying;
       });
     } catch (_) {
       if (!mounted) return;
@@ -201,9 +206,20 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         _controllerVideoUrl = playableUrl;
         _initializingVideo = false;
         _videoInitializationFailed = true;
+        _videoPlaying = false;
       });
+      controller.removeListener(_handleVideoControllerChanged);
       await controller.dispose();
     }
+  }
+
+  void _handleVideoControllerChanged() {
+    final VideoPlayerController? controller = _videoController;
+    final bool isPlaying = controller?.value.isPlaying == true;
+    if (!mounted || _videoPlaying == isPlaying) return;
+    setState(() {
+      _videoPlaying = isPlaying;
+    });
   }
 
   Future<void> _togglePlayback() async {
@@ -228,9 +244,22 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   Future<void> _disposeVideoController() async {
     final VideoPlayerController? controller = _videoController;
     _videoController = null;
+    _videoPlaying = false;
     if (controller != null) {
+      controller.removeListener(_handleVideoControllerChanged);
       await controller.dispose();
     }
+  }
+
+  @override
+  void dispose() {
+    final VideoPlayerController? controller = _videoController;
+    _videoController = null;
+    if (controller != null) {
+      controller.removeListener(_handleVideoControllerChanged);
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -260,6 +289,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
               controller: _videoController,
               initializingVideo: _initializingVideo,
               videoInitializationFailed: _videoInitializationFailed,
+              isPlaying: _videoPlaying,
               onTogglePlayback: () => unawaited(_togglePlayback()),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -407,6 +437,7 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.controller,
     required this.initializingVideo,
     required this.videoInitializationFailed,
+    required this.isPlaying,
     required this.onTogglePlayback,
   });
 
@@ -415,6 +446,7 @@ class _VideoMediaHeader extends StatelessWidget {
   final VideoPlayerController? controller;
   final bool initializingVideo;
   final bool videoInitializationFailed;
+  final bool isPlaying;
   final VoidCallback onTogglePlayback;
 
   @override
@@ -422,7 +454,6 @@ class _VideoMediaHeader extends StatelessWidget {
     final bool lockedVip = _isLockedVip(video);
     final bool canPreviewPlayback = _canPreviewPlayback(video);
     final bool isInitialized = controller?.value.isInitialized == true;
-    final bool isPlaying = controller?.value.isPlaying == true;
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: ClipRRect(
@@ -471,7 +502,7 @@ class _VideoMediaHeader extends StatelessWidget {
                 ctaLabel: isSignedIn ? 'Subscribe' : 'Sign in',
                 onCta: () => _showLockedVipPlaceholder(context, isSignedIn),
               )
-            else
+            else if (!isPlaying)
               IgnorePointer(
                 child: Center(
                   child: Container(

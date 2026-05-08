@@ -514,6 +514,7 @@ class _ExclusiveVideoCard extends StatelessWidget {
         imageUrl: video.thumbnailUrl,
         title: video.title,
         subtitle: _membershipVideoSubtitle(video),
+        showLockedBadge: video.isLocked == true,
       ),
     );
   }
@@ -540,12 +541,14 @@ class _ExclusiveCardFrame extends StatelessWidget {
     required this.subtitle,
     this.imageUrl,
     this.colors,
+    this.showLockedBadge = false,
   });
 
   final String title;
   final String subtitle;
   final String? imageUrl;
   final List<Color>? colors;
+  final bool showLockedBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -573,6 +576,12 @@ class _ExclusiveCardFrame extends StatelessWidget {
             left: AppSpacing.xs,
             child: _VipStatusBadge(label: 'VIP'),
           ),
+          if (showLockedBadge)
+            const Positioned(
+              top: AppSpacing.xs,
+              right: AppSpacing.xs,
+              child: _VipStatusBadge(label: 'Locked'),
+            ),
           Positioned(
             left: AppSpacing.sm,
             right: AppSpacing.sm,

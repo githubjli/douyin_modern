@@ -218,6 +218,7 @@ void main() {
       ownerName: 'VIP Studio',
       viewCount: 120,
       accessType: 'membership',
+      isLocked: true,
       thumbnailUrl: '',
     );
 
@@ -240,6 +241,9 @@ void main() {
 
     await tester.ensureVisible(vipCard);
     await tester.pumpAndSettle();
+
+    expect(find.text('Members Only Cut'), findsOneWidget);
+    expect(find.text('Locked'), findsOneWidget);
 
     await tester.tap(vipCard);
     await tester.pumpAndSettle();

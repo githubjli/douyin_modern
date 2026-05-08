@@ -81,6 +81,32 @@ void main() {
     expect(find.text('Finance Live Desk'), findsWidgets);
   });
 
+  testWidgets('Home video cards show VIP badge for membership videos',
+      (WidgetTester tester) async {
+    const HomePortalData vipPortal = HomePortalData(
+      featured: <HomeVideoItem>[],
+      latestVideos: <HomeVideoItem>[
+        HomeVideoItem(
+          id: 'vip-video',
+          title: 'Members Preview',
+          subtitle: 'VIP Studio • 120 views',
+          accessType: 'membership',
+        ),
+      ],
+      shortDrama: <HomeDramaItem>[],
+      liveNow: <HomeLiveItem>[],
+      recommended: <HomeVideoItem>[],
+    );
+
+    await pumpHomePage(
+      tester,
+      remoteRepository: _HomePortalRepository.value(vipPortal),
+    );
+
+    expect(find.text('Members Preview'), findsWidgets);
+    expect(find.text('VIP'), findsWidgets);
+  });
+
   testWidgets(
       'contradictory fallback/empty messages are absent when mock News content exists',
       (WidgetTester tester) async {

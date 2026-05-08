@@ -41,6 +41,7 @@ void main() {
     ),
     bool useRemote = true,
     Future<List<HomeVideoItem>>? vipVideosFuture,
+    Future<bool>? signedInFuture,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -51,6 +52,7 @@ void main() {
             useRemote: useRemote,
             vipVideosFuture: vipVideosFuture ??
                 Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]),
+            signedInFuture: signedInFuture ?? Future<bool>.value(true),
           ),
         ),
       ),
@@ -95,6 +97,48 @@ void main() {
     expect(find.text('Backend Pro'), findsOneWidget);
     expect(find.text('Quarterly'), findsOneWidget);
     expect(find.text('Yearly'), findsOneWidget);
+  });
+
+
+  testWidgets('signed-out state shows Sign in CTA',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      signedInFuture: Future<bool>.value(false),
+    );
+
+    expect(find.text('Membership'), findsOneWidget);
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Sign in to unlock VIP access'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Subscribe'), findsNothing);
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    expect(find.text('Membership Plans'), findsOneWidget);
+  });
+
+  testWidgets('signed-in no-membership state shows Subscribe CTA',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      signedInFuture: Future<bool>.value(true),
+    );
+
+    expect(find.text('Membership'), findsOneWidget);
+    expect(find.text('Meow Plus'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Choose a plan to unlock VIP access'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
+    expect(find.text('Exclusive for Members'), findsOneWidget);
+
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    expect(find.text('Membership Plans'), findsOneWidget);
   });
 
   testWidgets('shows backend membership plans when repository returns plans',

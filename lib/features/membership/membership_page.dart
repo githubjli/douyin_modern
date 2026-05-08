@@ -5,6 +5,8 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../auth/data/remote_auth_repository.dart';
+import '../auth/domain/auth_repository.dart';
 import '../home/data/remote_home_repository.dart';
 import '../home/domain/home_models.dart';
 import '../video_detail/video_detail_page.dart';
@@ -22,6 +24,8 @@ class MembershipPage extends StatefulWidget {
     this.useRemote = true,
     this.vipVideosFuture,
     this.videoRepository,
+    this.authRepository,
+    this.signedInFuture,
   });
 
   final MembershipRepository? repository;
@@ -29,6 +33,8 @@ class MembershipPage extends StatefulWidget {
   final bool useRemote;
   final Future<List<HomeVideoItem>>? vipVideosFuture;
   final RemoteHomeRepository? videoRepository;
+  final AuthRepository? authRepository;
+  final Future<bool>? signedInFuture;
 
   @override
   State<MembershipPage> createState() => _MembershipPageState();
@@ -37,8 +43,10 @@ class MembershipPage extends StatefulWidget {
 class _MembershipPageState extends State<MembershipPage> {
   late MembershipRepository _repository;
   late RemoteHomeRepository _videoRepository;
+  late AuthRepository _authRepository;
   late Future<List<MembershipPlan>> _plansFuture;
   late Future<MembershipStatus?> _statusFuture;
+  late Future<bool> _signedInFuture;
   late Future<List<HomeVideoItem>> _vipVideosFuture;
 
   @override
@@ -46,8 +54,10 @@ class _MembershipPageState extends State<MembershipPage> {
     super.initState();
     _repository = _defaultRepository();
     _videoRepository = _defaultVideoRepository();
+    _authRepository = _defaultAuthRepository();
     _plansFuture = _loadPlans();
     _statusFuture = _loadStatus();
+    _signedInFuture = widget.signedInFuture ?? _loadSignedInState();
     _vipVideosFuture = widget.vipVideosFuture ?? _loadVipVideos();
   }
 
@@ -58,11 +68,15 @@ class _MembershipPageState extends State<MembershipPage> {
         oldWidget.mockRepository != widget.mockRepository ||
         oldWidget.useRemote != widget.useRemote ||
         oldWidget.vipVideosFuture != widget.vipVideosFuture ||
-        oldWidget.videoRepository != widget.videoRepository) {
+        oldWidget.videoRepository != widget.videoRepository ||
+        oldWidget.authRepository != widget.authRepository ||
+        oldWidget.signedInFuture != widget.signedInFuture) {
       _repository = _defaultRepository();
       _videoRepository = _defaultVideoRepository();
+      _authRepository = _defaultAuthRepository();
       _plansFuture = _loadPlans();
       _statusFuture = _loadStatus();
+      _signedInFuture = widget.signedInFuture ?? _loadSignedInState();
       _vipVideosFuture = widget.vipVideosFuture ?? _loadVipVideos();
     }
   }
@@ -74,6 +88,20 @@ class _MembershipPageState extends State<MembershipPage> {
 
   RemoteHomeRepository _defaultVideoRepository() {
     return widget.videoRepository ?? RemoteHomeRepository(apiClient: ApiClient());
+  }
+
+  AuthRepository _defaultAuthRepository() {
+    return widget.authRepository ?? RemoteAuthRepository(apiClient: ApiClient());
+  }
+
+  Future<bool> _loadSignedInState() async {
+    if (!widget.useRemote) return true;
+    try {
+      final session = await _authRepository.getCurrentSession();
+      return session.isSignedIn;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<MembershipStatus?> _loadStatus() async {
@@ -130,13 +158,24 @@ class _MembershipPageState extends State<MembershipPage> {
           children: <Widget>[
             const _MembershipHeader(),
             const SizedBox(height: 14),
-            FutureBuilder<MembershipStatus?>(
-              future: _statusFuture,
+            FutureBuilder<bool>(
+              future: _signedInFuture,
               builder: (
                 BuildContext context,
-                AsyncSnapshot<MembershipStatus?> snapshot,
+                AsyncSnapshot<bool> signedInSnapshot,
               ) {
-                return _VipHeroCard(status: snapshot.data);
+                return FutureBuilder<MembershipStatus?>(
+                  future: _statusFuture,
+                  builder: (
+                    BuildContext context,
+                    AsyncSnapshot<MembershipStatus?> statusSnapshot,
+                  ) {
+                    return _VipHeroCard(
+                      status: statusSnapshot.data,
+                      isSignedIn: signedInSnapshot.data ?? false,
+                    );
+                  },
+                );
               },
             ),
             const SizedBox(height: AppSpacing.md),
@@ -199,16 +238,35 @@ class _MembershipHeader extends StatelessWidget {
 }
 
 class _VipHeroCard extends StatelessWidget {
-  const _VipHeroCard({required this.status});
+  const _VipHeroCard({required this.status, required this.isSignedIn});
 
   final MembershipStatus? status;
+  final bool isSignedIn;
 
   @override
   Widget build(BuildContext context) {
     final MembershipStatus? currentStatus = status;
-    final bool isActive = currentStatus?.isActive == true;
-    final String name = isActive ? 'Member' : 'Meow Plus';
-    final String cta = isActive ? 'Manage' : 'Subscribe';
+    final bool isActive = isSignedIn && currentStatus?.isActive == true;
+    final String name = !isSignedIn
+        ? 'Guest'
+        : isActive
+            ? 'Member'
+            : 'Meow Plus';
+    final String statusLabel = !isSignedIn
+        ? 'Sign in required'
+        : isActive
+            ? currentStatus!.planTitle
+            : 'Not subscribed';
+    final String accessLine = !isSignedIn
+        ? 'Sign in to unlock VIP access'
+        : isActive
+            ? _validUntilLabel(currentStatus!.endsAt)
+            : 'Choose a plan to unlock VIP access';
+    final String cta = !isSignedIn
+        ? 'Sign in'
+        : isActive
+            ? 'Manage'
+            : 'Subscribe';
 
     return Container(
       height: 166,
@@ -274,7 +332,7 @@ class _VipHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  isActive ? currentStatus!.planTitle : 'Not subscribed',
+                  statusLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.body.copyWith(
@@ -286,9 +344,7 @@ class _VipHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  isActive
-                      ? _validUntilLabel(currentStatus!.endsAt)
-                      : 'Choose a plan to unlock VIP access',
+                  accessLine,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(fontSize: 12),

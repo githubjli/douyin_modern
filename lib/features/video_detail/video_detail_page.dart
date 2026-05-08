@@ -263,6 +263,14 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   }
 
   @override
+  void dispose() {
+    final VideoPlayerController? controller = _videoController;
+    _videoController = null;
+    controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final List<HomeVideoItem> recommendations = _recommendations(
       current: _video,

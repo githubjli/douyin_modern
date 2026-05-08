@@ -99,12 +99,12 @@ class _MembershipPageState extends State<MembershipPage> {
                 return _VipHeroCard(status: snapshot.data);
               },
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: AppSpacing.md),
             _PlanSection(
               plansFuture: _plansFuture,
               statusFuture: _statusFuture,
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             const _ExclusiveSection(),
           ],
         ),
@@ -171,13 +171,13 @@ class _VipHeroCard extends StatelessWidget {
     final String level = isActive ? currentStatus!.planTitle : 'Not subscribed';
     final String expiry = isActive
         ? _validUntilLabel(currentStatus!.endsAt)
-        : 'Unlock premium access';
+        : 'Choose a plan to unlock VIP access';
     final String cta = isActive ? 'Manage' : 'Subscribe';
 
     return Container(
-      height: 196,
+      height: 166,
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -193,26 +193,45 @@ class _VipHeroCard extends StatelessWidget {
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.20),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[AppColors.brandGold, Color(0xFF8F6424)],
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[AppColors.brandGold, Color(0xFF8F6424)],
+              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+            ),
+            child: const Icon(
+              Icons.person,
+              color: AppColors.warmBackground,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.sectionTitle.copyWith(
+                    fontSize: 18,
+                    height: 1.08,
                   ),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
                 ),
@@ -221,53 +240,36 @@ class _VipHeroCard extends StatelessWidget {
                   color: AppColors.warmBackground,
                   size: 27,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.sectionTitle.copyWith(
-                        fontSize: 20,
-                        height: 1.08,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      level,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.brandGold,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  level,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.brandGold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
                 ),
-              ),
-              _VipStatusBadge(label: isActive ? 'VIP' : 'Join'),
-            ],
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  expiry,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Premium dramas, live rooms, and early picks',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(fontSize: 12),
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
-          Text(
-            expiry,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.caption.copyWith(fontSize: 12),
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            'Premium dramas, live rooms, and early picks',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.caption.copyWith(fontSize: 12),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(width: AppSpacing.sm),
           _GoldButton(label: cta),
         ],
       ),
@@ -333,9 +335,10 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String price = _displayPrice(plan.price);
+    final String? badge = _planBadge(plan);
     return Container(
-      constraints: const BoxConstraints(minHeight: 92),
-      padding: const EdgeInsets.all(14),
+      constraints: const BoxConstraints(minHeight: 80),
+      padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(
@@ -349,8 +352,8 @@ class _PlanCard extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Row(
                   children: <Widget>[
@@ -362,9 +365,14 @@ class _PlanCard extends StatelessWidget {
                         style: AppTextStyles.cardTitle.copyWith(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
+                          height: 1.12,
                         ),
                       ),
                     ),
+                    if (badge != null) ...<Widget>[
+                      const SizedBox(width: AppSpacing.xs),
+                      _VipStatusBadge(label: badge),
+                    ],
                     if (isCurrent) ...<Widget>[
                       const SizedBox(width: AppSpacing.xs),
                       const _VipStatusBadge(label: 'Current'),
@@ -372,22 +380,30 @@ class _PlanCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  plan.perks,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.caption.copyWith(fontSize: 12),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  price,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.cardTitle.copyWith(
-                    color: AppColors.brandGold,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        price,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.brandGold,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        plan.perks,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(fontSize: 12),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -416,9 +432,9 @@ class _ExclusiveSection extends StatelessWidget {
           itemCount: _vipPicks.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.02,
+            mainAxisSpacing: AppSpacing.sm,
+            crossAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 16 / 9,
           ),
           itemBuilder: (BuildContext context, int index) {
             return _ExclusiveCard(pick: _vipPicks[index]);
@@ -546,8 +562,8 @@ class _GoldButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.brandGold,
         borderRadius: BorderRadius.circular(999),
@@ -557,7 +573,7 @@ class _GoldButton extends StatelessWidget {
         label,
         style: AppTextStyles.body.copyWith(
           color: AppColors.warmBackground,
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.w800,
           height: 1,
         ),
@@ -574,7 +590,7 @@ class _OutlineGoldButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 32,
+      height: 30,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.brandGold.withValues(alpha: 0.12),
@@ -728,6 +744,13 @@ bool _planMatchesSlot(MembershipPlan plan, String slot) {
     'yearly' => haystack.contains('year') || haystack.contains('annual'),
     _ => false,
   };
+}
+
+String? _planBadge(MembershipPlan plan) {
+  final String label = '${plan.title} ${plan.price}'.toLowerCase();
+  if (label.contains('quarter')) return 'Popular';
+  if (label.contains('year') || label.contains('annual')) return 'Best value';
+  return null;
 }
 
 String _displayPrice(String price) {

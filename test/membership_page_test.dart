@@ -182,7 +182,8 @@ void main() {
     );
 
     expect(find.text('Not subscribed'), findsOneWidget);
-    expect(find.text('Unlock premium access'), findsOneWidget);
+    expect(find.text('Choose a plan to unlock VIP access'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
 
     await dragUntilTextVisible(tester, 'Backend Pro');
 

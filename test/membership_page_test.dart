@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/features/auth/domain/auth_repository.dart';
+import 'package:meow_media/features/auth/domain/auth_session.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
@@ -40,8 +42,10 @@ void main() {
       plans: mockPlans,
     ),
     bool useRemote = true,
+    bool isActive = true,
     Future<List<HomeVideoItem>>? vipVideosFuture,
     Future<bool>? signedInFuture,
+    AuthRepository? authRepository,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -50,9 +54,12 @@ void main() {
             repository: repository,
             mockRepository: mockRepository,
             useRemote: useRemote,
+            isActive: isActive,
             vipVideosFuture: vipVideosFuture ??
                 Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]),
-            signedInFuture: signedInFuture ?? Future<bool>.value(true),
+            signedInFuture: signedInFuture ??
+                (authRepository == null ? Future<bool>.value(true) : null),
+            authRepository: authRepository,
           ),
         ),
       ),
@@ -139,6 +146,42 @@ void main() {
     await dragUntilTextVisible(tester, 'Membership Plans');
 
     expect(find.text('Membership Plans'), findsOneWidget);
+  });
+
+
+  testWidgets('refreshes membership state when tab becomes active',
+      (WidgetTester tester) async {
+    final _MutableMembershipRepository repository = _MutableMembershipRepository(
+      plans: backendPlans,
+    );
+    final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
+      isSignedIn: false,
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      authRepository: authRepository,
+      isActive: false,
+    );
+
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Sign in required'), findsOneWidget);
+
+    repository.status = activeStatus;
+    authRepository.isSignedIn = true;
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      authRepository: authRepository,
+    );
+
+    expect(find.text('Member'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsWidgets);
+    expect(find.text('Valid until June 1, 2026'), findsOneWidget);
+    expect(repository.statusCalls, greaterThanOrEqualTo(2));
+    expect(authRepository.sessionCalls, greaterThanOrEqualTo(2));
   });
 
   testWidgets('shows backend membership plans when repository returns plans',
@@ -339,6 +382,61 @@ class _MembershipRepositoryFake implements MembershipRepository {
     final Object? error = statusError;
     if (error != null) throw error;
     return status;
+  }
+}
+
+
+class _MutableMembershipRepository implements MembershipRepository {
+  _MutableMembershipRepository({required this.plans, this.status});
+
+  final List<MembershipPlan> plans;
+  MembershipStatus? status;
+  int statusCalls = 0;
+
+  @override
+  Future<List<MembershipPlan>> getPlans() async => plans;
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async {
+    statusCalls += 1;
+    return status;
+  }
+}
+
+class _AuthRepositoryFake implements AuthRepository {
+  _AuthRepositoryFake({required this.isSignedIn});
+
+  bool isSignedIn;
+  int sessionCalls = 0;
+
+  @override
+  Future<AuthSession> getCurrentSession() async {
+    sessionCalls += 1;
+    return AuthSession(
+      isSignedIn: isSignedIn,
+      userId: isSignedIn ? 'user-1' : null,
+      displayName: isSignedIn ? 'Meow User' : 'Guest',
+    );
+  }
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
   }
 }
 

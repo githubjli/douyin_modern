@@ -26,6 +26,7 @@ class MembershipPage extends StatefulWidget {
     this.videoRepository,
     this.authRepository,
     this.signedInFuture,
+    this.isActive = true,
   });
 
   final MembershipRepository? repository;
@@ -35,6 +36,7 @@ class MembershipPage extends StatefulWidget {
   final RemoteHomeRepository? videoRepository;
   final AuthRepository? authRepository;
   final Future<bool>? signedInFuture;
+  final bool isActive;
 
   @override
   State<MembershipPage> createState() => _MembershipPageState();
@@ -48,17 +50,13 @@ class _MembershipPageState extends State<MembershipPage> {
   late Future<MembershipStatus?> _statusFuture;
   late Future<bool> _signedInFuture;
   late Future<List<HomeVideoItem>> _vipVideosFuture;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _repository = _defaultRepository();
-    _videoRepository = _defaultVideoRepository();
-    _authRepository = _defaultAuthRepository();
-    _plansFuture = _loadPlans();
-    _statusFuture = _loadStatus();
-    _signedInFuture = widget.signedInFuture ?? _loadSignedInState();
-    _vipVideosFuture = widget.vipVideosFuture ?? _loadVipVideos();
+    _configureRepositories();
+    _refreshMembershipState(notify: false);
   }
 
   @override
@@ -71,14 +69,54 @@ class _MembershipPageState extends State<MembershipPage> {
         oldWidget.videoRepository != widget.videoRepository ||
         oldWidget.authRepository != widget.authRepository ||
         oldWidget.signedInFuture != widget.signedInFuture) {
-      _repository = _defaultRepository();
-      _videoRepository = _defaultVideoRepository();
-      _authRepository = _defaultAuthRepository();
-      _plansFuture = _loadPlans();
-      _statusFuture = _loadStatus();
-      _signedInFuture = widget.signedInFuture ?? _loadSignedInState();
-      _vipVideosFuture = widget.vipVideosFuture ?? _loadVipVideos();
+      _configureRepositories();
+      _refreshMembershipState();
+      return;
     }
+
+    if (!oldWidget.isActive && widget.isActive) {
+      _refreshMembershipState();
+    }
+  }
+
+  void _configureRepositories() {
+    _repository = _defaultRepository();
+    _videoRepository = _defaultVideoRepository();
+    _authRepository = _defaultAuthRepository();
+  }
+
+  void _refreshMembershipState({bool notify = true}) {
+    if (_refreshing) return;
+    _refreshing = true;
+
+    final Future<List<MembershipPlan>> plansFuture = _loadPlans();
+    final Future<MembershipStatus?> statusFuture = _loadStatus();
+    final Future<bool> signedInFuture =
+        widget.signedInFuture ?? _loadSignedInState();
+    final Future<List<HomeVideoItem>> vipVideosFuture =
+        widget.vipVideosFuture ?? _loadVipVideos();
+
+    void applyFutures() {
+      _plansFuture = plansFuture;
+      _statusFuture = statusFuture;
+      _signedInFuture = signedInFuture;
+      _vipVideosFuture = vipVideosFuture;
+    }
+
+    if (notify) {
+      setState(applyFutures);
+    } else {
+      applyFutures();
+    }
+
+    Future.wait<dynamic>(<Future<dynamic>>[
+      plansFuture,
+      statusFuture,
+      signedInFuture,
+      vipVideosFuture,
+    ]).whenComplete(() {
+      _refreshing = false;
+    });
   }
 
   MembershipRepository _defaultRepository() {

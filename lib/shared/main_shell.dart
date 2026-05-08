@@ -80,7 +80,10 @@ class _MainShellState extends State<MainShell> {
         enableRemoteFeed: widget.enableRemoteFeed,
         isActive: _index == 1,
       ),
-      MembershipPage(useRemote: widget.enableRemoteMembership),
+      MembershipPage(
+        useRemote: widget.enableRemoteMembership,
+        isActive: _index == 3,
+      ),
       const ProfilePage(),
     ];
 

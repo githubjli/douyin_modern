@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
 import 'package:meow_media/features/auth/domain/auth_session.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
@@ -183,6 +184,124 @@ void main() {
     expect(repository.statusCalls, greaterThanOrEqualTo(2));
     expect(authRepository.sessionCalls, greaterThanOrEqualTo(2));
   });
+
+  testWidgets(
+    'preserves signed-in state when tab refresh hits transient auth error',
+    (WidgetTester tester) async {
+      final _MutableMembershipRepository repository =
+          _MutableMembershipRepository(
+        plans: backendPlans,
+      );
+      final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
+        isSignedIn: true,
+      );
+
+      await pumpMembershipPage(
+        tester,
+        repository: repository,
+        authRepository: authRepository,
+        isActive: false,
+      );
+
+      expect(find.text('Meow Plus'), findsOneWidget);
+      expect(find.text('Not subscribed'), findsOneWidget);
+
+      authRepository.sessionError = Exception('offline');
+
+      await pumpMembershipPage(
+        tester,
+        repository: repository,
+        authRepository: authRepository,
+      );
+
+      expect(find.text('Meow Plus'), findsOneWidget);
+      expect(find.text('Not subscribed'), findsOneWidget);
+      expect(find.text('Guest'), findsNothing);
+      expect(find.text('Sign in required'), findsNothing);
+      expect(authRepository.sessionCalls, greaterThanOrEqualTo(2));
+    },
+  );
+
+  testWidgets(
+    'preserves active membership when tab refresh hits transient status error',
+    (WidgetTester tester) async {
+      final _MutableMembershipRepository repository =
+          _MutableMembershipRepository(
+        plans: backendPlans,
+      )..status = activeStatus;
+      final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
+        isSignedIn: true,
+      );
+
+      await pumpMembershipPage(
+        tester,
+        repository: repository,
+        authRepository: authRepository,
+        isActive: false,
+      );
+
+      expect(find.text('Member'), findsOneWidget);
+      expect(find.text('Basic Monthly'), findsWidgets);
+
+      repository.statusError = Exception('temporary server failure');
+
+      await pumpMembershipPage(
+        tester,
+        repository: repository,
+        authRepository: authRepository,
+      );
+
+      expect(find.text('Member'), findsOneWidget);
+      expect(find.text('Basic Monthly'), findsWidgets);
+      expect(find.text('Not subscribed'), findsNothing);
+      expect(repository.statusCalls, greaterThanOrEqualTo(2));
+    },
+  );
+
+  for (final int statusCode in <int>[401, 403]) {
+    testWidgets(
+      'auth denied $statusCode during tab refresh downgrades to signed-out '
+      'state',
+      (WidgetTester tester) async {
+        final _MutableMembershipRepository repository =
+            _MutableMembershipRepository(
+          plans: backendPlans,
+        )..status = activeStatus;
+        final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
+          isSignedIn: true,
+        );
+
+        await pumpMembershipPage(
+          tester,
+          repository: repository,
+          authRepository: authRepository,
+          isActive: false,
+        );
+
+        expect(find.text('Member'), findsOneWidget);
+        expect(find.text('Basic Monthly'), findsWidgets);
+
+        authRepository.sessionError = ApiError(
+          message: 'Auth denied',
+          statusCode: statusCode,
+        );
+        repository.statusError = ApiError(
+          message: 'Auth denied',
+          statusCode: statusCode,
+        );
+
+        await pumpMembershipPage(
+          tester,
+          repository: repository,
+          authRepository: authRepository,
+        );
+
+        expect(find.text('Guest'), findsOneWidget);
+        expect(find.text('Sign in required'), findsOneWidget);
+        expect(find.text('Member'), findsNothing);
+      },
+    );
+  }
 
   testWidgets('shows backend membership plans when repository returns plans',
       (WidgetTester tester) async {
@@ -391,6 +510,7 @@ class _MutableMembershipRepository implements MembershipRepository {
 
   final List<MembershipPlan> plans;
   MembershipStatus? status;
+  Object? statusError;
   int statusCalls = 0;
 
   @override
@@ -399,6 +519,8 @@ class _MutableMembershipRepository implements MembershipRepository {
   @override
   Future<MembershipStatus?> getCurrentStatus() async {
     statusCalls += 1;
+    final Object? error = statusError;
+    if (error != null) throw error;
     return status;
   }
 }
@@ -407,11 +529,14 @@ class _AuthRepositoryFake implements AuthRepository {
   _AuthRepositoryFake({required this.isSignedIn});
 
   bool isSignedIn;
+  Object? sessionError;
   int sessionCalls = 0;
 
   @override
   Future<AuthSession> getCurrentSession() async {
     sessionCalls += 1;
+    final Object? error = sessionError;
+    if (error != null) throw error;
     return AuthSession(
       isSignedIn: isSignedIn,
       userId: isSignedIn ? 'user-1' : null,

@@ -17,6 +17,11 @@
 - **Membership** is a first-class tab.
 - **Profile** is the user center.
 
+## UI Style Guide
+- For UI work, read `UI_STYLE_GUIDE.md` first.
+- Treat Home as the visual baseline.
+- Keep the logo size and header placement consistent with Home.
+
 ## Prohibited Changes (Unless Explicitly Requested)
 Do **not** change the following unless a task explicitly requests it:
 - Launcher icons

@@ -17,7 +17,7 @@ void main() {
 
     expect(find.descendant(of: bottomNav, matching: find.text('Home')),
         findsOneWidget);
-    expect(find.descendant(of: bottomNav, matching: find.text('Short')),
+    expect(find.descendant(of: bottomNav, matching: find.text('Shorts')),
         findsOneWidget);
     expect(find.descendant(of: bottomNav, matching: find.text('Member')),
         findsOneWidget);

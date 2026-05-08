@@ -5,6 +5,7 @@ import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/endpoints.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
+import 'package:video_player/video_player.dart';
 
 void main() {
   Future<void> pumpVideoDetail(
@@ -79,6 +80,7 @@ void main() {
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.text('Subscribe'), findsNothing);
     expect(find.text('Playback preview'), findsNothing);
+    expect(find.byType(VideoPlayer), findsNothing);
   });
 
   testWidgets('locked VIP detail for signed-in non-member shows Subscribe',
@@ -101,6 +103,7 @@ void main() {
     expect(find.text('Subscribe'), findsOneWidget);
     expect(find.text('Sign in'), findsNothing);
     expect(find.text('Playback preview'), findsNothing);
+    expect(find.byType(VideoPlayer), findsNothing);
   });
 
   testWidgets('unlocked VIP detail for member keeps playable preview',
@@ -123,6 +126,26 @@ void main() {
     expect(find.text('VIP video locked'), findsNothing);
     expect(find.text('Sign in'), findsNothing);
     expect(find.text('Subscribe'), findsNothing);
+  });
+
+  testWidgets('playable public video keeps tappable playback header',
+      (WidgetTester tester) async {
+    await pumpVideoDetail(
+      tester,
+      isSignedIn: false,
+      video: const HomeVideoItem(
+        id: 'public-playable',
+        title: 'Playable Public Clip',
+        subtitle: 'Meow Studio • 12 views',
+        videoUrl: 'https://example.com/public.mp4',
+      ),
+    );
+
+    expect(find.text('Playback preview'), findsOneWidget);
+    expect(find.text('VIP video locked'), findsNothing);
+    await tester.tap(find.byType(AspectRatio).first);
+    await tester.pump();
+    expect(find.text('Playback preview'), findsOneWidget);
   });
 }
 

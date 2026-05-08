@@ -36,6 +36,7 @@ void main() {
     expect(apiClient.requestedPath, Endpoints.publicVideos);
     expect(apiClient.requestedQuery?['access_type'], 'membership');
     expect(apiClient.requestedQuery?['page_size'], 4);
+    expect(apiClient.requestedAuthenticated, isFalse);
     expect(video.id, '42');
     expect(video.accessType, 'membership');
     expect(video.isMembershipVideo, isTrue);
@@ -45,14 +46,54 @@ void main() {
     expect(video.lockReason, 'membership_required');
     expect(video.videoUrl, 'https://example.com/video.mp4');
   });
+
+  test('passes authenticated flag to home portal video request only', () async {
+    final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
+      'results': <Map<String, dynamic>>[],
+    });
+    final RemoteHomeRepository repository = RemoteHomeRepository(
+      apiClient: apiClient,
+    );
+
+    await repository.getHomePortalData(authenticated: true);
+
+    expect(apiClient.calls, hasLength(3));
+    expect(apiClient.calls[0].path, Endpoints.publicVideos);
+    expect(apiClient.calls[0].authenticated, isTrue);
+    expect(apiClient.calls[1].path, Endpoints.dramas);
+    expect(apiClient.calls[1].authenticated, isFalse);
+    expect(apiClient.calls[2].path, '/api/live/');
+    expect(apiClient.calls[2].authenticated, isFalse);
+  });
+
+  test('passes authenticated flag to public video requests', () async {
+    final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
+      'results': <Map<String, dynamic>>[],
+    });
+    final RemoteHomeRepository repository = RemoteHomeRepository(
+      apiClient: apiClient,
+    );
+
+    await repository.getVideoPage(
+      accessType: 'membership',
+      pageSize: 4,
+      authenticated: true,
+    );
+
+    expect(apiClient.requestedPath, Endpoints.publicVideos);
+    expect(apiClient.requestedQuery?['access_type'], 'membership');
+    expect(apiClient.requestedAuthenticated, isTrue);
+  });
 }
 
 class _FakeApiClient extends ApiClient {
   _FakeApiClient(this.data);
 
   final dynamic data;
+  final List<_ApiGetCall> calls = <_ApiGetCall>[];
   String? requestedPath;
   Map<String, dynamic>? requestedQuery;
+  bool? requestedAuthenticated;
 
   @override
   Future<Response<T>> get<T>(
@@ -62,9 +103,29 @@ class _FakeApiClient extends ApiClient {
   }) async {
     requestedPath = path;
     requestedQuery = queryParameters;
+    requestedAuthenticated = authenticated;
+    calls.add(
+      _ApiGetCall(
+        path: path,
+        queryParameters: queryParameters,
+        authenticated: authenticated,
+      ),
+    );
     return Response<T>(
       data: data as T,
       requestOptions: RequestOptions(path: path),
     );
   }
+}
+
+class _ApiGetCall {
+  const _ApiGetCall({
+    required this.path,
+    required this.queryParameters,
+    required this.authenticated,
+  });
+
+  final String path;
+  final Map<String, dynamic>? queryParameters;
+  final bool authenticated;
 }

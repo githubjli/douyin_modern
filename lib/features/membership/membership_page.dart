@@ -89,7 +89,7 @@ class _MembershipPageState extends State<MembershipPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             const _MembershipHeader(),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             FutureBuilder<MembershipStatus?>(
               future: _statusFuture,
               builder: (
@@ -99,12 +99,12 @@ class _MembershipPageState extends State<MembershipPage> {
                 return _VipHeroCard(status: snapshot.data);
               },
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             _PlanSection(
               plansFuture: _plansFuture,
               statusFuture: _statusFuture,
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.lg),
             const _ExclusiveSection(),
           ],
         ),
@@ -134,14 +134,14 @@ class _MembershipHeader extends StatelessWidget {
         Text(
           'Membership',
           style: AppTextStyles.sectionTitle.copyWith(
-            fontSize: 21,
+            fontSize: 16,
             height: 1.1,
           ),
         ),
         const Spacer(),
         Container(
           width: 34,
-          height: 34,
+          height: 32,
           decoration: BoxDecoration(
             color: AppColors.cardBackground,
             border: Border.all(color: AppColors.softBorder),
@@ -175,9 +175,9 @@ class _VipHeroCard extends StatelessWidget {
     final String cta = isActive ? 'Manage' : 'Subscribe';
 
     return Container(
-      height: 208,
+      height: 196,
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -205,8 +205,8 @@ class _VipHeroCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
-                width: 54,
-                height: 54,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
@@ -219,7 +219,7 @@ class _VipHeroCard extends StatelessWidget {
                 child: const Icon(
                   Icons.person,
                   color: AppColors.warmBackground,
-                  size: 30,
+                  size: 27,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -232,7 +232,7 @@ class _VipHeroCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.sectionTitle.copyWith(
-                        fontSize: 22,
+                        fontSize: 20,
                         height: 1.08,
                       ),
                     ),
@@ -258,9 +258,16 @@ class _VipHeroCard extends StatelessWidget {
             expiry,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.caption.copyWith(fontSize: 13),
+            style: AppTextStyles.caption.copyWith(fontSize: 12),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            'Premium dramas, live rooms, and early picks',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption.copyWith(fontSize: 12),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           _GoldButton(label: cta),
         ],
       ),
@@ -300,13 +307,13 @@ class _PlanSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const _SectionTitle(title: 'Membership Plans'),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs),
                 for (int index = 0; index < plans.length; index++) ...<Widget>[
                   _PlanCard(
                     plan: plans[index],
                     isCurrent: activeStatus?.planTitle == plans[index].title,
                   ),
-                  if (index != plans.length - 1) const SizedBox(height: AppSpacing.sm),
+                  if (index != plans.length - 1) const SizedBox(height: 10),
                 ],
               ],
             );
@@ -327,8 +334,8 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final String price = _displayPrice(plan.price);
     return Container(
-      constraints: const BoxConstraints(minHeight: 100),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      constraints: const BoxConstraints(minHeight: 92),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(
@@ -336,7 +343,7 @@ class _PlanCard extends StatelessWidget {
               ? AppColors.brandGold.withValues(alpha: 0.60)
               : AppColors.softBorder,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: <Widget>[
@@ -353,7 +360,7 @@ class _PlanCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.cardTitle.copyWith(
-                          fontSize: 17,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -371,14 +378,14 @@ class _PlanCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(fontSize: 12),
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.xxs),
                 Text(
                   price,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(
                     color: AppColors.brandGold,
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -402,16 +409,16 @@ class _ExclusiveSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         const _SectionTitle(title: 'Exclusive for Members'),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.xs),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _vipPicks.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisSpacing: AppSpacing.sm,
-            crossAxisSpacing: AppSpacing.sm,
-            childAspectRatio: 0.92,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1.02,
           ),
           itemBuilder: (BuildContext context, int index) {
             return _ExclusiveCard(pick: _vipPicks[index]);
@@ -430,7 +437,7 @@ class _ExclusiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(18),
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
@@ -524,7 +531,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       title,
       style: AppTextStyles.sectionTitle.copyWith(
-        fontSize: 17,
+        fontSize: 16,
         height: 1.15,
       ),
     );
@@ -539,8 +546,8 @@ class _GoldButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.brandGold,
         borderRadius: BorderRadius.circular(999),
@@ -550,6 +557,7 @@ class _GoldButton extends StatelessWidget {
         label,
         style: AppTextStyles.body.copyWith(
           color: AppColors.warmBackground,
+          fontSize: 13,
           fontWeight: FontWeight.w800,
           height: 1,
         ),
@@ -566,7 +574,7 @@ class _OutlineGoldButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 34,
+      height: 32,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.brandGold.withValues(alpha: 0.12),
@@ -605,6 +613,7 @@ class _VipStatusBadge extends StatelessWidget {
         style: AppTextStyles.caption.copyWith(
           color: AppColors.brandGold,
           fontSize: 10,
+          fontSize: 13,
           fontWeight: FontWeight.w800,
           height: 1.1,
         ),

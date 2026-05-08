@@ -855,6 +855,27 @@ List<HomeVideoItem> _filterVideosByCategory(
       .toList();
 }
 
+
+String? _badgeOverrideForItem(
+  dynamic item, {
+  required bool useLiveMetadata,
+  required bool useNewsMetadata,
+}) {
+  if (item is HomeVideoItem) {
+    return _videoAccessBadge(item) ??
+        (useNewsMetadata ? _newsBadgeLabel(item) : null);
+  }
+  if (useLiveMetadata && item is HomeLiveItem) return _liveBadgeLabel(item);
+  if (useNewsMetadata) return _newsBadgeLabel(item);
+  return null;
+}
+
+String? _videoAccessBadge(HomeVideoItem video) {
+  if (video.isMembershipVideo) return 'VIP';
+  if (video.isLocked == true) return 'Locked';
+  return null;
+}
+
 String _videoCategory(HomeVideoItem video) {
   final String? categoryName = video.categoryName?.trim();
   if (categoryName != null && categoryName.isNotEmpty) return categoryName;

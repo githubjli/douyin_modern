@@ -47,11 +47,11 @@ class _SectionGrid extends StatelessWidget {
                       : item.subtitle as String,
           imageUrl: _resolveImageUrl(item),
           kind: _cardKindFor(item, kind),
-          badgeOverride: useLiveMetadata && item is HomeLiveItem
-              ? _liveBadgeLabel(item)
-              : useNewsMetadata
-                  ? _newsBadgeLabel(item)
-                  : null,
+          badgeOverride: _badgeOverrideForItem(
+            item,
+            useLiveMetadata: useLiveMetadata,
+            useNewsMetadata: useNewsMetadata,
+          ),
           onTap: item is HomeDramaItem
               ? () => _openDramaDetail(context, item)
               : item is HomeVideoItem

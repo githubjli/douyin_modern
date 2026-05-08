@@ -586,7 +586,7 @@ class _ExclusiveCardFrame extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(
                     color: Colors.white,
-                    fontSize: 13,
+                    fontSize: 14,
                     height: 1.12,
                   ),
                 ),

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_client.dart';
+import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/core/network/endpoints.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
@@ -59,6 +60,175 @@ void main() {
     expect(find.text('Playback preview'), findsOneWidget);
     expect(find.text('VIP video locked'), findsNothing);
   });
+
+  testWidgets(
+    'unlocked VIP remains playable when remote detail has transient failure',
+    (WidgetTester tester) async {
+      final _FakeApiClient apiClient = _FakeApiClient.error(
+        const ApiError(message: 'Network unavailable'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoDetailPage(
+            video: const HomeVideoItem(
+              id: '99',
+              title: 'Unlocked Local VIP',
+              subtitle: 'VIP Studio • 120 views',
+              accessType: 'membership',
+              canWatch: true,
+              isLocked: false,
+              videoUrl: 'https://example.com/member.mp4',
+            ),
+            apiClient: apiClient,
+            signedInFuture: Future<bool>.value(true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(apiClient.requestedAuthenticated, isTrue);
+      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.text('VIP video locked'), findsNothing);
+      expect(find.text('Subscribe'), findsNothing);
+      expect(find.text('Sign in'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'unlocked VIP state survives later transient detail failure',
+    (WidgetTester tester) async {
+      const Key detailKey = ValueKey<String>('vip-detail');
+      const HomeVideoItem lockedListVideo = HomeVideoItem(
+        id: '100',
+        title: 'Locked Local VIP',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
+      );
+      final _FakeApiClient successClient = _FakeApiClient(<String, dynamic>{
+        'id': 100,
+        'title': 'Unlocked Remote VIP',
+        'access_type': 'membership',
+        'can_watch': true,
+        'is_locked': false,
+        'file_url': 'https://example.com/member.mp4',
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoDetailPage(
+            key: detailKey,
+            video: lockedListVideo,
+            apiClient: successClient,
+            signedInFuture: Future<bool>.value(true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.text('VIP video locked'), findsNothing);
+
+      final _FakeApiClient failureClient = _FakeApiClient.error(
+        const ApiError(message: 'Server error', statusCode: 500),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoDetailPage(
+            key: detailKey,
+            video: lockedListVideo,
+            apiClient: failureClient,
+            signedInFuture: Future<bool>.value(true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(failureClient.requestedAuthenticated, isTrue);
+      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.text('VIP video locked'), findsNothing);
+      expect(find.text('Subscribe'), findsNothing);
+      expect(find.text('Sign in'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'explicit locked remote detail response keeps VIP locked',
+    (WidgetTester tester) async {
+      final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
+        'id': 101,
+        'title': 'Locked Remote VIP',
+        'access_type': 'membership',
+        'can_watch': false,
+        'is_locked': true,
+        'lock_reason': 'membership_required',
+        'file_url': 'https://example.com/member.mp4',
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoDetailPage(
+            video: const HomeVideoItem(
+              id: '101',
+              title: 'Unlocked Local VIP',
+              subtitle: 'VIP Studio • 120 views',
+              accessType: 'membership',
+              canWatch: true,
+              isLocked: false,
+              videoUrl: 'https://example.com/member.mp4',
+            ),
+            apiClient: apiClient,
+            signedInFuture: Future<bool>.value(true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('VIP video locked'), findsOneWidget);
+      expect(find.text('Subscribe'), findsOneWidget);
+      expect(find.text('Playback preview'), findsNothing);
+      expect(find.byType(VideoPlayer), findsNothing);
+    },
+  );
+
+  for (final int statusCode in <int>[401, 403]) {
+    testWidgets(
+      'auth denied $statusCode remote detail locks VIP with Sign in CTA',
+      (WidgetTester tester) async {
+        final _FakeApiClient apiClient = _FakeApiClient.error(
+          ApiError(message: 'Auth denied', statusCode: statusCode),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: VideoDetailPage(
+              video: const HomeVideoItem(
+                id: '102',
+                title: 'Unlocked Local VIP',
+                subtitle: 'VIP Studio • 120 views',
+                accessType: 'membership',
+                canWatch: true,
+                isLocked: false,
+                videoUrl: 'https://example.com/member.mp4',
+              ),
+              apiClient: apiClient,
+              signedInFuture: Future<bool>.value(true),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('VIP video locked'), findsOneWidget);
+        expect(find.text('Sign in'), findsOneWidget);
+        expect(find.text('Subscribe'), findsNothing);
+        expect(find.text('Playback preview'), findsNothing);
+        expect(find.byType(VideoPlayer), findsNothing);
+      },
+    );
+  }
 
   testWidgets('locked VIP detail for anonymous user shows Sign in',
       (WidgetTester tester) async {
@@ -150,9 +320,12 @@ void main() {
 }
 
 class _FakeApiClient extends ApiClient {
-  _FakeApiClient(this.data);
+  _FakeApiClient(this.data) : error = null;
+
+  _FakeApiClient.error(this.error) : data = null;
 
   final dynamic data;
+  final Object? error;
   String? requestedPath;
   bool? requestedAuthenticated;
 
@@ -164,6 +337,8 @@ class _FakeApiClient extends ApiClient {
   }) async {
     requestedPath = path;
     requestedAuthenticated = authenticated;
+    final Object? requestError = error;
+    if (requestError != null) throw requestError;
     return Response<T>(
       data: data as T,
       requestOptions: RequestOptions(path: path),

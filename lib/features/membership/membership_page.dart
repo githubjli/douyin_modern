@@ -5,6 +5,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/api_error.dart';
 import '../auth/data/remote_auth_repository.dart';
 import '../auth/domain/auth_repository.dart';
 import '../home/data/remote_home_repository.dart';
@@ -51,6 +52,8 @@ class _MembershipPageState extends State<MembershipPage> {
   late Future<bool> _signedInFuture;
   late Future<List<HomeVideoItem>> _vipVideosFuture;
   bool _refreshing = false;
+  bool? _lastKnownSignedIn;
+  MembershipStatus? _lastKnownStatus;
 
   @override
   void initState() {
@@ -133,21 +136,45 @@ class _MembershipPageState extends State<MembershipPage> {
   }
 
   Future<bool> _loadSignedInState() async {
-    if (!widget.useRemote) return true;
+    if (!widget.useRemote) {
+      _lastKnownSignedIn = true;
+      return true;
+    }
     try {
       final session = await _authRepository.getCurrentSession();
+      _lastKnownSignedIn = session.isSignedIn;
+      if (!session.isSignedIn) {
+        _lastKnownStatus = null;
+      }
       return session.isSignedIn;
-    } catch (_) {
-      return false;
+    } catch (error) {
+      if (_isAuthDenied(error)) {
+        _lastKnownSignedIn = false;
+        _lastKnownStatus = null;
+        return false;
+      }
+      return _lastKnownSignedIn ?? false;
     }
   }
 
   Future<MembershipStatus?> _loadStatus() async {
     try {
-      return await _repository.getCurrentStatus();
-    } catch (_) {
-      return null;
+      final MembershipStatus? status = await _repository.getCurrentStatus();
+      _lastKnownStatus = status;
+      return status;
+    } catch (error) {
+      if (_isAuthDenied(error)) {
+        _lastKnownSignedIn = false;
+        _lastKnownStatus = null;
+        return null;
+      }
+      return _lastKnownStatus;
     }
+  }
+
+  bool _isAuthDenied(Object error) {
+    return error is ApiError &&
+        (error.statusCode == 401 || error.statusCode == 403);
   }
 
   Future<List<MembershipPlan>> _loadPlans() async {

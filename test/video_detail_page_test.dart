@@ -1,5 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/core/network/api_client.dart';
+import 'package:meow_media/core/network/endpoints.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
@@ -20,6 +23,41 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('loads remote detail with authenticated request',
+      (WidgetTester tester) async {
+    final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
+      'id': 42,
+      'title': 'Unlocked Remote VIP',
+      'access_type': 'membership',
+      'can_watch': true,
+      'is_locked': false,
+      'file_url': 'https://example.com/member.mp4',
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoDetailPage(
+          video: const HomeVideoItem(
+            id: '42',
+            title: 'Local VIP',
+            subtitle: 'VIP Studio • 120 views',
+            accessType: 'membership',
+            canWatch: false,
+            isLocked: true,
+          ),
+          apiClient: apiClient,
+          signedInFuture: Future<bool>.value(true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(apiClient.requestedPath, Endpoints.publicVideoDetail(42));
+    expect(apiClient.requestedAuthenticated, isTrue);
+    expect(find.text('Playback preview'), findsOneWidget);
+    expect(find.text('VIP video locked'), findsNothing);
+  });
 
   testWidgets('locked VIP detail for anonymous user shows Sign in',
       (WidgetTester tester) async {
@@ -86,4 +124,26 @@ void main() {
     expect(find.text('Sign in'), findsNothing);
     expect(find.text('Subscribe'), findsNothing);
   });
+}
+
+class _FakeApiClient extends ApiClient {
+  _FakeApiClient(this.data);
+
+  final dynamic data;
+  String? requestedPath;
+  bool? requestedAuthenticated;
+
+  @override
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    bool authenticated = false,
+  }) async {
+    requestedPath = path;
+    requestedAuthenticated = authenticated;
+    return Response<T>(
+      data: data as T,
+      requestOptions: RequestOptions(path: path),
+    );
+  }
 }

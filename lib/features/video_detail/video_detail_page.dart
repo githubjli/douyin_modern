@@ -112,6 +112,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     try {
       final response = await _apiClient.get<dynamic>(
         _detailPath(widget.video.id),
+        authenticated: true,
       );
       final HomeVideoItem? detail = _mapDetail(response.data, widget.video);
       if (!mounted) return;

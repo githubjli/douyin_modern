@@ -76,13 +76,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder visibleTitleFinder = find.text(title).hitTestable().first;
-    final Finder cardFinder = find
-        .ancestor(
-          of: visibleTitleFinder,
-          matching: find.byType(GestureDetector),
-        )
-        .first;
-    await tester.tap(cardFinder);
+    await tester.tap(visibleTitleFinder);
     await tester.pumpAndSettle();
 
     expect(find.byType(VideoDetailPage), findsOneWidget);

@@ -84,7 +84,7 @@ class _HomePageState extends State<HomePage> {
     if (widget.useRemote) {
       try {
         final HomePortalData remotePortal =
-            await _remoteRepo.getHomePortalData();
+            await _remoteRepo.getHomePortalData(authenticated: true);
         if (_isEmpty(remotePortal)) {
           _notice = 'Showing local content.';
           usingPortalFallback = true;
@@ -540,23 +540,30 @@ class _HomePageState extends State<HomePage> {
     return categories[index].label;
   }
 
-  Future<HomeVideoPage> _getVideoPage({String? pageUrl, String? category}) {
+  Future<HomeVideoPage> _getVideoPage({
+    String? pageUrl,
+    String? category,
+    bool authenticated = true,
+  }) {
     if (!widget.useRemote && widget.mockRepository is MockHomeRepository) {
       return (widget.mockRepository as MockHomeRepository).getVideoPage(
         pageUrl: pageUrl,
         category: category,
+        authenticated: authenticated,
       );
     }
     if (_remoteRepo is RemoteHomeRepository) {
       return (_remoteRepo as RemoteHomeRepository).getVideoPage(
         pageUrl: pageUrl,
         category: category,
+        authenticated: authenticated,
       );
     }
     if (_remoteRepo is MockHomeRepository) {
       return (_remoteRepo as MockHomeRepository).getVideoPage(
         pageUrl: pageUrl,
         category: category,
+        authenticated: authenticated,
       );
     }
     return Future<HomeVideoPage>.error(

@@ -27,9 +27,7 @@ class RemoteAuthRepository implements AuthRepository {
       },
     );
 
-    final AuthSession session = _sessionFromMap(response.data ?? <String, dynamic>{});
-    await _persistTokens(response.data ?? <String, dynamic>{});
-    return session;
+    return _sessionFromAuthResponse(response.data ?? <String, dynamic>{});
   }
 
   @override
@@ -47,9 +45,7 @@ class RemoteAuthRepository implements AuthRepository {
       },
     );
 
-    final AuthSession session = _sessionFromMap(response.data ?? <String, dynamic>{});
-    await _persistTokens(response.data ?? <String, dynamic>{});
-    return session;
+    return _sessionFromAuthResponse(response.data ?? <String, dynamic>{});
   }
 
   @override
@@ -80,16 +76,44 @@ class RemoteAuthRepository implements AuthRepository {
     await _tokenStorage.clearAllTokens();
   }
 
-  Future<void> _persistTokens(Map<String, dynamic> data) async {
-    final String? accessToken = _readString(data, const <String>['access', 'access_token']);
-    final String? refreshToken = _readString(data, const <String>['refresh', 'refresh_token']);
+  Future<AuthSession> _sessionFromAuthResponse(
+    Map<String, dynamic> data,
+  ) async {
+    final AuthSession responseSession = _sessionFromMap(data);
+    final bool hasAccessToken = await _persistTokens(data);
+
+    if (!hasAccessToken) {
+      return responseSession;
+    }
+
+    final AuthSession currentSession = await getCurrentSession();
+    if (currentSession.isSignedIn) {
+      return currentSession;
+    }
+
+    return responseSession.isSignedIn ? responseSession : currentSession;
+  }
+
+  Future<bool> _persistTokens(Map<String, dynamic> data) async {
+    final String? accessToken = _readString(
+      data,
+      const <String>['access', 'access_token'],
+    );
+    final String? refreshToken = _readString(
+      data,
+      const <String>['refresh', 'refresh_token'],
+    );
+    bool wroteAccessToken = false;
 
     if (accessToken != null && accessToken.isNotEmpty) {
       await _tokenStorage.writeAccessToken(accessToken);
+      wroteAccessToken = true;
     }
     if (refreshToken != null && refreshToken.isNotEmpty) {
       await _tokenStorage.writeRefreshToken(refreshToken);
     }
+
+    return wroteAccessToken;
   }
 
   AuthSession _sessionFromMap(Map<String, dynamic> data) {

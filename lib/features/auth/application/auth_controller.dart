@@ -12,17 +12,22 @@ class AuthController extends StateNotifier<AuthState> {
         super(const AuthState.unknown());
 
   final AuthRepository _repository;
+  int _operationGeneration = 0;
 
   Future<void> bootstrap() async {
+    final int operation = _beginOperation();
     final AuthSession? previous = _signedInSession;
     state = AuthState.checking(previous: previous);
     try {
       final AuthSession session = await _repository.getCurrentSession();
+      if (!_isCurrentOperation(operation)) return;
       state = session.isSignedIn
           ? AuthState.signedIn(session)
           : const AuthState.signedOut();
     } catch (error) {
-      _handleFailure(error, previous: previous);
+      if (_isCurrentOperation(operation)) {
+        _handleFailure(error, previous: previous);
+      }
     }
   }
 
@@ -30,6 +35,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String email,
     required String password,
   }) async {
+    final int operation = _beginOperation();
     final AuthSession? previous = _signedInSession;
     state = AuthState.checking(previous: previous);
     try {
@@ -37,11 +43,14 @@ class AuthController extends StateNotifier<AuthState> {
         email: email,
         password: password,
       );
+      if (!_isCurrentOperation(operation)) return;
       state = session.isSignedIn
           ? AuthState.signedIn(session)
           : const AuthState.signedOut();
     } catch (error) {
-      _handleFailure(error, previous: previous);
+      if (_isCurrentOperation(operation)) {
+        _handleFailure(error, previous: previous);
+      }
     }
   }
 
@@ -50,6 +59,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String password,
     required String displayName,
   }) async {
+    final int operation = _beginOperation();
     final AuthSession? previous = _signedInSession;
     state = AuthState.checking(previous: previous);
     try {
@@ -58,30 +68,52 @@ class AuthController extends StateNotifier<AuthState> {
         password: password,
         displayName: displayName,
       );
+      if (!_isCurrentOperation(operation)) return;
       state = session.isSignedIn
           ? AuthState.signedIn(session)
           : const AuthState.signedOut();
     } catch (error) {
-      _handleFailure(error, previous: previous);
+      if (_isCurrentOperation(operation)) {
+        _handleFailure(error, previous: previous);
+      }
     }
   }
 
   Future<void> refreshSession() async {
+    final int operation = _beginOperation();
     final AuthSession? previous = _signedInSession;
     state = AuthState.refreshing(previous: previous);
     try {
       final AuthSession session = await _repository.refreshSession();
+      if (!_isCurrentOperation(operation)) return;
       state = session.isSignedIn
           ? AuthState.signedIn(session)
           : const AuthState.signedOut();
     } catch (error) {
-      _handleFailure(error, previous: previous);
+      if (_isCurrentOperation(operation)) {
+        _handleFailure(error, previous: previous);
+      }
     }
   }
 
   Future<void> logout() async {
-    await _repository.logout();
-    state = const AuthState.signedOut();
+    final int operation = _beginOperation();
+    try {
+      await _repository.logout();
+    } finally {
+      if (_isCurrentOperation(operation)) {
+        state = const AuthState.signedOut();
+      }
+    }
+  }
+
+  int _beginOperation() {
+    _operationGeneration += 1;
+    return _operationGeneration;
+  }
+
+  bool _isCurrentOperation(int operation) {
+    return operation == _operationGeneration;
   }
 
   AuthSession? get _signedInSession {

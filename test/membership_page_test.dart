@@ -340,9 +340,10 @@ void main() {
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Confirm and create order'), findsOneWidget);
     expect(find.text('Complete payment'), findsNothing);
+    expect(find.text('lbc-address-100'), findsNothing);
   });
 
-  testWidgets('confirm creates order and shows payment sheet',
+  testWidgets('confirm creates order and opens payment page',
       (WidgetTester tester) async {
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
@@ -377,7 +378,7 @@ void main() {
     expect(repository.createOrderCalls, 1);
     expect(repository.createdPlanCodes, <String>['monthly']);
     expect(find.text('Confirm subscription'), findsNothing);
-    expect(find.text('Complete payment'), findsOneWidget);
+    expect(find.text('Complete payment'), findsWidgets);
     expect(find.text('Monthly (monthly)'), findsOneWidget);
     expect(find.text('order-100'), findsOneWidget);
     expect(find.text('12.5 LBC'), findsOneWidget);
@@ -476,7 +477,7 @@ void main() {
     expect(find.text('Member'), findsNothing);
   });
 
-  testWidgets('payment sheet copy actions show confirmation messages',
+  testWidgets('payment page copy actions show confirmation messages',
       (WidgetTester tester) async {
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(

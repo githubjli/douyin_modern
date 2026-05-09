@@ -203,7 +203,7 @@ void main() {
     expect(tokenStorage.refreshToken, 'new-refresh');
   });
 
-  test('401 then refresh failure clears tokens and throws ApiError', () async {
+  test('401 then refresh auth failure clears tokens and throws original 401', () async {
     final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
       accessToken: 'expired-access',
       refreshToken: 'refresh-1',
@@ -218,14 +218,39 @@ void main() {
       client.get<Map<String, dynamic>>('/api/private', authenticated: true),
       throwsA(
         isA<ApiError>()
-            .having((ApiError error) => error.statusCode, 'statusCode', 400)
-            .having((ApiError error) => error.message, 'message', 'Bad refresh'),
+            .having((ApiError error) => error.statusCode, 'statusCode', 401)
+            .having((ApiError error) => error.message, 'message', 'Unauthorized'),
       ),
     );
 
     expect(adapter.requests, hasLength(2));
     expect(tokenStorage.accessToken, isNull);
     expect(tokenStorage.refreshToken, isNull);
+  });
+
+  test('401 then refresh server error does not clear tokens', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'expired-access',
+      refreshToken: 'refresh-1',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+      _QueuedResponse.error(500, <String, dynamic>{'detail': 'Refresh down'}),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.get<Map<String, dynamic>>('/api/private', authenticated: true),
+      throwsA(
+        isA<ApiError>()
+            .having((ApiError error) => error.statusCode, 'statusCode', 500)
+            .having((ApiError error) => error.message, 'message', 'Refresh down'),
+      ),
+    );
+
+    expect(adapter.requests, hasLength(2));
+    expect(tokenStorage.accessToken, 'expired-access');
+    expect(tokenStorage.refreshToken, 'refresh-1');
   });
 
   test('retry once only when refreshed request is still 401', () async {

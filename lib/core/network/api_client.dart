@@ -126,6 +126,11 @@ class ApiClient {
         path == Endpoints.authRefresh;
   }
 
+  bool _isRefreshAuthFailure(DioException error) {
+    final int? statusCode = error.response?.statusCode;
+    return statusCode == 400 || statusCode == 401 || statusCode == 403;
+  }
+
   Future<Response<T>> _refreshAndRetry<T>(
     Future<Response<T>> Function() retry, {
     required DioException originalError,
@@ -142,10 +147,12 @@ class ApiClient {
       );
       await _persistRefreshTokens(response.data ?? <String, dynamic>{});
     } on DioException catch (refreshError) {
-      await _tokenStorage.clearAllTokens();
+      if (_isRefreshAuthFailure(refreshError)) {
+        await _tokenStorage.clearAllTokens();
+        throw _mapDioError(originalError);
+      }
       throw _mapDioError(refreshError);
     } catch (refreshError) {
-      await _tokenStorage.clearAllTokens();
       throw ApiError(message: refreshError.toString());
     }
 

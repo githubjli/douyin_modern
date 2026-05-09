@@ -12,6 +12,7 @@ import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/application/membership_providers.dart';
 import 'package:meow_media/features/membership/application/membership_state.dart';
+import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
@@ -57,6 +58,8 @@ void main() {
     RemoteHomeRepository? videoRepository,
     ProviderContainer? container,
     bool settle = true,
+    VoidCallback? onSignInPressed,
+    VoidCallback? onSubscribePressed,
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
@@ -88,6 +91,8 @@ void main() {
                         )
                       : null),
               videoRepository: videoRepository,
+              onSignInPressed: onSignInPressed,
+              onSubscribePressed: onSubscribePressed,
             ),
           ),
         ),
@@ -133,6 +138,25 @@ void main() {
     expect(find.text('Guest'), findsNothing);
     expect(find.text('Sign in required'), findsNothing);
     expect(find.text('Sign in to unlock VIP access'), findsNothing);
+  });
+
+  testWidgets('signed-out Sign in CTA triggers callback',
+      (WidgetTester tester) async {
+    bool signInPressed = false;
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
+      onSignInPressed: () {
+        signInPressed = true;
+      },
+    );
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    expect(signInPressed, isTrue);
   });
 
   testWidgets('renders main Membership structure', (WidgetTester tester) async {
@@ -663,6 +687,29 @@ class _MembershipRepositoryFake implements MembershipRepository {
     if (error != null) throw error;
     return status;
   }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
+  }
 }
 
 class _MutableMembershipRepository implements MembershipRepository {
@@ -682,6 +729,29 @@ class _MutableMembershipRepository implements MembershipRepository {
     final Object? error = statusError;
     if (error != null) throw error;
     return status;
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }
 
@@ -785,6 +855,29 @@ class _TrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async {
     called = true;
     return null;
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }
 

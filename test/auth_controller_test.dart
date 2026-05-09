@@ -25,7 +25,7 @@ void main() {
 
   ProviderContainer createContainer(_FakeAuthRepository repository) {
     final ProviderContainer container = ProviderContainer(
-      overrides: <Override>[
+      overrides: [
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -172,7 +172,6 @@ class _FakeAuthRepository implements AuthRepository {
     this.currentSession,
     this.currentSessionError,
     this.loginSession,
-    this.loginError,
     this.refreshSessionResult,
     this.refreshSessionError,
   });
@@ -180,7 +179,6 @@ class _FakeAuthRepository implements AuthRepository {
   final AuthSession? currentSession;
   final Object? currentSessionError;
   final AuthSession? loginSession;
-  final Object? loginError;
   final AuthSession? refreshSessionResult;
   final Object? refreshSessionError;
 
@@ -207,8 +205,6 @@ class _FakeAuthRepository implements AuthRepository {
   }) async {
     loginEmail = email;
     loginPassword = password;
-    final Object? error = loginError;
-    if (error != null) throw error;
     return loginSession ??
         AuthSession(
           isSignedIn: true,
@@ -226,7 +222,9 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> refreshSession() async {
     final Object? error = refreshSessionError;
     if (error != null) throw error;
-    return refreshSessionResult ?? getCurrentSession();
+    final AuthSession? result = refreshSessionResult;
+    if (result != null) return result;
+    return getCurrentSession();
   }
 
   @override

@@ -197,6 +197,9 @@ void main() {
 
     repository.status = activeStatus;
 
+    await container.read(authControllerProvider.notifier).refreshSession();
+    await tester.pumpAndSettle();
+
     await pumpMembershipPage(
       tester,
       repository: repository,

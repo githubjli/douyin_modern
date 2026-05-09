@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
+import 'package:meow_media/features/membership/domain/membership_repository.dart';
+import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_payment_page.dart';
 
 void main() {
@@ -34,6 +36,7 @@ void main() {
     WidgetTester tester, {
     MembershipOrder order = basicOrder,
     MembershipPlan selectedPlan = basicPlan,
+    MembershipRepository? repository,
     QrCodeSaver? qrCodeSaver,
   }) async {
     await tester.pumpWidget(
@@ -41,6 +44,7 @@ void main() {
         home: MembershipPaymentPage(
           order: order,
           selectedPlan: selectedPlan,
+          repository: repository ?? _PaymentMembershipRepository(),
           qrCodeSaver: qrCodeSaver,
         ),
       ),
@@ -194,16 +198,22 @@ void main() {
 
   testWidgets('empty transaction hash shows validation message',
       (WidgetTester tester) async {
-    await pumpPaymentPage(tester);
+    final _PaymentMembershipRepository repository =
+        _PaymentMembershipRepository();
+    await pumpPaymentPage(tester, repository: repository);
 
     await tapPaymentAction(tester, 'Submit');
 
     expect(find.text('Please enter transaction hash.'), findsOneWidget);
+    expect(repository.submittedOrderNo, isNull);
+    expect(repository.submittedTxid, isNull);
   });
 
-  testWidgets('non-empty transaction hash saves locally without activation',
+  testWidgets('non-empty transaction hash submits tx hint without activation',
       (WidgetTester tester) async {
-    await pumpPaymentPage(tester);
+    final _PaymentMembershipRepository repository =
+        _PaymentMembershipRepository();
+    await pumpPaymentPage(tester, repository: repository);
 
     await tester.enterText(
       find.byType(TextField),
@@ -211,8 +221,31 @@ void main() {
     );
     await tapPaymentAction(tester, 'Submit');
 
-    expect(find.text('Transaction hash saved locally'), findsOneWidget);
+    expect(repository.submittedOrderNo, 'order-200');
+    expect(repository.submittedTxid, 'b10608a77dd4bbe597a15803c3e96abc');
+    expect(
+      find.text('Transaction hash submitted. Awaiting confirmation.'),
+      findsOneWidget,
+    );
     expect(find.text('Member'), findsNothing);
+  });
+
+  testWidgets('transaction hash submit failure shows error',
+      (WidgetTester tester) async {
+    await pumpPaymentPage(
+      tester,
+      repository: _PaymentMembershipRepository(
+        submitError: Exception('network failed'),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'tx-failure');
+    await tapPaymentAction(tester, 'Submit');
+
+    expect(
+      find.text('Unable to submit transaction hash. Please try again.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('copies address with confirmation', (WidgetTester tester) async {
@@ -266,4 +299,53 @@ void main() {
     await tapPaymentAction(tester, 'Download QR Code');
     expect(savedKey, isNotNull);
   });
+}
+
+class _PaymentMembershipRepository implements MembershipRepository {
+  _PaymentMembershipRepository({this.submitError});
+
+  Object? submitError;
+  String? submittedOrderNo;
+  String? submittedTxid;
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<MembershipPlan>> getPlans() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) async {
+    final Object? error = submitError;
+    if (error != null) throw error;
+    submittedOrderNo = orderNo;
+    submittedTxid = txid;
+    return MembershipOrder(
+      orderNo: orderNo,
+      status: 'pending',
+      txid: txid,
+    );
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
+  }
 }

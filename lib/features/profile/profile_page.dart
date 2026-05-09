@@ -161,7 +161,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return SafeArea(
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final double verticalPadding = AppSpacing.md * 2;
+            const double verticalPadding = AppSpacing.md * 2;
             final double minHeight = constraints.maxHeight > verticalPadding
                 ? constraints.maxHeight - verticalPadding
                 : 0;

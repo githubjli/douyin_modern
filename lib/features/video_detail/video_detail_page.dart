@@ -344,7 +344,11 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
 
 bool _hasSignedInSession(AuthState authState) {
   if (authState.isSignedOut) return false;
-  return authState.session?.isSignedIn == true;
+  if (authState.session?.isSignedIn == true) return true;
+  if (authState.status == AuthStatus.error) return false;
+  return authState.status == AuthStatus.unknown ||
+      authState.status == AuthStatus.checking ||
+      authState.status == AuthStatus.refreshing;
 }
 
 String _detailPath(String id) {

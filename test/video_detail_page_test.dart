@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,7 +23,8 @@ void main() {
     bool loadRemoteDetail = false,
     Key? key,
     ProviderContainer? container,
-    _FakeAuthRepository? authRepository,
+    AuthRepository? authRepository,
+    bool settle = true,
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
@@ -46,9 +49,33 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
     return effectiveContainer;
   }
+
+  testWidgets('auth checking does not show Sign in on locked VIP',
+      (WidgetTester tester) async {
+    await pumpVideoDetail(
+      tester,
+      authRepository: _NeverCompletingAuthRepository(),
+      settle: false,
+      video: const HomeVideoItem(
+        id: 'vip-locked-checking',
+        title: 'Checking Locked Cut',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
+      ),
+    );
+
+    expect(find.text('VIP video locked'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
+  });
 
   testWidgets('loads remote detail with authenticated request',
       (WidgetTester tester) async {
@@ -485,6 +512,31 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> logout() async {
     isSignedIn = false;
   }
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _NeverCompletingAuthRepository implements AuthRepository {
+  @override
+  Future<AuthSession> getCurrentSession() => Completer<AuthSession>().future;
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
 
   @override
   Future<AuthSession> refreshSession() => getCurrentSession();

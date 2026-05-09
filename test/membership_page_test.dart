@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +56,7 @@ void main() {
     AuthRepository? authRepository,
     RemoteHomeRepository? videoRepository,
     ProviderContainer? container,
+    bool settle = true,
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
@@ -90,7 +93,11 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
     return effectiveContainer;
   }
 
@@ -113,6 +120,20 @@ void main() {
       reason: 'Expected to find "$text" after scrolling the Membership page.',
     );
   }
+
+  testWidgets('auth checking does not show guest sign-in state',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      authRepository: _NeverCompletingAuthRepository(),
+      settle: false,
+    );
+
+    expect(find.text('Guest'), findsNothing);
+    expect(find.text('Sign in required'), findsNothing);
+    expect(find.text('Sign in to unlock VIP access'), findsNothing);
+  });
 
   testWidgets('renders main Membership structure', (WidgetTester tester) async {
     await pumpMembershipPage(
@@ -738,5 +759,30 @@ class _TrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async {
     called = true;
     return null;
+  }
+}
+
+class _NeverCompletingAuthRepository implements AuthRepository {
+  @override
+  Future<AuthSession> getCurrentSession() => Completer<AuthSession>().future;
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,8 +35,9 @@ void main() {
 
   Future<void> pumpProfilePage(
     WidgetTester tester, {
-    required _FakeAuthRepository authRepository,
+    required AuthRepository authRepository,
     ProfileRepository? profileRepository,
+    bool settle = true,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -51,8 +54,26 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
   }
+
+  testWidgets('auth checking shows loading instead of guest login card',
+      (WidgetTester tester) async {
+    await pumpProfilePage(
+      tester,
+      authRepository: _NeverCompletingAuthRepository(),
+      settle: false,
+    );
+
+    expect(find.text('Loading'), findsOneWidget);
+    expect(find.text('Checking your session...'), findsOneWidget);
+    expect(find.text('Sign in to continue'), findsNothing);
+    expect(find.text('Sign In'), findsNothing);
+  });
 
   testWidgets('auth signedOut shows guest login card',
       (WidgetTester tester) async {
@@ -223,5 +244,30 @@ class _FakeProfileRepository implements ProfileRepository {
       walletAddress: profile.walletAddress,
       walletLinked: profile.walletLinked,
     );
+  }
+}
+
+class _NeverCompletingAuthRepository implements AuthRepository {
+  @override
+  Future<AuthSession> getCurrentSession() => Completer<AuthSession>().future;
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
   }
 }

@@ -230,7 +230,11 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
 
 bool _isMembershipUser(AuthState authState) {
   if (authState.isSignedOut) return false;
-  return authState.session?.isSignedIn == true;
+  if (authState.session?.isSignedIn == true) return true;
+  if (authState.status == AuthStatus.error) return false;
+  return authState.status == AuthStatus.unknown ||
+      authState.status == AuthStatus.checking ||
+      authState.status == AuthStatus.refreshing;
 }
 
 MembershipStatus? _visibleMembershipStatus(MembershipState membershipState) {

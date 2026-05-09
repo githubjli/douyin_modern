@@ -49,8 +49,8 @@ void main() {
   }
 
   Finder qrBoundaryFinder() {
-    return find.byWidgetPredicate(
-      (Widget widget) => widget is RepaintBoundary && widget.key != null,
+    return find.byKey(
+      const ValueKey<String>('membership-payment-qr-boundary'),
     );
   }
 

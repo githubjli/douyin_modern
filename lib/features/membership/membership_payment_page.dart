@@ -359,24 +359,29 @@ class _QrPaymentSection extends StatelessWidget {
             )
           else
             Center(
-              child: RepaintBoundary(
+              child: _QrCapture(
                 key: qrKey,
-                child: Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(18),
-                  child: QrImageView(
-                    data: payload,
-                    version: QrVersions.auto,
-                    size: 188,
-                    padding: EdgeInsets.zero,
-                    backgroundColor: Colors.white,
-                    eyeStyle: const QrEyeStyle(
-                      eyeShape: QrEyeShape.square,
-                      color: Colors.black,
-                    ),
-                    dataModuleStyle: const QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.square,
-                      color: Colors.black,
+                child: RepaintBoundary(
+                  key: const ValueKey<String>(
+                    'membership-payment-qr-boundary',
+                  ),
+                  child: Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(18),
+                    child: QrImageView(
+                      data: payload,
+                      version: QrVersions.auto,
+                      size: 188,
+                      padding: EdgeInsets.zero,
+                      backgroundColor: Colors.white,
+                      eyeStyle: const QrEyeStyle(
+                        eyeShape: QrEyeShape.square,
+                        color: Colors.black,
+                      ),
+                      dataModuleStyle: const QrDataModuleStyle(
+                        dataModuleShape: QrDataModuleShape.square,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
                 ),
@@ -391,6 +396,17 @@ class _QrPaymentSection extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _QrCapture extends StatelessWidget {
+  const _QrCapture({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return child;
   }
 }
 

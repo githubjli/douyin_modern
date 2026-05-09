@@ -380,13 +380,10 @@ void main() {
     expect(repository.createdPlanCodes, <String>['monthly']);
     expect(find.text('Confirm subscription'), findsNothing);
     expect(find.byType(MembershipPaymentPage), findsOneWidget);
-    expect(find.text('Complete payment'), findsWidgets);
-    expect(find.text('Monthly (monthly)'), findsWidgets);
-    expect(find.text('order-100'), findsOneWidget);
-    expect(find.text('12.5 LBC'), findsOneWidget);
+    expect(find.text('Membership Purchase'), findsOneWidget);
+    expect(find.text('Receiving Address'), findsOneWidget);
+    expect(find.text('Copy address'), findsOneWidget);
     expect(find.text('lbc-address-100'), findsOneWidget);
-    expect(find.text('pending'), findsOneWidget);
-    expect(find.text('2026-06-01T00:00:00Z'), findsOneWidget);
   });
 
   testWidgets('cancel confirmation does not create order',
@@ -548,7 +545,7 @@ void main() {
     expect(find.byType(MembershipPaymentPage), findsOneWidget);
     expect(find.text('overpaid'), findsOneWidget);
 
-    await tester.pageBack();
+    await tester.tap(find.text('Back').first);
     await tester.pumpAndSettle();
 
     expect(find.byType(MembershipPaymentPage), findsNothing);

@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_client.dart';
+import 'package:meow_media/features/auth/application/auth_providers.dart';
+import 'package:meow_media/features/auth/domain/auth_repository.dart';
+import 'package:meow_media/features/auth/domain/auth_session.dart';
 import 'package:meow_media/features/home/data/mock_home_repository.dart';
 import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
@@ -18,26 +24,41 @@ void main() {
     recommended: <HomeVideoItem>[],
   );
 
-  Future<void> pumpHomePage(
+  Future<ProviderContainer> pumpHomePage(
     WidgetTester tester, {
     required HomeRepository remoteRepository,
+    AuthRepository? authRepository,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
     });
 
+    final ProviderContainer container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(
+          authRepository ?? _AuthRepositoryFake(isSignedIn: true),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(authControllerProvider.notifier).bootstrap();
+
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: HomePage(
-            remoteRepository: remoteRepository,
-            mockRepository: const MockHomeRepository(),
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: HomePage(
+              remoteRepository: remoteRepository,
+              mockRepository: const MockHomeRepository(),
+            ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
+    return container;
   }
 
   testWidgets('empty remote portal falls back to mock Home content',
@@ -119,6 +140,21 @@ void main() {
     expect(remoteRepository.portalAuthenticated, isTrue);
   });
 
+  testWidgets('signed-out Home portal load requests public feed',
+      (WidgetTester tester) async {
+    final _AuthenticatedHomeRepository remoteRepository =
+        _AuthenticatedHomeRepository(portal: emptyPortal);
+
+    await pumpHomePage(
+      tester,
+      remoteRepository: remoteRepository,
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
+    );
+
+    expect(remoteRepository.portalAuthenticated, isFalse);
+    expect(find.text('Street Food Guide'), findsWidgets);
+  });
+
   testWidgets('remote News category request uses authentication',
       (WidgetTester tester) async {
     final _TrackingRemoteHomeRepository remoteRepository =
@@ -189,6 +225,126 @@ void main() {
     );
   });
 
+  testWidgets('signed-out to signed-in auth transition reloads authenticated feed',
+      (WidgetTester tester) async {
+    final _MutableAuthRepository authRepository = _MutableAuthRepository(
+      isSignedIn: false,
+    );
+    final _TrackingRemoteHomeRepository remoteRepository =
+        _TrackingRemoteHomeRepository(portal: _portalWithPaging());
+
+    final ProviderContainer container = await pumpHomePage(
+      tester,
+      remoteRepository: remoteRepository,
+      authRepository: authRepository,
+    );
+
+    expect(remoteRepository.portalAuthenticatedCalls, <bool>[false]);
+
+    authRepository.isSignedIn = true;
+    await container.read(authControllerProvider.notifier).bootstrap();
+    await tester.pumpAndSettle();
+
+    expect(remoteRepository.portalAuthenticatedCalls, <bool>[false, true]);
+  });
+
+  testWidgets('signed-in to signed-out auth transition reloads public feed',
+      (WidgetTester tester) async {
+    final _MutableAuthRepository authRepository = _MutableAuthRepository(
+      isSignedIn: true,
+    );
+    final _TrackingRemoteHomeRepository remoteRepository =
+        _TrackingRemoteHomeRepository(portal: _portalWithPaging());
+
+    final ProviderContainer container = await pumpHomePage(
+      tester,
+      remoteRepository: remoteRepository,
+      authRepository: authRepository,
+    );
+
+    expect(remoteRepository.portalAuthenticatedCalls, <bool>[true]);
+
+    await container.read(authControllerProvider.notifier).logout();
+    await tester.pumpAndSettle();
+
+    expect(remoteRepository.portalAuthenticatedCalls, <bool>[true, false]);
+
+    await tester.tap(find.text('Videos').hitTestable().first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sports'));
+    await tester.pumpAndSettle();
+
+    expect(
+      remoteRepository.videoCalls.any(
+        (_VideoPageCall call) =>
+            call.category == 'sports' && call.authenticated == false,
+      ),
+      isTrue,
+    );
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Load more'));
+    await tester.pumpAndSettle();
+
+    expect(
+      remoteRepository.videoCalls.any(
+        (_VideoPageCall call) =>
+            call.pageUrl == 'https://example.com/videos-next' &&
+            call.authenticated == false,
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('checking auth state keeps existing Home feed without reload storm',
+      (WidgetTester tester) async {
+    final _MutableAuthRepository authRepository = _MutableAuthRepository(
+      isSignedIn: false,
+    );
+    final _TrackingRemoteHomeRepository remoteRepository =
+        _TrackingRemoteHomeRepository(portal: _portalWithPaging());
+
+    final ProviderContainer container = await pumpHomePage(
+      tester,
+      remoteRepository: remoteRepository,
+      authRepository: authRepository,
+    );
+    final int portalCalls = remoteRepository.portalAuthenticatedCalls.length;
+
+    authRepository.currentSessionCompleter = Completer<AuthSession>();
+    unawaited(container.read(authControllerProvider.notifier).bootstrap());
+    await tester.pump();
+
+    expect(remoteRepository.portalAuthenticatedCalls, hasLength(portalCalls));
+    expect(find.text('Local News'), findsWidgets);
+    expect(find.text('Sign in to continue'), findsNothing);
+  });
+
+  testWidgets('refreshing auth state keeps existing Home feed without reload storm',
+      (WidgetTester tester) async {
+    final _MutableAuthRepository authRepository = _MutableAuthRepository(
+      isSignedIn: true,
+    );
+    final _TrackingRemoteHomeRepository remoteRepository =
+        _TrackingRemoteHomeRepository(portal: _portalWithPaging());
+
+    final ProviderContainer container = await pumpHomePage(
+      tester,
+      remoteRepository: remoteRepository,
+      authRepository: authRepository,
+    );
+    final int portalCalls = remoteRepository.portalAuthenticatedCalls.length;
+
+    authRepository.refreshSessionCompleter = Completer<AuthSession>();
+    unawaited(container.read(authControllerProvider.notifier).refreshSession());
+    await tester.pump();
+
+    expect(remoteRepository.portalAuthenticatedCalls, hasLength(portalCalls));
+    expect(find.text('Local News'), findsWidgets);
+    expect(find.text('Sign in to continue'), findsNothing);
+  });
+
   testWidgets(
       'contradictory fallback/empty messages are absent when mock News content exists',
       (WidgetTester tester) async {
@@ -243,10 +399,12 @@ class _TrackingRemoteHomeRepository extends RemoteHomeRepository {
       : super(apiClient: ApiClient());
 
   final HomePortalData portal;
+  final List<bool> portalAuthenticatedCalls = <bool>[];
   final List<_VideoPageCall> videoCalls = <_VideoPageCall>[];
 
   @override
   Future<HomePortalData> getHomePortalData({bool authenticated = false}) async {
+    portalAuthenticatedCalls.add(authenticated);
     return portal;
   }
 
@@ -330,6 +488,92 @@ class _VideoPageCall {
   final String? pageUrl;
   final String? category;
   final bool authenticated;
+}
+
+class _AuthRepositoryFake implements AuthRepository {
+  _AuthRepositoryFake({required this.isSignedIn});
+
+  final bool isSignedIn;
+
+  @override
+  Future<AuthSession> getCurrentSession() async {
+    return AuthSession(
+      isSignedIn: isSignedIn,
+      userId: isSignedIn ? 'user-1' : null,
+      displayName: isSignedIn ? 'Meow User' : 'Guest',
+    );
+  }
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    return getCurrentSession();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    return getCurrentSession();
+  }
+}
+
+class _MutableAuthRepository implements AuthRepository {
+  _MutableAuthRepository({required this.isSignedIn});
+
+  bool isSignedIn;
+  Completer<AuthSession>? currentSessionCompleter;
+  Completer<AuthSession>? refreshSessionCompleter;
+
+  @override
+  Future<AuthSession> getCurrentSession() {
+    final Completer<AuthSession>? completer = currentSessionCompleter;
+    if (completer != null) return completer.future;
+    return Future<AuthSession>.value(_session);
+  }
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    isSignedIn = true;
+    return getCurrentSession();
+  }
+
+  @override
+  Future<void> logout() async {
+    isSignedIn = false;
+  }
+
+  @override
+  Future<AuthSession> refreshSession() {
+    final Completer<AuthSession>? completer = refreshSessionCompleter;
+    if (completer != null) return completer.future;
+    return getCurrentSession();
+  }
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    isSignedIn = true;
+    return getCurrentSession();
+  }
+
+  AuthSession get _session {
+    return AuthSession(
+      isSignedIn: isSignedIn,
+      userId: isSignedIn ? 'user-1' : null,
+      displayName: isSignedIn ? 'Meow User' : 'Guest',
+    );
+  }
 }
 
 HomePortalData _portalWithPaging() {

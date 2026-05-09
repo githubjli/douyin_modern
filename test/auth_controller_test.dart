@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_error.dart';
@@ -108,6 +110,137 @@ void main() {
     final AuthState state = container.read(authControllerProvider);
     expect(repository.logoutCalled, isTrue);
     expect(state.isSignedOut, isTrue);
+    expect(state.session, isNull);
+  });
+
+  test('logout clears auth state even if repository logout fails', () async {
+    final _FakeAuthRepository repository = _FakeAuthRepository(
+      loginSession: signedInSession,
+      logoutError: Exception('remote logout failed'),
+    );
+    final ProviderContainer container = createContainer(repository);
+
+    await container.read(authControllerProvider.notifier).login(
+          email: 'meow@example.com',
+          password: 'secret',
+        );
+
+    await expectLater(
+      container.read(authControllerProvider.notifier).logout(),
+      throwsA(isA<Exception>()),
+    );
+
+    final AuthState state = container.read(authControllerProvider);
+    expect(repository.logoutCalled, isTrue);
+    expect(state.status, AuthStatus.signedOut);
+    expect(state.session, isNull);
+  });
+
+  test('logout is not overwritten by older bootstrap completion', () async {
+    final Completer<AuthSession> currentSessionCompleter =
+        Completer<AuthSession>();
+    final _FakeAuthRepository repository = _FakeAuthRepository(
+      currentSessionFuture: currentSessionCompleter.future,
+    );
+    final ProviderContainer container = createContainer(repository);
+
+    final Future<void> bootstrapFuture =
+        container.read(authControllerProvider.notifier).bootstrap();
+    expect(container.read(authControllerProvider).status, AuthStatus.checking);
+
+    await container.read(authControllerProvider.notifier).logout();
+    expect(container.read(authControllerProvider).status, AuthStatus.signedOut);
+
+    currentSessionCompleter.complete(signedInSession);
+    await bootstrapFuture;
+
+    final AuthState state = container.read(authControllerProvider);
+    expect(state.status, AuthStatus.signedOut);
+    expect(state.session, isNull);
+  });
+
+  test('stale bootstrap cannot override later successful login', () async {
+    final Completer<AuthSession> currentSessionCompleter =
+        Completer<AuthSession>();
+    final _FakeAuthRepository repository = _FakeAuthRepository(
+      currentSessionFuture: currentSessionCompleter.future,
+      loginSession: signedInSession,
+    );
+    final ProviderContainer container = createContainer(repository);
+
+    final Future<void> bootstrapFuture =
+        container.read(authControllerProvider.notifier).bootstrap();
+    expect(container.read(authControllerProvider).status, AuthStatus.checking);
+
+    await container.read(authControllerProvider.notifier).login(
+          email: 'meow@example.com',
+          password: 'secret',
+        );
+    expect(container.read(authControllerProvider).status, AuthStatus.signedIn);
+    expect(container.read(authControllerProvider).session, signedInSession);
+
+    currentSessionCompleter.complete(signedOutSession);
+    await bootstrapFuture;
+
+    final AuthState state = container.read(authControllerProvider);
+    expect(state.status, AuthStatus.signedIn);
+    expect(state.session, signedInSession);
+  });
+
+  test('stale refresh success cannot override later logout', () async {
+    final Completer<AuthSession> refreshCompleter = Completer<AuthSession>();
+    final _FakeAuthRepository repository = _FakeAuthRepository(
+      loginSession: signedInSession,
+      refreshSessionFuture: refreshCompleter.future,
+    );
+    final ProviderContainer container = createContainer(repository);
+
+    await container.read(authControllerProvider.notifier).login(
+          email: 'meow@example.com',
+          password: 'secret',
+        );
+    final Future<void> refreshFuture =
+        container.read(authControllerProvider.notifier).refreshSession();
+    expect(container.read(authControllerProvider).status, AuthStatus.refreshing);
+
+    await container.read(authControllerProvider.notifier).logout();
+    expect(container.read(authControllerProvider).status, AuthStatus.signedOut);
+
+    refreshCompleter.complete(refreshedSession);
+    await refreshFuture;
+
+    final AuthState state = container.read(authControllerProvider);
+    expect(state.status, AuthStatus.signedOut);
+    expect(state.session, isNull);
+  });
+
+  test('stale refresh error cannot override later logout', () async {
+    final Completer<AuthSession> refreshCompleter = Completer<AuthSession>();
+    final _FakeAuthRepository repository = _FakeAuthRepository(
+      loginSession: signedInSession,
+      refreshSessionFuture: refreshCompleter.future,
+    );
+    final ProviderContainer container = createContainer(repository);
+
+    await container.read(authControllerProvider.notifier).login(
+          email: 'meow@example.com',
+          password: 'secret',
+        );
+    final Future<void> refreshFuture =
+        container.read(authControllerProvider.notifier).refreshSession();
+    expect(container.read(authControllerProvider).status, AuthStatus.refreshing);
+
+    await container.read(authControllerProvider.notifier).logout();
+    expect(container.read(authControllerProvider).status, AuthStatus.signedOut);
+
+    refreshCompleter.completeError(
+      const ApiError(message: 'Server unavailable', statusCode: 500),
+    );
+    await refreshFuture;
+
+    final AuthState state = container.read(authControllerProvider);
+    expect(state.status, AuthStatus.signedOut);
+    expect(state.session, isNull);
   });
 
   test('refreshSession emits refreshing then signed-in on success', () async {
@@ -170,17 +303,23 @@ void main() {
 class _FakeAuthRepository implements AuthRepository {
   _FakeAuthRepository({
     this.currentSession,
+    this.currentSessionFuture,
     this.currentSessionError,
     this.loginSession,
     this.refreshSessionResult,
+    this.refreshSessionFuture,
     this.refreshSessionError,
+    this.logoutError,
   });
 
   final AuthSession? currentSession;
+  final Future<AuthSession>? currentSessionFuture;
   final Object? currentSessionError;
   final AuthSession? loginSession;
   final AuthSession? refreshSessionResult;
+  final Future<AuthSession>? refreshSessionFuture;
   final Object? refreshSessionError;
+  final Object? logoutError;
 
   String? loginEmail;
   String? loginPassword;
@@ -188,6 +327,8 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<AuthSession> getCurrentSession() async {
+    final Future<AuthSession>? future = currentSessionFuture;
+    if (future != null) return future;
     final Object? error = currentSessionError;
     if (error != null) throw error;
     return currentSession ??
@@ -216,10 +357,14 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> logout() async {
     logoutCalled = true;
+    final Object? error = logoutError;
+    if (error != null) throw error;
   }
 
   @override
   Future<AuthSession> refreshSession() async {
+    final Future<AuthSession>? future = refreshSessionFuture;
+    if (future != null) return future;
     final Object? error = refreshSessionError;
     if (error != null) throw error;
     final AuthSession? result = refreshSessionResult;

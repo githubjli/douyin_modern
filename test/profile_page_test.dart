@@ -87,6 +87,35 @@ void main() {
     expect(find.text('Profile User'), findsNothing);
   });
 
+  testWidgets('password visibility toggle shows and hides password',
+      (WidgetTester tester) async {
+    await pumpProfilePage(
+      tester,
+      authRepository: _FakeAuthRepository(currentSession: signedOutSession),
+    );
+
+    final Finder passwordField = find.byType(TextField).at(1);
+    TextField passwordTextField = tester.widget<TextField>(passwordField);
+    expect(passwordTextField.obscureText, isTrue);
+
+    final Finder visibilityToggle = find.byKey(
+      const ValueKey<String>('profile-password-visibility-toggle'),
+    );
+    expect(visibilityToggle, findsOneWidget);
+
+    await tester.tap(visibilityToggle);
+    await tester.pump();
+
+    passwordTextField = tester.widget<TextField>(passwordField);
+    expect(passwordTextField.obscureText, isFalse);
+
+    await tester.tap(visibilityToggle);
+    await tester.pump();
+
+    passwordTextField = tester.widget<TextField>(passwordField);
+    expect(passwordTextField.obscureText, isTrue);
+  });
+
   testWidgets('auth signedIn shows signed-in profile card',
       (WidgetTester tester) async {
     await pumpProfilePage(
@@ -117,6 +146,26 @@ void main() {
     expect(authRepository.loginEmail, 'meow@example.com');
     expect(find.text('Profile User'), findsOneWidget);
     expect(find.text('Logout'), findsOneWidget);
+  });
+
+  testWidgets('token-only login flow shows signed-in profile instead of login',
+      (WidgetTester tester) async {
+    final _TokenOnlyLoginAuthRepository authRepository =
+        _TokenOnlyLoginAuthRepository(
+      signedOutSession: signedOutSession,
+      signedInSession: signedInSession,
+    );
+    await pumpProfilePage(tester, authRepository: authRepository);
+
+    await tester.enterText(find.byType(TextField).at(0), 'meow@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'secret');
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+
+    expect(authRepository.loginCalled, isTrue);
+    expect(authRepository.currentSessionCalls, 2);
+    expect(find.text('Profile User'), findsOneWidget);
+    expect(find.text('Sign in to continue'), findsNothing);
   });
 
   testWidgets('logout calls auth controller and shows guest login card',
@@ -269,5 +318,52 @@ class _NeverCompletingAuthRepository implements AuthRepository {
     required String displayName,
   }) {
     throw UnimplementedError();
+  }
+}
+
+class _TokenOnlyLoginAuthRepository implements AuthRepository {
+  _TokenOnlyLoginAuthRepository({
+    required this.signedOutSession,
+    required this.signedInSession,
+  }) : _currentSession = signedOutSession;
+
+  final AuthSession signedOutSession;
+  final AuthSession signedInSession;
+  AuthSession _currentSession;
+  bool loginCalled = false;
+  int currentSessionCalls = 0;
+
+  @override
+  Future<AuthSession> getCurrentSession() async {
+    currentSessionCalls += 1;
+    return _currentSession;
+  }
+
+  @override
+  Future<AuthSession> login({
+    required String email,
+    required String password,
+  }) async {
+    loginCalled = true;
+    _currentSession = signedInSession;
+    return getCurrentSession();
+  }
+
+  @override
+  Future<void> logout() async {
+    _currentSession = signedOutSession;
+  }
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    _currentSession = signedInSession;
+    return getCurrentSession();
   }
 }

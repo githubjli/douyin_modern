@@ -157,6 +157,38 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final bool showGuest = _shouldShowGuestProfile(authState);
     final bool isChecking = !isSignedIn && !showGuest;
 
+    if (showGuest) {
+      return SafeArea(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double verticalPadding = AppSpacing.md * 2;
+            final double minHeight = constraints.maxHeight > verticalPadding
+                ? constraints.maxHeight - verticalPadding
+                : 0;
+
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minHeight),
+                child: Align(
+                  alignment: const Alignment(0, -0.12),
+                  child: _GuestProfileCard(
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    loggingIn: _loggingIn,
+                    error: _error ?? authState.message,
+                    onLogin: _login,
+                    onSignUp: _showSignUpPlaceholder,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -175,15 +207,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               profile: _profile,
               onLogout: _logout,
               onRefresh: _refreshProfile,
-            )
-          else if (showGuest)
-            _GuestProfileCard(
-              emailController: _emailController,
-              passwordController: _passwordController,
-              loggingIn: _loggingIn,
-              error: _error ?? authState.message,
-              onLogin: _login,
-              onSignUp: _showSignUpPlaceholder,
             ),
           if (_error != null && (isChecking || isSignedIn)) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
@@ -217,7 +240,7 @@ String _friendlyAuthError(String message) {
   return message;
 }
 
-class _GuestProfileCard extends StatelessWidget {
+class _GuestProfileCard extends StatefulWidget {
   const _GuestProfileCard({
     required this.emailController,
     required this.passwordController,
@@ -235,96 +258,126 @@ class _GuestProfileCard extends StatelessWidget {
   final VoidCallback onSignUp;
 
   @override
+  State<_GuestProfileCard> createState() => _GuestProfileCardState();
+}
+
+class _GuestProfileCardState extends State<_GuestProfileCard> {
+  bool _obscurePassword = true;
+
+  @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          children: <Widget>[
-            const SizedBox(height: AppSpacing.xl),
-            Container(
-              width: 96,
-              height: 96,
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                border: Border.all(color: AppColors.softBorder),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              ),
-              child: Image.asset(AppAssets.meowLogo, fit: BoxFit.contain),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 96,
+            height: 96,
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              border: Border.all(color: AppColors.softBorder),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
             ),
-            const SizedBox(height: AppSpacing.md),
-            const Text('Meow Media', style: AppTextStyles.sectionTitle),
-            const SizedBox(height: AppSpacing.xxs),
-            Text(
-              'Sign in to continue',
-              style: AppTextStyles.body.copyWith(color: AppColors.mutedOliveText),
+            child: Image.asset(AppAssets.meowLogo, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Text('Meow Media', style: AppTextStyles.sectionTitle),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            'Sign in to continue',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.mutedOliveText,
             ),
-            const SizedBox(height: AppSpacing.lg),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                border: Border.all(color: AppColors.softBorder),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  TextField(
-                    controller: emailController,
-                    cursorColor: AppColors.brandGold,
-                    keyboardType: TextInputType.emailAddress,
-                    style: AppTextStyles.body,
-                    decoration: _loginInputDecoration('Email'),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              border: Border.all(color: AppColors.softBorder),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                TextField(
+                  controller: widget.emailController,
+                  cursorColor: AppColors.brandGold,
+                  keyboardType: TextInputType.emailAddress,
+                  style: AppTextStyles.body,
+                  decoration: _loginInputDecoration('Email'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: widget.passwordController,
+                  cursorColor: AppColors.brandGold,
+                  obscureText: _obscurePassword,
+                  style: AppTextStyles.body,
+                  decoration: _loginInputDecoration(
+                    'Password',
+                    suffixIcon: IconButton(
+                      key: const ValueKey<String>(
+                        'profile-password-visibility-toggle',
+                      ),
+                      tooltip: _obscurePassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      color: AppColors.mutedOliveText,
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                    ),
                   ),
+                ),
+                if (widget.error != null) ...<Widget>[
                   const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: passwordController,
-                    cursorColor: AppColors.brandGold,
-                    obscureText: true,
-                    style: AppTextStyles.body,
-                    decoration: _loginInputDecoration('Password'),
+                  _InlineAuthMessage(message: widget.error!),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                ElevatedButton(
+                  onPressed: widget.loggingIn ? null : widget.onLogin,
+                  child: Text(
+                    widget.loggingIn ? 'Signing in...' : 'Sign In',
                   ),
-                  if (error != null) ...<Widget>[
-                    const SizedBox(height: AppSpacing.sm),
-                    _InlineAuthMessage(message: error!),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  ElevatedButton(
-                    onPressed: loggingIn ? null : onLogin,
-                    child: Text(loggingIn ? 'Signing in...' : 'Sign In'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextButton(
+            onPressed: widget.onSignUp,
+            child: RichText(
+              text: const TextSpan(
+                style: AppTextStyles.caption,
+                children: <TextSpan>[
+                  TextSpan(text: 'Don’t have an account? '),
+                  TextSpan(
+                    text: 'Sign Up',
+                    style: TextStyle(
+                      color: AppColors.brandGold,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            TextButton(
-              onPressed: onSignUp,
-              child: RichText(
-                text: const TextSpan(
-                  style: AppTextStyles.caption,
-                  children: <TextSpan>[
-                    TextSpan(text: 'Don’t have an account? '),
-                    TextSpan(
-                      text: 'Sign Up',
-                      style: TextStyle(
-                        color: AppColors.brandGold,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-InputDecoration _loginInputDecoration(String label) {
+InputDecoration _loginInputDecoration(String label, {Widget? suffixIcon}) {
   return InputDecoration(
     labelText: label,
     filled: true,
@@ -346,6 +399,7 @@ InputDecoration _loginInputDecoration(String label) {
       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       borderSide: const BorderSide(color: AppColors.brandGold),
     ),
+    suffixIcon: suffixIcon,
   );
 }
 

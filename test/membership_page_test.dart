@@ -205,7 +205,7 @@ void main() {
     );
 
     expect(find.text('Member'), findsOneWidget);
-    expect(find.text('Meow Plus'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsWidgets);
 
     await container.read(authControllerProvider.notifier).logout();
     await tester.pumpAndSettle();
@@ -213,7 +213,7 @@ void main() {
     expect(find.text('Guest'), findsOneWidget);
     expect(find.text('Sign in required'), findsOneWidget);
     expect(find.text('Member'), findsNothing);
-    expect(find.text('Meow Plus'), findsNothing);
+    expect(find.text('Basic Monthly'), findsNothing);
     expect(
       container.read(membershipControllerProvider).status,
       MembershipLoadStatus.unknown,

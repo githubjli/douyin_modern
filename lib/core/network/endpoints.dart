@@ -27,5 +27,15 @@ class Endpoints {
   static String dramaProgress(int dramaId) => '/api/dramas/$dramaId/progress/';
 
   static const String membershipPlans = '/api/membership/plans/';
+  static const String membershipOrders = '/api/membership/orders/';
   static const String membershipMe = '/api/membership/me/';
+
+  static String membershipOrderDetail(String orderNo) =>
+      '/api/membership/orders/${Uri.encodeComponent(orderNo)}/';
+
+  static String membershipOrderTxHint(String orderNo) =>
+      '/api/membership/orders/${Uri.encodeComponent(orderNo)}/tx-hint/';
+
+  static String membershipOrderVerifyNow(String orderNo) =>
+      '/api/membership/orders/${Uri.encodeComponent(orderNo)}/verify-now/';
 }

@@ -194,6 +194,32 @@ void main() {
     expect(find.text('Membership Plans'), findsOneWidget);
   });
 
+  testWidgets('logout resets active membership to guest state',
+      (WidgetTester tester) async {
+    final ProviderContainer container = await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(
+        plans: backendPlans,
+        status: activeStatus,
+      ),
+    );
+
+    expect(find.text('Member'), findsOneWidget);
+    expect(find.text('Basic Monthly'), findsWidgets);
+
+    await container.read(authControllerProvider.notifier).logout();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Member'), findsNothing);
+    expect(find.text('Basic Monthly'), findsNothing);
+    expect(
+      container.read(membershipControllerProvider).status,
+      MembershipLoadStatus.unknown,
+    );
+  });
+
   testWidgets('refreshes membership state when tab becomes active',
       (WidgetTester tester) async {
     final _MutableMembershipRepository repository = _MutableMembershipRepository(

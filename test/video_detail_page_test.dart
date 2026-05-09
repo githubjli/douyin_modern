@@ -386,6 +386,35 @@ void main() {
     expect(find.byType(VideoPlayer), findsNothing);
   });
 
+  testWidgets('logout changes locked VIP CTA from Subscribe to Sign in',
+      (WidgetTester tester) async {
+    final _FakeAuthRepository authRepository = _FakeAuthRepository(
+      isSignedIn: true,
+    );
+    final ProviderContainer container = await pumpVideoDetail(
+      tester,
+      authRepository: authRepository,
+      loadRemoteDetail: false,
+      video: const HomeVideoItem(
+        id: 'vip-locked-logout',
+        title: 'Logout Locked VIP Cut',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        isLocked: true,
+        canWatch: false,
+      ),
+    );
+
+    expect(find.text('Subscribe'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
+
+    await container.read(authControllerProvider.notifier).logout();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Subscribe'), findsNothing);
+  });
+
   testWidgets(
     'auth error with previous signed-in session shows Subscribe not Sign in',
     (WidgetTester tester) async {

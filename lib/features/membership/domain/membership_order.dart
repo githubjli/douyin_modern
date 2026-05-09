@@ -7,6 +7,9 @@ class MembershipOrder {
     this.expectedAmountLbc,
     this.actualAmountLbc,
     this.currency,
+    this.tokenSymbol,
+    this.paymentUri,
+    this.qrPayload,
     this.payToAddress,
     this.txid,
     this.confirmations,
@@ -48,10 +51,33 @@ class MembershipOrder {
         'actual_amount',
       ]),
       currency: _firstString(data, const <String>[
-            'currency',
-            'price_currency',
+        'currency',
+        'price_currency',
+      ]),
+      tokenSymbol: _firstString(data, const <String>[
+            'token_symbol',
+            'tokenSymbol',
+            'settlement_token_symbol',
+            'settlementTokenSymbol',
           ]) ??
-          'LBC',
+          _nestedString(plan, const <String>[
+            'token_symbol',
+            'tokenSymbol',
+            'settlement_token_symbol',
+            'settlementTokenSymbol',
+          ]) ??
+          _nestedString(data['settlement'], const <String>[
+            'token_symbol',
+            'tokenSymbol',
+          ]),
+      paymentUri: _firstString(data, const <String>[
+        'payment_uri',
+        'paymentUri',
+      ]),
+      qrPayload: _firstString(data, const <String>[
+        'qr_payload',
+        'qrPayload',
+      ]),
       payToAddress: _firstString(data, const <String>[
         'pay_to_address',
         'payToAddress',
@@ -72,6 +98,9 @@ class MembershipOrder {
   final String? expectedAmountLbc;
   final String? actualAmountLbc;
   final String? currency;
+  final String? tokenSymbol;
+  final String? paymentUri;
+  final String? qrPayload;
   final String? payToAddress;
   final String? txid;
   final int? confirmations;

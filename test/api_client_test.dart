@@ -55,6 +55,12 @@ void main() {
         'access_token': 'login-access',
         'refresh_token': 'login-refresh',
       }),
+      _QueuedResponse.ok(<String, dynamic>{
+        'user': <String, dynamic>{
+          'id': 'user-1',
+          'display_name': 'Meow User',
+        },
+      }),
     ]);
     final ApiClient client = _client(adapter, tokenStorage);
     final RemoteAuthRepository repository = RemoteAuthRepository(
@@ -68,13 +74,15 @@ void main() {
     );
 
     expect(session.isSignedIn, isTrue);
-    expect(adapter.requests, hasLength(1));
-    expect(adapter.requests.single.path, Endpoints.authLogin);
-    expect(adapter.requests.single.authorization, isNull);
-    expect(adapter.requests.single.data, <String, dynamic>{
+    expect(adapter.requests, hasLength(2));
+    expect(adapter.requests[0].path, Endpoints.authLogin);
+    expect(adapter.requests[0].authorization, isNull);
+    expect(adapter.requests[0].data, <String, dynamic>{
       'email': 'meow@example.com',
       'password': 'secret',
     });
+    expect(adapter.requests[1].path, Endpoints.authMe);
+    expect(adapter.requests[1].authorization, 'Bearer login-access');
     expect(tokenStorage.accessToken, 'login-access');
     expect(tokenStorage.refreshToken, 'login-refresh');
   });
@@ -181,6 +189,12 @@ void main() {
         'access': 'register-access',
         'refresh': 'register-refresh',
       }),
+      _QueuedResponse.ok(<String, dynamic>{
+        'user': <String, dynamic>{
+          'id': 'user-2',
+          'display_name': 'New User',
+        },
+      }),
     ]);
     final ApiClient client = _client(adapter, tokenStorage);
     final RemoteAuthRepository repository = RemoteAuthRepository(
@@ -195,9 +209,11 @@ void main() {
     );
 
     expect(session.isSignedIn, isTrue);
-    expect(adapter.requests, hasLength(1));
-    expect(adapter.requests.single.path, Endpoints.authRegister);
-    expect(adapter.requests.single.authorization, isNull);
+    expect(adapter.requests, hasLength(2));
+    expect(adapter.requests[0].path, Endpoints.authRegister);
+    expect(adapter.requests[0].authorization, isNull);
+    expect(adapter.requests[1].path, Endpoints.authMe);
+    expect(adapter.requests[1].authorization, 'Bearer register-access');
     expect(tokenStorage.accessToken, 'register-access');
     expect(tokenStorage.refreshToken, 'register-refresh');
   });

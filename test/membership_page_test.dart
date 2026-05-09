@@ -318,7 +318,7 @@ void main() {
         _OrderTrackingMembershipRepository(
       plans: const <MembershipPlan>[
         MembershipPlan(
-          title: 'No Code Plan',
+          title: 'No Code Monthly',
           price: 'USD 9.99 / month',
           perks: 'Plan without code',
         ),
@@ -326,7 +326,7 @@ void main() {
     );
 
     await pumpMembershipPage(tester, repository: repository);
-    await dragUntilTextVisible(tester, 'Membership Plans');
+    await dragUntilTextVisible(tester, 'No Code Monthly');
 
     await tapFirstBuyNow(tester);
 

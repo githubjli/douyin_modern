@@ -9,6 +9,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/auth/token_storage.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/api_error_classifier.dart';
 import '../../core/network/endpoints.dart';
 import '../home/domain/home_models.dart';
 
@@ -69,7 +70,7 @@ class VideoDetailPage extends StatefulWidget {
 }
 
 class _VideoDetailPageState extends State<VideoDetailPage> {
-  late final ApiClient _apiClient;
+  late ApiClient _apiClient;
   late HomeVideoItem _video;
   VideoPlayerController? _videoController;
   String? _controllerVideoUrl;
@@ -78,6 +79,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   bool _initializingVideo = false;
   bool _videoInitializationFailed = false;
   bool _videoPlaying = false;
+  bool _detailAuthDenied = false;
 
   @override
   void initState() {
@@ -91,12 +93,23 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     }
   }
 
+  @override
+  void didUpdateWidget(covariant VideoDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.apiClient != widget.apiClient) {
+      _apiClient = widget.apiClient ?? ApiClient();
+      if (widget.loadRemoteDetail) {
+        _loadDetail();
+      }
+    }
+  }
+
   Future<void> _loadSignedInState() async {
     try {
       final bool isSignedIn = widget.signedInFuture != null
           ? await widget.signedInFuture!
           : await _hasAccessToken();
-      if (!mounted) return;
+      if (!mounted || _detailAuthDenied) return;
       setState(() {
         _isSignedIn = isSignedIn;
       });
@@ -123,21 +136,57 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         _detailPath(widget.video.id),
         authenticated: true,
       );
-      final HomeVideoItem? detail = _mapDetail(response.data, widget.video);
+      final HomeVideoItem detail = _mapDetail(response.data, _video);
       if (!mounted) return;
       setState(() {
-        _video = detail ?? widget.video;
+        _detailAuthDenied = false;
+        _video = detail;
         _loadingDetail = false;
       });
       unawaited(_syncVideoController());
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _video = widget.video;
-        _loadingDetail = false;
-      });
-      unawaited(_syncVideoController());
+      if (isAuthDeniedError(error)) {
+        setState(() {
+          _detailAuthDenied = true;
+          _video = _lockedForAuthDenied(_video);
+          _isSignedIn = false;
+          _loadingDetail = false;
+        });
+        unawaited(_syncVideoController());
+        return;
+      }
+      if (isTransientError(error)) {
+        setState(() {
+          _loadingDetail = false;
+        });
+      }
     }
+  }
+
+  HomeVideoItem _lockedForAuthDenied(HomeVideoItem video) {
+    final String? accessType = video.accessType ?? widget.video.accessType;
+    final bool isMembershipVideo =
+        accessType?.trim().toLowerCase() == 'membership';
+    if (!isMembershipVideo) return video;
+    return HomeVideoItem(
+      id: video.id,
+      title: video.title,
+      subtitle: video.subtitle,
+      thumbnailUrl: video.thumbnailUrl,
+      videoUrl: video.videoUrl,
+      description: video.description,
+      ownerName: video.ownerName,
+      viewCount: video.viewCount,
+      category: video.category,
+      categoryName: video.categoryName,
+      createdAt: video.createdAt,
+      accessType: accessType,
+      previewSeconds: video.previewSeconds,
+      canWatch: false,
+      isLocked: true,
+      lockReason: video.lockReason ?? 'auth_required',
+    );
   }
 
   Future<void> _syncVideoController() async {
@@ -321,8 +370,10 @@ String _detailPath(String id) {
   return '${Endpoints.publicVideos}${Uri.encodeComponent(id)}/';
 }
 
-HomeVideoItem? _mapDetail(dynamic data, HomeVideoItem fallback) {
-  if (data is! Map<String, dynamic>) return null;
+HomeVideoItem _mapDetail(dynamic data, HomeVideoItem fallback) {
+  if (data is! Map<String, dynamic>) {
+    throw const FormatException('Invalid video detail response');
+  }
   final String title = _str(data['title']) ?? fallback.title;
   final String owner = _videoOwnerName(data) ?? fallback.ownerName ?? '';
   final int? views = _int(data['view_count']) ?? fallback.viewCount;

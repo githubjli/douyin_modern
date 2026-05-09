@@ -1,5 +1,5 @@
 import 'home_models.dart';
 
 abstract class HomeRepository {
-  Future<HomePortalData> getHomePortalData();
+  Future<HomePortalData> getHomePortalData({bool authenticated = false});
 }

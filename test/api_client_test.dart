@@ -108,6 +108,67 @@ void main() {
     expect(tokenStorage.refreshToken, 'existing-refresh');
   });
 
+  test('auth login trailing slash 401 does not refresh or clear tokens', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'existing-access',
+      refreshToken: 'existing-refresh',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.post<Map<String, dynamic>>(
+        '${Endpoints.authLogin}/',
+        data: <String, dynamic>{'email': 'meow@example.com'},
+        authenticated: true,
+      ),
+      throwsA(isA<ApiError>().having(
+        (ApiError error) => error.statusCode,
+        'statusCode',
+        401,
+      )),
+    );
+
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, '${Endpoints.authLogin}/');
+    expect(tokenStorage.accessToken, 'existing-access');
+    expect(tokenStorage.refreshToken, 'existing-refresh');
+  });
+
+  test('auth login absolute URL with query 401 does not refresh or clear tokens',
+      () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'existing-access',
+      refreshToken: 'existing-refresh',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+    const String absoluteLoginUrl =
+        'https://example.com${Endpoints.authLogin}/?foo=bar';
+
+    await expectLater(
+      client.post<Map<String, dynamic>>(
+        absoluteLoginUrl,
+        data: <String, dynamic>{'email': 'meow@example.com'},
+        authenticated: true,
+      ),
+      throwsA(isA<ApiError>().having(
+        (ApiError error) => error.statusCode,
+        'statusCode',
+        401,
+      )),
+    );
+
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, absoluteLoginUrl);
+    expect(tokenStorage.accessToken, 'existing-access');
+    expect(tokenStorage.refreshToken, 'existing-refresh');
+  });
+
   test('auth register success does not use refresh flow and saves tokens',
       () async {
     final _FakeTokenStorage tokenStorage = _FakeTokenStorage();
@@ -139,6 +200,36 @@ void main() {
     expect(adapter.requests.single.authorization, isNull);
     expect(tokenStorage.accessToken, 'register-access');
     expect(tokenStorage.refreshToken, 'register-refresh');
+  });
+
+  test('auth register 401 does not call refresh endpoint or clear tokens',
+      () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'existing-access',
+      refreshToken: 'existing-refresh',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.post<Map<String, dynamic>>(
+        Endpoints.authRegister,
+        data: <String, dynamic>{'email': 'new@example.com'},
+        authenticated: true,
+      ),
+      throwsA(isA<ApiError>().having(
+        (ApiError error) => error.statusCode,
+        'statusCode',
+        401,
+      )),
+    );
+
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, Endpoints.authRegister);
+    expect(tokenStorage.accessToken, 'existing-access');
+    expect(tokenStorage.refreshToken, 'existing-refresh');
   });
 
   test('auth refresh endpoint 401 does not recursively refresh', () async {
@@ -226,6 +317,96 @@ void main() {
     expect(adapter.requests, hasLength(2));
     expect(tokenStorage.accessToken, isNull);
     expect(tokenStorage.refreshToken, isNull);
+  });
+
+  test('401 then refresh 401 clears tokens and throws original 401', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'expired-access',
+      refreshToken: 'refresh-1',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+      _QueuedResponse.unauthorized(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.get<Map<String, dynamic>>('/api/private', authenticated: true),
+      throwsA(
+        isA<ApiError>()
+            .having((ApiError error) => error.statusCode, 'statusCode', 401)
+            .having((ApiError error) => error.message, 'message', 'Unauthorized'),
+      ),
+    );
+
+    expect(adapter.requests, hasLength(2));
+    expect(
+      adapter.requests.where(
+        (_RecordedRequest request) => request.path == Endpoints.authRefresh,
+      ),
+      hasLength(1),
+    );
+    expect(tokenStorage.accessToken, isNull);
+    expect(tokenStorage.refreshToken, isNull);
+  });
+
+  test('401 then refresh 403 clears tokens and throws original 401', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'expired-access',
+      refreshToken: 'refresh-1',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+      _QueuedResponse.error(403, <String, dynamic>{'detail': 'Forbidden'}),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.get<Map<String, dynamic>>('/api/private', authenticated: true),
+      throwsA(
+        isA<ApiError>()
+            .having((ApiError error) => error.statusCode, 'statusCode', 401)
+            .having((ApiError error) => error.message, 'message', 'Unauthorized'),
+      ),
+    );
+
+    expect(adapter.requests, hasLength(2));
+    expect(
+      adapter.requests.where(
+        (_RecordedRequest request) => request.path == Endpoints.authRefresh,
+      ),
+      hasLength(1),
+    );
+    expect(tokenStorage.accessToken, isNull);
+    expect(tokenStorage.refreshToken, isNull);
+  });
+
+  test('401 then refresh network error does not clear tokens or retry',
+      () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'expired-access',
+      refreshToken: 'refresh-1',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+      _QueuedResponse.networkError(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.get<Map<String, dynamic>>('/api/private', authenticated: true),
+      throwsA(isA<ApiError>().having(
+        (ApiError error) => error.statusCode,
+        'statusCode',
+        isNull,
+      )),
+    );
+
+    expect(adapter.requests, hasLength(2));
+    expect(adapter.requests[0].path, '/api/private');
+    expect(adapter.requests[1].path, Endpoints.authRefresh);
+    expect(tokenStorage.accessToken, 'expired-access');
+    expect(tokenStorage.refreshToken, 'refresh-1');
   });
 
   test('401 then refresh server error does not clear tokens', () async {

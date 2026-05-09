@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
+import '../domain/membership_order.dart';
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
 import '../domain/membership_status.dart';
@@ -14,6 +15,47 @@ class RemoteMembershipRepository implements MembershipRepository {
   Future<List<MembershipPlan>> getPlans() async {
     final response = await _apiClient.get<dynamic>(Endpoints.membershipPlans);
     return _rows(response.data).map(_mapPlan).toList();
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.membershipOrders,
+      data: <String, dynamic>{'plan_code': planCode},
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) async {
+    final response = await _apiClient.get<dynamic>(
+      Endpoints.membershipOrderDetail(orderNo),
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.membershipOrderTxHint(orderNo),
+      data: <String, dynamic>{'txid': txid},
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.membershipOrderVerifyNow(orderNo),
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
   }
 
   @override
@@ -81,6 +123,13 @@ class RemoteMembershipRepository implements MembershipRepository {
         normalizedStatus == 'trial';
   }
 
+  MembershipOrder _mapOrderResponse(dynamic data) {
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid membership order response');
+    }
+    return MembershipOrder.fromJson(data);
+  }
+
   MembershipPlan _mapPlan(Map<String, dynamic> data) {
     final String id = _nonEmptyStr(data['id']) ?? '';
     final String title = _nonEmptyStr(data['title']) ??
@@ -88,29 +137,63 @@ class RemoteMembershipRepository implements MembershipRepository {
         'Membership';
     return MembershipPlan(
       id: id.isEmpty ? null : id,
+      code: _planCode(data, id),
       title: title,
       price: _price(data),
       perks: _perks(data),
+      durationDays: _int(data['duration_days']),
+      settlementBlockchain: _settlementStr(data, 'blockchain'),
+      settlementTokenName: _settlementStr(data, 'token_name'),
+      settlementTokenSymbol: _settlementStr(data, 'token_symbol'),
+      settlementTokenPeg: _settlementStr(data, 'token_peg'),
     );
   }
 
+  String? _planCode(Map<String, dynamic> data, String id) {
+    return _nonEmptyStr(data['code']) ??
+        _nonEmptyStr(data['plan_code']) ??
+        _nonEmptyStr(data['slug']) ??
+        (id.isEmpty ? null : id);
+  }
+
   String _price(Map<String, dynamic> data) {
-    final String? amount = _nonEmptyStr(data['amount']) ??
+    final String? amount = _nonEmptyStr(data['price_lbc']) ??
+        _nonEmptyStr(data['amount']) ??
         _nonEmptyStr(data['price']) ??
         _nonEmptyStr(data['price_amount']);
-    final String? currency =
-        _nonEmptyStr(data['currency']) ?? _nonEmptyStr(data['price_currency']);
+    final String? currency = _settlementStr(data, 'token_symbol') ??
+        _nonEmptyStr(data['currency']) ??
+        _nonEmptyStr(data['price_currency']);
+    final int? durationDays = _int(data['duration_days']);
     final String? interval = _nonEmptyStr(data['interval']) ??
         _nonEmptyStr(data['billing_interval']);
 
     if (amount == null) return 'Price unavailable';
 
+    final bool usesMembershipPlanShape =
+        data.containsKey('price_lbc') || data.containsKey('duration_days');
+    final String formattedAmount = _formatAmount(amount);
     final StringBuffer price = StringBuffer();
+
+    if (usesMembershipPlanShape) {
+      price.write(formattedAmount);
+      if (currency != null && currency.trim().isNotEmpty) {
+        price.write(' ');
+        price.write(currency.trim());
+      }
+      if (durationDays != null) {
+        price.write(' / ');
+        price.write(durationDays);
+        price.write(durationDays == 1 ? ' day' : ' days');
+      }
+      return price.toString();
+    }
+
     if (currency != null && currency.trim().isNotEmpty) {
       price.write(currency.trim());
       price.write(' ');
     }
-    price.write(amount.trim());
+    price.write(formattedAmount);
     if (interval != null && interval.trim().isNotEmpty) {
       price.write(' / ');
       price.write(interval.trim());
@@ -139,9 +222,28 @@ class RemoteMembershipRepository implements MembershipRepository {
     return null;
   }
 
+  String? _settlementStr(Map<String, dynamic> data, String key) {
+    return _nestedStr(data['settlement'], key);
+  }
+
   String? _nestedStr(dynamic value, String key) {
     if (value is Map<String, dynamic>) return _nonEmptyStr(value[key]);
     return null;
+  }
+
+  int? _int(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  String _formatAmount(String amount) {
+    final String trimmed = amount.trim();
+    if (!trimmed.contains('.')) return trimmed;
+    return trimmed
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   String? _nonEmptyStr(dynamic value) {

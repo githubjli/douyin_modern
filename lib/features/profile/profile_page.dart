@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
@@ -7,50 +8,44 @@ import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_error.dart';
 import '../../shared/brand_page_header.dart';
-import '../auth/data/remote_auth_repository.dart';
-import '../auth/domain/auth_repository.dart';
-import '../auth/domain/auth_session.dart';
+import '../auth/application/auth_providers.dart';
+import '../auth/application/auth_state.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
 
-class ProfilePage extends StatefulWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({
     super.key,
-    AuthRepository? authRepository,
     ProfileRepository? profileRepository,
-  })  : _authRepository = authRepository,
-        _profileRepository = profileRepository;
+  }) : _profileRepository = profileRepository;
 
-  final AuthRepository? _authRepository;
   final ProfileRepository? _profileRepository;
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
-  late final AuthRepository _authRepository;
+class _ProfilePageState extends ConsumerState<ProfilePage> {
   late final ProfileRepository _profileRepository;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _loading = true;
+  bool _loadingProfile = false;
   bool _loggingIn = false;
   String? _error;
-  AuthSession? _session;
   UserProfile? _profile;
 
   @override
   void initState() {
     super.initState();
     final ApiClient apiClient = ApiClient();
-    _authRepository = widget._authRepository ??
-        RemoteAuthRepository(apiClient: apiClient);
     _profileRepository = widget._profileRepository ??
         RemoteProfileRepository(apiClient: apiClient);
-    _loadSession();
+    Future<void>.microtask(() {
+      ref.read(authControllerProvider.notifier).bootstrap();
+    });
   }
 
   @override
@@ -60,46 +55,39 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  Future<void> _loadSession() async {
+  Future<void> _loadProfile() async {
     setState(() {
-      _loading = true;
+      _loadingProfile = true;
       _error = null;
     });
 
     try {
-      final AuthSession session = await _authRepository.getCurrentSession();
-      if (session.isSignedIn) {
-        final UserProfile profile = await _profileRepository.getCurrentProfile();
-        if (!mounted) return;
-        setState(() {
-          _session = session;
-          _profile = profile;
-        });
-      } else {
-        if (!mounted) return;
-        setState(() {
-          _session = session;
-          _profile = null;
-        });
-      }
+      final UserProfile profile = await _profileRepository.getCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+      });
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {
-        _session = const AuthSession(isSignedIn: false, userId: null, displayName: 'Guest');
-        _profile = null;
         _error = _friendlyAuthError(e.message);
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _session = const AuthSession(isSignedIn: false, userId: null, displayName: 'Guest');
-        _profile = null;
         _error = 'Unable to load profile right now.';
       });
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() => _loadingProfile = false);
       }
+    }
+  }
+
+  Future<void> _refreshProfile() async {
+    await ref.read(authControllerProvider.notifier).bootstrap();
+    if (ref.read(authControllerProvider).status == AuthStatus.signedIn) {
+      await _loadProfile();
     }
   }
 
@@ -109,17 +97,14 @@ class _ProfilePageState extends State<ProfilePage> {
       _error = null;
     });
     try {
-      await _authRepository.login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      await _loadSession();
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      setState(() => _error = _friendlyAuthError(e.message));
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _error = 'Login failed. Please try again.');
+      await ref.read(authControllerProvider.notifier).login(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
+      final AuthState authState = ref.read(authControllerProvider);
+      if (authState.isSignedIn) {
+        _passwordController.clear();
+      }
     } finally {
       if (mounted) {
         setState(() => _loggingIn = false);
@@ -128,10 +113,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _logout() async {
-    await _authRepository.logout();
+    await ref.read(authControllerProvider.notifier).logout();
     if (!mounted) return;
     setState(() {
-      _session = const AuthSession(isSignedIn: false, userId: null, displayName: 'Guest');
       _profile = null;
       _error = null;
       _emailController.clear();
@@ -139,36 +123,68 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  void _handleAuthState(AuthState authState) {
+    if (!mounted) return;
+    if (authState.status == AuthStatus.signedOut) {
+      setState(() {
+        _profile = null;
+        _error = null;
+        _emailController.clear();
+        _passwordController.clear();
+        _loadingProfile = false;
+      });
+      return;
+    }
+
+    if (authState.status == AuthStatus.error) {
+      setState(() {
+        _error = authState.message;
+      });
+    }
+
+    if (authState.isSignedIn && !_loadingProfile && _profile == null) {
+      _loadProfile();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool isSignedIn = _session?.isSignedIn == true;
+    ref.listen<AuthState>(authControllerProvider, (_, AuthState next) {
+      _handleAuthState(next);
+    });
+    final AuthState authState = ref.watch(authControllerProvider);
+    final bool isSignedIn = authState.isSignedIn;
+    final bool isChecking = authState.isChecking;
 
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
-          if (_loading || isSignedIn) ...<Widget>[
+          if (isChecking || isSignedIn) ...<Widget>[
             const BrandPageHeader(title: 'Profile'),
             const SizedBox(height: AppSpacing.md),
           ],
-          if (_loading)
-            const _WarmCard(title: 'Loading', subtitle: 'Checking your session...')
+          if (isChecking)
+            const _WarmCard(
+              title: 'Loading',
+              subtitle: 'Checking your session...',
+            )
           else if (isSignedIn)
             _SignedInProfileCard(
               profile: _profile,
               onLogout: _logout,
-              onRefresh: _loadSession,
+              onRefresh: _refreshProfile,
             )
           else
             _GuestProfileCard(
               emailController: _emailController,
               passwordController: _passwordController,
               loggingIn: _loggingIn,
-              error: _error,
+              error: _error ?? authState.message,
               onLogin: _login,
               onSignUp: _showSignUpPlaceholder,
             ),
-          if (_error != null && (_loading || isSignedIn)) ...<Widget>[
+          if (_error != null && (isChecking || isSignedIn)) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
             _WarmCard(title: 'Notice', subtitle: _error!),
           ],

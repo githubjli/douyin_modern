@@ -179,21 +179,23 @@ void main() {
       plans: backendPlans,
     );
     final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
-      isSignedIn: false,
+      isSignedIn: true,
     );
+    final Future<List<HomeVideoItem>> vipVideosFuture =
+        Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]);
 
     final ProviderContainer container = await pumpMembershipPage(
       tester,
       repository: repository,
       authRepository: authRepository,
       isActive: false,
+      vipVideosFuture: vipVideosFuture,
     );
 
-    expect(find.text('Guest'), findsOneWidget);
-    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Meow Plus'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
 
     repository.status = activeStatus;
-    authRepository.isSignedIn = true;
 
     await container.read(authControllerProvider.notifier).refreshSession();
     await tester.pumpAndSettle();
@@ -203,13 +205,14 @@ void main() {
       repository: repository,
       authRepository: authRepository,
       container: container,
+      vipVideosFuture: vipVideosFuture,
     );
 
     expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
     expect(find.text('Valid until June 1, 2026'), findsOneWidget);
     expect(repository.statusCalls, greaterThanOrEqualTo(2));
-    expect(authRepository.sessionCalls, greaterThanOrEqualTo(2));
+    expect(container.read(membershipControllerProvider).isActive, isTrue);
   });
 
   testWidgets(

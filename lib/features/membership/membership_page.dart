@@ -203,6 +203,45 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
     }
     if (_creatingOrderPlanCode != null) return;
 
+    final MembershipOrder? order = await _showSubscribeConfirmationSheet(
+      plan: plan,
+      planCode: planCode,
+    );
+    if (!mounted || order == null) return;
+
+    await _showPaymentSheet(order);
+  }
+
+  Future<MembershipOrder?> _showSubscribeConfirmationSheet({
+    required MembershipPlan plan,
+    required String planCode,
+  }) {
+    return showModalBottomSheet<MembershipOrder>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext sheetContext) {
+        final NavigatorState sheetNavigator = Navigator.of(sheetContext);
+        return _SubscribeConfirmationSheet(
+          plan: plan,
+          onCancel: () => sheetNavigator.pop(),
+          onConfirm: () => _createOrderFromConfirmation(
+            sheetNavigator: sheetNavigator,
+            planCode: planCode,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _createOrderFromConfirmation({
+    required NavigatorState sheetNavigator,
+    required String planCode,
+  }) async {
+    if (_creatingOrderPlanCode != null) return false;
+
     setState(() {
       _creatingOrderPlanCode = planCode;
     });
@@ -211,17 +250,21 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
       final MembershipOrder order = await _repository.createOrder(
         planCode: planCode,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _creatingOrderPlanCode = null;
       });
-      await _showPaymentSheet(order);
+      if (sheetNavigator.mounted) {
+        sheetNavigator.pop(order);
+      }
+      return true;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _creatingOrderPlanCode = null;
       });
       _showMessage('Unable to create order. Please try again later.');
+      return false;
     }
   }
 
@@ -933,6 +976,119 @@ class _VipGradient extends StatelessWidget {
         Icons.workspace_premium,
         color: AppColors.brandGold.withValues(alpha: 0.55),
         size: 36,
+      ),
+    );
+  }
+}
+
+class _SubscribeConfirmationSheet extends StatefulWidget {
+  const _SubscribeConfirmationSheet({
+    required this.plan,
+    required this.onCancel,
+    required this.onConfirm,
+  });
+
+  final MembershipPlan plan;
+  final VoidCallback onCancel;
+  final Future<bool> Function() onConfirm;
+
+  @override
+  State<_SubscribeConfirmationSheet> createState() =>
+      _SubscribeConfirmationSheetState();
+}
+
+class _SubscribeConfirmationSheetState
+    extends State<_SubscribeConfirmationSheet> {
+  bool _creating = false;
+
+  Future<void> _handleConfirm() async {
+    if (_creating) return;
+
+    setState(() {
+      _creating = true;
+    });
+
+    final bool created = await widget.onConfirm();
+    if (!mounted || created) return;
+
+    setState(() {
+      _creating = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Confirm subscription',
+              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.warmBackground,
+                border: Border.all(color: AppColors.softBorder),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    widget.plan.title,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    _displayPrice(widget.plan.price),
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.brandGold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    widget.plan.perks,
+                    style: AppTextStyles.body.copyWith(
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _OutlineGoldButton(
+                    label: 'Cancel',
+                    onTap: _creating ? null : widget.onCancel,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: _GoldButton(
+                    label: _creating
+                        ? 'Creating...'
+                        : 'Confirm and create order',
+                    onTap: _creating ? null : _handleConfirm,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

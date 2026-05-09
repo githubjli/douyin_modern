@@ -150,7 +150,9 @@ void main() {
     final Finder planCard = find
         .ancestor(
           of: find.text(planTitle),
-          matching: find.byType(Container),
+          matching: find.byWidgetPredicate(
+            (Widget widget) => widget.runtimeType.toString() == '_PlanCard',
+          ),
         )
         .first;
     final Finder action = find.descendant(
@@ -301,7 +303,7 @@ void main() {
     expect(repository.createOrderCalls, 0);
   });
 
-  testWidgets('signed-in Buy Now creates order and shows payment sheet',
+  testWidgets('signed-in Buy Now shows confirmation without creating order',
       (WidgetTester tester) async {
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
@@ -330,8 +332,51 @@ void main() {
 
     await tapFirstBuyNow(tester);
 
+    expect(repository.createOrderCalls, 0);
+    expect(find.text('Confirm subscription'), findsOneWidget);
+    expect(find.text('Monthly'), findsWidgets);
+    expect(find.text('USD 9.99 / month'), findsWidgets);
+    expect(find.text('Monthly perks'), findsWidgets);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Confirm and create order'), findsOneWidget);
+    expect(find.text('Complete payment'), findsNothing);
+  });
+
+  testWidgets('confirm creates order and shows payment sheet',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+      order: const MembershipOrder(
+        orderNo: 'order-100',
+        status: 'pending',
+        planCode: 'monthly',
+        planTitle: 'Monthly',
+        expectedAmountLbc: '12.5',
+        currency: 'LBC',
+        payToAddress: 'lbc-address-100',
+        expiresAt: '2026-06-01T00:00:00Z',
+      ),
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    await tapFirstBuyNow(tester);
+    expect(repository.createOrderCalls, 0);
+
+    await tapSheetAction(tester, 'Confirm and create order');
+
     expect(repository.createOrderCalls, 1);
     expect(repository.createdPlanCodes, <String>['monthly']);
+    expect(find.text('Confirm subscription'), findsNothing);
     expect(find.text('Complete payment'), findsOneWidget);
     expect(find.text('Monthly (monthly)'), findsOneWidget);
     expect(find.text('order-100'), findsOneWidget);
@@ -339,6 +384,33 @@ void main() {
     expect(find.text('lbc-address-100'), findsOneWidget);
     expect(find.text('pending'), findsOneWidget);
     expect(find.text('2026-06-01T00:00:00Z'), findsOneWidget);
+  });
+
+  testWidgets('cancel confirmation does not create order',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    await tapFirstBuyNow(tester);
+    expect(find.text('Confirm subscription'), findsOneWidget);
+
+    await tapSheetAction(tester, 'Cancel');
+
+    expect(repository.createOrderCalls, 0);
+    expect(find.text('Confirm subscription'), findsNothing);
+    expect(find.text('Complete payment'), findsNothing);
   });
 
   testWidgets('missing plan code shows error without creating order',
@@ -389,11 +461,17 @@ void main() {
     await dragUntilTextVisible(tester, 'Membership Plans');
     await tapFirstBuyNow(tester);
 
+    expect(repository.createOrderCalls, 0);
+    expect(find.text('Confirm subscription'), findsOneWidget);
+
+    await tapSheetAction(tester, 'Confirm and create order');
+
     expect(repository.createOrderCalls, 1);
     expect(
       find.text('Unable to create order. Please try again later.'),
       findsOneWidget,
     );
+    expect(find.text('Complete payment'), findsNothing);
     expect(find.text('Not subscribed'), findsOneWidget);
     expect(find.text('Member'), findsNothing);
   });
@@ -422,6 +500,7 @@ void main() {
     await pumpMembershipPage(tester, repository: repository);
     await dragUntilTextVisible(tester, 'Membership Plans');
     await tapFirstBuyNow(tester);
+    await tapSheetAction(tester, 'Confirm and create order');
 
     await tapSheetAction(tester, 'Copy address');
     expect(find.text('Address copied'), findsOneWidget);
@@ -461,6 +540,7 @@ void main() {
     expect(find.text('Not subscribed'), findsOneWidget);
     await dragUntilTextVisible(tester, 'Membership Plans');
     await tapFirstBuyNow(tester);
+    await tapSheetAction(tester, 'Confirm and create order');
 
     expect(find.text('overpaid'), findsOneWidget);
     expect(find.text('Not subscribed'), findsOneWidget);

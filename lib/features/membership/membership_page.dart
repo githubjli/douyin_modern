@@ -55,6 +55,8 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
   bool _refreshing = false;
   String? _creatingOrderPlanCode;
   late final ProviderSubscription<AuthState> _authSubscription;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _activeCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -73,7 +75,18 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
   @override
   void dispose() {
     _authSubscription.close();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToActiveCard() {
+    final BuildContext? cardContext = _activeCardKey.currentContext;
+    if (cardContext == null) return;
+    Scrollable.ensureVisible(
+      cardContext,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -295,6 +308,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
 
     return SafeArea(
       child: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           AppSpacing.md,
@@ -310,8 +324,16 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
               status: status,
               isSignedIn: isSignedIn,
               onSignInPressed: widget.onSignInPressed,
+              onManagePressed: status != null ? _scrollToActiveCard : null,
             ),
             const SizedBox(height: AppSpacing.md),
+            if (status != null) ...<Widget>[
+              _ActiveMembershipCard(
+                key: _activeCardKey,
+                status: status,
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             _PlanSection(
               plansFuture: _plansFuture,
               status: status,
@@ -404,11 +426,13 @@ class _VipHeroCard extends StatelessWidget {
     required this.status,
     required this.isSignedIn,
     required this.onSignInPressed,
+    this.onManagePressed,
   });
 
   final MembershipStatus? status;
   final bool isSignedIn;
   final VoidCallback? onSignInPressed;
+  final VoidCallback? onManagePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -529,7 +553,99 @@ class _VipHeroCard extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           _GoldButton(
             label: cta,
-            onTap: !isSignedIn ? onSignInPressed : null,
+            onTap: !isSignedIn
+                ? onSignInPressed
+                : isActive
+                    ? onManagePressed
+                    : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveMembershipCard extends StatelessWidget {
+  const _ActiveMembershipCard({super.key, required this.status});
+
+  final MembershipStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.46)),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(
+                Icons.workspace_premium_rounded,
+                color: AppColors.brandGold,
+                size: 18,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'Active Membership',
+                style: AppTextStyles.cardTitle.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _InfoRow(label: 'Plan', value: status.planTitle),
+          if (status.startsAt != null)
+            _InfoRow(
+              label: 'Started',
+              value: _validUntilLabel(status.startsAt),
+            ),
+          if (status.endsAt != null)
+            _InfoRow(
+              label: 'Renews / Expires',
+              value: _validUntilLabel(status.endsAt),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xxs),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(fontSize: 12),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.body.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -1222,21 +1338,27 @@ void _openMembershipVideoDetail(
 const List<MembershipPlan> _placeholderPlans = <MembershipPlan>[
   MembershipPlan(
     id: 'placeholder-monthly',
+    code: 'monthly',
     title: 'Monthly',
     price: 'THB 99 / month',
     perks: 'Flexible access',
+    durationDays: 30,
   ),
   MembershipPlan(
     id: 'placeholder-quarterly',
+    code: 'quarterly',
     title: 'Quarterly',
     price: 'THB 259 / quarter',
     perks: 'Popular choice',
+    durationDays: 90,
   ),
   MembershipPlan(
     id: 'placeholder-yearly',
+    code: 'yearly',
     title: 'Yearly',
     price: 'THB 899 / year',
     perks: 'Best value',
+    durationDays: 365,
   ),
 ];
 

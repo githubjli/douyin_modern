@@ -10,6 +10,7 @@ import '../../core/network/api_error.dart';
 import '../../shared/brand_page_header.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
+import '../membership/membership_orders_page.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -460,6 +461,8 @@ class _SignedInProfileCard extends StatelessWidget {
           Text('Wallet linked: ${profile?.walletLinked == true ? 'Yes' : 'No'}', style: AppTextStyles.caption),
           Text('Wallet: ${profile?.walletAddress ?? '-'}', style: AppTextStyles.caption),
           const SizedBox(height: AppSpacing.md),
+          _MembershipOrdersEntry(),
+          const SizedBox(height: AppSpacing.sm),
           Row(
             children: <Widget>[
               Expanded(
@@ -478,6 +481,52 @@ class _SignedInProfileCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MembershipOrdersEntry extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      onTap: () => Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => const MembershipOrdersPage(),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.warmBackground,
+          border: Border.all(color: AppColors.softBorder),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        ),
+        child: Row(
+          children: <Widget>[
+            const Icon(
+              Icons.workspace_premium_outlined,
+              color: AppColors.brandGold,
+              size: 18,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                'Membership & Orders',
+                style: AppTextStyles.body.copyWith(fontSize: 13),
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.cocoaText,
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }

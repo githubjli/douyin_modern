@@ -8,6 +8,7 @@ import 'package:meow_media/core/auth/token_storage.dart';
 import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/core/network/endpoints.dart';
+import 'package:meow_media/features/auth/data/remote_auth_repository.dart';
 
 void main() {
   test('authenticated request with access token sends Authorization header',
@@ -38,6 +39,135 @@ void main() {
 
     expect(adapter.requests, hasLength(1));
     expect(adapter.requests.single.authorization, isNull);
+  });
+
+  test('auth login success does not use refresh flow and saves tokens', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'old-access',
+      refreshToken: 'old-refresh',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.ok(<String, dynamic>{
+        'user': <String, dynamic>{
+          'id': 'user-1',
+          'display_name': 'Meow User',
+        },
+        'access_token': 'login-access',
+        'refresh_token': 'login-refresh',
+      }),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+    final RemoteAuthRepository repository = RemoteAuthRepository(
+      apiClient: client,
+      tokenStorage: tokenStorage,
+    );
+
+    final session = await repository.login(
+      email: 'meow@example.com',
+      password: 'secret',
+    );
+
+    expect(session.isSignedIn, isTrue);
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, Endpoints.authLogin);
+    expect(adapter.requests.single.authorization, isNull);
+    expect(adapter.requests.single.data, <String, dynamic>{
+      'email': 'meow@example.com',
+      'password': 'secret',
+    });
+    expect(tokenStorage.accessToken, 'login-access');
+    expect(tokenStorage.refreshToken, 'login-refresh');
+  });
+
+  test('auth login 401 does not call refresh endpoint or clear tokens', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'existing-access',
+      refreshToken: 'existing-refresh',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+    final RemoteAuthRepository repository = RemoteAuthRepository(
+      apiClient: client,
+      tokenStorage: tokenStorage,
+    );
+
+    await expectLater(
+      repository.login(email: 'meow@example.com', password: 'bad-secret'),
+      throwsA(isA<ApiError>().having(
+        (ApiError error) => error.statusCode,
+        'statusCode',
+        401,
+      )),
+    );
+
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, Endpoints.authLogin);
+    expect(tokenStorage.accessToken, 'existing-access');
+    expect(tokenStorage.refreshToken, 'existing-refresh');
+  });
+
+  test('auth register success does not use refresh flow and saves tokens',
+      () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage();
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.ok(<String, dynamic>{
+        'user': <String, dynamic>{
+          'id': 'user-2',
+          'display_name': 'New User',
+        },
+        'access': 'register-access',
+        'refresh': 'register-refresh',
+      }),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+    final RemoteAuthRepository repository = RemoteAuthRepository(
+      apiClient: client,
+      tokenStorage: tokenStorage,
+    );
+
+    final session = await repository.register(
+      email: 'new@example.com',
+      password: 'secret',
+      displayName: 'New User',
+    );
+
+    expect(session.isSignedIn, isTrue);
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, Endpoints.authRegister);
+    expect(adapter.requests.single.authorization, isNull);
+    expect(tokenStorage.accessToken, 'register-access');
+    expect(tokenStorage.refreshToken, 'register-refresh');
+  });
+
+  test('auth refresh endpoint 401 does not recursively refresh', () async {
+    final _FakeTokenStorage tokenStorage = _FakeTokenStorage(
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+    );
+    final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
+      _QueuedResponse.unauthorized(),
+    ]);
+    final ApiClient client = _client(adapter, tokenStorage);
+
+    await expectLater(
+      client.post<Map<String, dynamic>>(
+        Endpoints.authRefresh,
+        data: <String, dynamic>{'refresh': 'refresh-1'},
+        authenticated: true,
+      ),
+      throwsA(isA<ApiError>().having(
+        (ApiError error) => error.statusCode,
+        'statusCode',
+        401,
+      )),
+    );
+
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, Endpoints.authRefresh);
+    expect(tokenStorage.accessToken, 'access-1');
+    expect(tokenStorage.refreshToken, 'refresh-1');
   });
 
   test('401 then refresh success retries once with new access token', () async {
@@ -126,6 +256,7 @@ void main() {
       ),
       hasLength(1),
     );
+    expect(tokenStorage.refreshToken, 'refresh-1');
   });
 
   test('500 does not refresh or clear tokens', () async {

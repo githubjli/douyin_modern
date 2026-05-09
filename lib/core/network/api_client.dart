@@ -33,7 +33,11 @@ class ApiClient {
         options: options,
       );
     } on DioException catch (error) {
-      if (_shouldRefresh(authenticated: authenticated, error: error)) {
+      if (_shouldRefresh(
+        authenticated: authenticated,
+        path: path,
+        error: error,
+      )) {
         return _refreshAndRetry<T>(
           () async {
             final Options retryOptions = await _buildOptions(
@@ -67,7 +71,11 @@ class ApiClient {
         options: options,
       );
     } on DioException catch (error) {
-      if (_shouldRefresh(authenticated: authenticated, error: error)) {
+      if (_shouldRefresh(
+        authenticated: authenticated,
+        path: path,
+        error: error,
+      )) {
         return _refreshAndRetry<T>(
           () async {
             final Options retryOptions = await _buildOptions(
@@ -104,9 +112,18 @@ class ApiClient {
 
   bool _shouldRefresh({
     required bool authenticated,
+    required String path,
     required DioException error,
   }) {
-    return authenticated && error.response?.statusCode == 401;
+    return authenticated &&
+        error.response?.statusCode == 401 &&
+        !_isAuthEndpoint(path);
+  }
+
+  bool _isAuthEndpoint(String path) {
+    return path == Endpoints.authLogin ||
+        path == Endpoints.authRegister ||
+        path == Endpoints.authRefresh;
   }
 
   Future<Response<T>> _refreshAndRetry<T>(

@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
+import '../domain/membership_order.dart';
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
 import '../domain/membership_status.dart';
@@ -14,6 +15,47 @@ class RemoteMembershipRepository implements MembershipRepository {
   Future<List<MembershipPlan>> getPlans() async {
     final response = await _apiClient.get<dynamic>(Endpoints.membershipPlans);
     return _rows(response.data).map(_mapPlan).toList();
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.membershipOrders,
+      data: <String, dynamic>{'plan_code': planCode},
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) async {
+    final response = await _apiClient.get<dynamic>(
+      Endpoints.membershipOrderDetail(orderNo),
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.membershipOrderTxHint(orderNo),
+      data: <String, dynamic>{'txid': txid},
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.membershipOrderVerifyNow(orderNo),
+      authenticated: true,
+    );
+    return _mapOrderResponse(response.data);
   }
 
   @override
@@ -81,6 +123,13 @@ class RemoteMembershipRepository implements MembershipRepository {
         normalizedStatus == 'trial';
   }
 
+  MembershipOrder _mapOrderResponse(dynamic data) {
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid membership order response');
+    }
+    return MembershipOrder.fromJson(data);
+  }
+
   MembershipPlan _mapPlan(Map<String, dynamic> data) {
     final String id = _nonEmptyStr(data['id']) ?? '';
     final String title = _nonEmptyStr(data['title']) ??
@@ -88,10 +137,18 @@ class RemoteMembershipRepository implements MembershipRepository {
         'Membership';
     return MembershipPlan(
       id: id.isEmpty ? null : id,
+      code: _planCode(data, id),
       title: title,
       price: _price(data),
       perks: _perks(data),
     );
+  }
+
+  String? _planCode(Map<String, dynamic> data, String id) {
+    return _nonEmptyStr(data['code']) ??
+        _nonEmptyStr(data['plan_code']) ??
+        _nonEmptyStr(data['slug']) ??
+        (id.isEmpty ? null : id);
   }
 
   String _price(Map<String, dynamic> data) {

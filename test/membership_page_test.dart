@@ -12,6 +12,7 @@ import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/application/membership_providers.dart';
 import 'package:meow_media/features/membership/application/membership_state.dart';
+import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
@@ -686,6 +687,29 @@ class _MembershipRepositoryFake implements MembershipRepository {
     if (error != null) throw error;
     return status;
   }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
+  }
 }
 
 class _MutableMembershipRepository implements MembershipRepository {
@@ -705,6 +729,29 @@ class _MutableMembershipRepository implements MembershipRepository {
     final Object? error = statusError;
     if (error != null) throw error;
     return status;
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }
 
@@ -808,6 +855,29 @@ class _TrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async {
     called = true;
     return null;
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }
 

@@ -119,6 +119,26 @@ void main() {
     expect(find.text('Logout'), findsOneWidget);
   });
 
+  testWidgets('token-only login flow shows signed-in profile instead of login',
+      (WidgetTester tester) async {
+    final _TokenOnlyLoginAuthRepository authRepository =
+        _TokenOnlyLoginAuthRepository(
+      signedOutSession: signedOutSession,
+      signedInSession: signedInSession,
+    );
+    await pumpProfilePage(tester, authRepository: authRepository);
+
+    await tester.enterText(find.byType(TextField).at(0), 'meow@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'secret');
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+
+    expect(authRepository.loginCalled, isTrue);
+    expect(authRepository.currentSessionCalls, 2);
+    expect(find.text('Profile User'), findsOneWidget);
+    expect(find.text('Sign in to continue'), findsNothing);
+  });
+
   testWidgets('logout calls auth controller and shows guest login card',
       (WidgetTester tester) async {
     final _FakeAuthRepository authRepository = _FakeAuthRepository(
@@ -269,5 +289,52 @@ class _NeverCompletingAuthRepository implements AuthRepository {
     required String displayName,
   }) {
     throw UnimplementedError();
+  }
+}
+
+class _TokenOnlyLoginAuthRepository implements AuthRepository {
+  _TokenOnlyLoginAuthRepository({
+    required this.signedOutSession,
+    required this.signedInSession,
+  }) : _currentSession = signedOutSession;
+
+  final AuthSession signedOutSession;
+  final AuthSession signedInSession;
+  AuthSession _currentSession;
+  bool loginCalled = false;
+  int currentSessionCalls = 0;
+
+  @override
+  Future<AuthSession> getCurrentSession() async {
+    currentSessionCalls += 1;
+    return _currentSession;
+  }
+
+  @override
+  Future<AuthSession> login({
+    required String email,
+    required String password,
+  }) async {
+    loginCalled = true;
+    _currentSession = signedInSession;
+    return getCurrentSession();
+  }
+
+  @override
+  Future<void> logout() async {
+    _currentSession = signedOutSession;
+  }
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    _currentSession = signedInSession;
+    return getCurrentSession();
   }
 }

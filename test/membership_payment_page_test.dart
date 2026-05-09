@@ -48,7 +48,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder _qrBoundaryFinder() {
+  Finder qrBoundaryFinder() {
     return find.byWidgetPredicate(
       (Widget widget) => widget is RepaintBoundary && widget.key != null,
     );
@@ -73,7 +73,7 @@ void main() {
     expect(find.text('THB-LTT'), findsWidgets);
     expect(find.text('Duration: 30 days'), findsOneWidget);
     expect(find.text('Complete the Payment'), findsOneWidget);
-    expect(_qrBoundaryFinder(), findsOneWidget);
+    expect(qrBoundaryFinder(), findsOneWidget);
     expect(find.text('Receiving Address'), findsOneWidget);
     expect(
       find.text('thb-ltt-address-200-long-payment-address'),
@@ -106,7 +106,7 @@ void main() {
     );
 
     expect(find.text('Payment address unavailable'), findsWidgets);
-    expect(_qrBoundaryFinder(), findsNothing);
+    expect(qrBoundaryFinder(), findsNothing);
     expect(find.text('Download QR Code'), findsOneWidget);
   });
 
@@ -153,7 +153,7 @@ void main() {
       },
     );
 
-    expect(_qrBoundaryFinder(), findsOneWidget);
+    expect(qrBoundaryFinder(), findsOneWidget);
     await tapPaymentAction(tester, 'Download QR Code');
     expect(savedKey, isNotNull);
   });

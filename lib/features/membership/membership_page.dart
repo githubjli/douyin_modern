@@ -28,6 +28,8 @@ class MembershipPage extends ConsumerStatefulWidget {
     this.vipVideosFuture,
     this.videoRepository,
     this.isActive = true,
+    this.onSignInPressed,
+    this.onSubscribePressed,
   });
 
   final MembershipRepository? repository;
@@ -36,6 +38,8 @@ class MembershipPage extends ConsumerStatefulWidget {
   final Future<List<HomeVideoItem>>? vipVideosFuture;
   final RemoteHomeRepository? videoRepository;
   final bool isActive;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   ConsumerState<MembershipPage> createState() => _MembershipPageState();
@@ -213,6 +217,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
             _VipHeroCard(
               status: status,
               isSignedIn: isSignedIn,
+              onSignInPressed: widget.onSignInPressed,
             ),
             const SizedBox(height: AppSpacing.md),
             _PlanSection(
@@ -220,7 +225,11 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
               status: status,
             ),
             const SizedBox(height: AppSpacing.md),
-            _ExclusiveSection(videosFuture: _vipVideosFuture),
+            _ExclusiveSection(
+              videosFuture: _vipVideosFuture,
+              onSignInPressed: widget.onSignInPressed,
+              onSubscribePressed: widget.onSubscribePressed,
+            ),
           ],
         ),
       ),
@@ -288,10 +297,15 @@ class _MembershipHeader extends StatelessWidget {
 }
 
 class _VipHeroCard extends StatelessWidget {
-  const _VipHeroCard({required this.status, required this.isSignedIn});
+  const _VipHeroCard({
+    required this.status,
+    required this.isSignedIn,
+    required this.onSignInPressed,
+  });
 
   final MembershipStatus? status;
   final bool isSignedIn;
+  final VoidCallback? onSignInPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +424,10 @@ class _VipHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          _GoldButton(label: cta),
+          _GoldButton(
+            label: cta,
+            onTap: !isSignedIn ? onSignInPressed : null,
+          ),
         ],
       ),
     );
@@ -549,9 +566,15 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _ExclusiveSection extends StatelessWidget {
-  const _ExclusiveSection({required this.videosFuture});
+  const _ExclusiveSection({
+    required this.videosFuture,
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
+  });
 
   final Future<List<HomeVideoItem>> videosFuture;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -584,6 +607,8 @@ class _ExclusiveSection extends StatelessWidget {
                 return _ExclusiveVideoCard(
                   video: videos[index],
                   recommendations: videos,
+                  onSignInPressed: onSignInPressed,
+                  onSubscribePressed: onSubscribePressed,
                 );
               },
             ),
@@ -598,16 +623,26 @@ class _ExclusiveVideoCard extends StatelessWidget {
   const _ExclusiveVideoCard({
     required this.video,
     required this.recommendations,
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
   });
 
   final HomeVideoItem video;
   final List<HomeVideoItem> recommendations;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       key: ValueKey<String>('membership-vip-video-card-${video.id}'),
-      onTap: () => _openMembershipVideoDetail(context, video, recommendations),
+      onTap: () => _openMembershipVideoDetail(
+        context,
+        video,
+        recommendations,
+        onSignInPressed: onSignInPressed,
+        onSubscribePressed: onSubscribePressed,
+      ),
       child: _ExclusiveCardFrame(
         imageUrl: video.thumbnailUrl,
         title: video.title,
@@ -789,27 +824,32 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _GoldButton extends StatelessWidget {
-  const _GoldButton({required this.label});
+  const _GoldButton({required this.label, this.onTap});
 
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.brandGold,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: AppTextStyles.body.copyWith(
-          color: AppColors.warmBackground,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          height: 1,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.brandGold,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: AppTextStyles.body.copyWith(
+            color: AppColors.warmBackground,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            height: 1,
+          ),
         ),
       ),
     );
@@ -902,13 +942,17 @@ String _membershipVideoSubtitle(HomeVideoItem video) {
 void _openMembershipVideoDetail(
   BuildContext context,
   HomeVideoItem video,
-  List<HomeVideoItem> recommendations,
-) {
+  List<HomeVideoItem> recommendations, {
+  VoidCallback? onSignInPressed,
+  VoidCallback? onSubscribePressed,
+}) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => VideoDetailPage(
         video: video,
         recommendations: recommendations,
+        onSignInPressed: onSignInPressed,
+        onSubscribePressed: onSubscribePressed,
       ),
     ),
   );

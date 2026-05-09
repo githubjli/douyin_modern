@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_assets.dart';
@@ -15,6 +16,7 @@ import 'application/membership_providers.dart';
 import 'application/membership_state.dart';
 import 'data/mock_membership_repository.dart';
 import 'data/remote_membership_repository.dart';
+import 'domain/membership_order.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
@@ -28,6 +30,8 @@ class MembershipPage extends ConsumerStatefulWidget {
     this.vipVideosFuture,
     this.videoRepository,
     this.isActive = true,
+    this.onSignInPressed,
+    this.onSubscribePressed,
   });
 
   final MembershipRepository? repository;
@@ -36,6 +40,8 @@ class MembershipPage extends ConsumerStatefulWidget {
   final Future<List<HomeVideoItem>>? vipVideosFuture;
   final RemoteHomeRepository? videoRepository;
   final bool isActive;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   ConsumerState<MembershipPage> createState() => _MembershipPageState();
@@ -47,6 +53,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
   late Future<List<MembershipPlan>> _plansFuture;
   late Future<List<HomeVideoItem>> _vipVideosFuture;
   bool _refreshing = false;
+  String? _creatingOrderPlanCode;
   late final ProviderSubscription<AuthState> _authSubscription;
 
   @override
@@ -188,12 +195,90 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
     }
   }
 
+  Future<void> _handleBuyNowPressed(MembershipPlan plan) async {
+    final String? planCode = plan.code?.trim();
+    if (planCode == null || planCode.isEmpty) {
+      _showMessage('Plan is unavailable. Please try again later.');
+      return;
+    }
+    if (_creatingOrderPlanCode != null) return;
+
+    setState(() {
+      _creatingOrderPlanCode = planCode;
+    });
+
+    try {
+      final MembershipOrder order = await _repository.createOrder(
+        planCode: planCode,
+      );
+      if (!mounted) return;
+      setState(() {
+        _creatingOrderPlanCode = null;
+      });
+      await _showPaymentSheet(order);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _creatingOrderPlanCode = null;
+      });
+      _showMessage('Unable to create order. Please try again later.');
+    }
+  }
+
+  Future<void> _showPaymentSheet(MembershipOrder order) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return _PaymentSheet(
+          order: order,
+          onCopyAddress: () => _copyPaymentValue(
+            value: order.payToAddress,
+            emptyMessage: 'Payment address unavailable',
+            copiedMessage: 'Address copied',
+          ),
+          onCopyAmount: () => _copyPaymentValue(
+            value: order.expectedAmountLbc,
+            emptyMessage: 'Amount unavailable',
+            copiedMessage: 'Amount copied',
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _copyPaymentValue({
+    required String? value,
+    required String emptyMessage,
+    required String copiedMessage,
+  }) async {
+    final String? trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      _showMessage(emptyMessage);
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: trimmed));
+    if (!mounted) return;
+    _showMessage(copiedMessage);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final AuthState authState = ref.watch(authControllerProvider);
     final MembershipState membershipState =
         ref.watch(membershipControllerProvider);
     final bool isSignedIn = _isMembershipUser(authState);
+    final bool canCreateOrders = authState.session?.isSignedIn == true;
+    final bool authBusy = !canCreateOrders && !_isDefinitelySignedOut(authState);
     final MembershipStatus? status =
         isSignedIn ? _visibleMembershipStatus(membershipState) : null;
 
@@ -213,19 +298,35 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
             _VipHeroCard(
               status: status,
               isSignedIn: isSignedIn,
+              onSignInPressed: widget.onSignInPressed,
             ),
             const SizedBox(height: AppSpacing.md),
             _PlanSection(
               plansFuture: _plansFuture,
               status: status,
+              canCreateOrders: canCreateOrders,
+              authBusy: authBusy,
+              creatingOrderPlanCode: _creatingOrderPlanCode,
+              onSignInPressed: widget.onSignInPressed,
+              onBuyNowPressed: _handleBuyNowPressed,
             ),
             const SizedBox(height: AppSpacing.md),
-            _ExclusiveSection(videosFuture: _vipVideosFuture),
+            _ExclusiveSection(
+              videosFuture: _vipVideosFuture,
+              onSignInPressed: widget.onSignInPressed,
+              onSubscribePressed: widget.onSubscribePressed,
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+bool _isDefinitelySignedOut(AuthState authState) {
+  return authState.isSignedOut ||
+      (authState.status == AuthStatus.error &&
+          authState.session?.isSignedIn != true);
 }
 
 bool _isMembershipUser(AuthState authState) {
@@ -288,10 +389,15 @@ class _MembershipHeader extends StatelessWidget {
 }
 
 class _VipHeroCard extends StatelessWidget {
-  const _VipHeroCard({required this.status, required this.isSignedIn});
+  const _VipHeroCard({
+    required this.status,
+    required this.isSignedIn,
+    required this.onSignInPressed,
+  });
 
   final MembershipStatus? status;
   final bool isSignedIn;
+  final VoidCallback? onSignInPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +516,10 @@ class _VipHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          _GoldButton(label: cta),
+          _GoldButton(
+            label: cta,
+            onTap: !isSignedIn ? onSignInPressed : null,
+          ),
         ],
       ),
     );
@@ -421,10 +530,30 @@ class _PlanSection extends StatelessWidget {
   const _PlanSection({
     required this.plansFuture,
     required this.status,
+    required this.canCreateOrders,
+    required this.authBusy,
+    required this.creatingOrderPlanCode,
+    required this.onSignInPressed,
+    required this.onBuyNowPressed,
   });
 
   final Future<List<MembershipPlan>> plansFuture;
   final MembershipStatus? status;
+  final bool canCreateOrders;
+  final bool authBusy;
+  final String? creatingOrderPlanCode;
+  final VoidCallback? onSignInPressed;
+  final ValueChanged<MembershipPlan> onBuyNowPressed;
+
+  VoidCallback? _planAction({
+    required MembershipPlan plan,
+    required bool hasActiveMembership,
+  }) {
+    if (hasActiveMembership || authBusy) return null;
+    if (!canCreateOrders) return onSignInPressed;
+    if (creatingOrderPlanCode != null) return null;
+    return () => onBuyNowPressed(plan);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -448,6 +577,11 @@ class _PlanSection extends StatelessWidget {
               _PlanCard(
                 plan: plans[index],
                 isCurrent: activeStatus?.planTitle == plans[index].title,
+                isBusy: creatingOrderPlanCode == plans[index].code,
+                onPressed: _planAction(
+                  plan: plans[index],
+                  hasActiveMembership: activeStatus != null,
+                ),
               ),
               if (index != plans.length - 1) const SizedBox(height: 10),
             ],
@@ -459,10 +593,17 @@ class _PlanSection extends StatelessWidget {
 }
 
 class _PlanCard extends StatelessWidget {
-  const _PlanCard({required this.plan, required this.isCurrent});
+  const _PlanCard({
+    required this.plan,
+    required this.isCurrent,
+    required this.isBusy,
+    required this.onPressed,
+  });
 
   final MembershipPlan plan;
   final bool isCurrent;
+  final bool isBusy;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -541,7 +682,14 @@ class _PlanCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          _OutlineGoldButton(label: isCurrent ? 'Manage' : 'Buy Now'),
+          _OutlineGoldButton(
+            label: isCurrent
+                ? 'Manage'
+                : isBusy
+                    ? 'Creating...'
+                    : 'Buy Now',
+            onTap: isCurrent ? null : onPressed,
+          ),
         ],
       ),
     );
@@ -549,9 +697,15 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _ExclusiveSection extends StatelessWidget {
-  const _ExclusiveSection({required this.videosFuture});
+  const _ExclusiveSection({
+    required this.videosFuture,
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
+  });
 
   final Future<List<HomeVideoItem>> videosFuture;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -584,6 +738,8 @@ class _ExclusiveSection extends StatelessWidget {
                 return _ExclusiveVideoCard(
                   video: videos[index],
                   recommendations: videos,
+                  onSignInPressed: onSignInPressed,
+                  onSubscribePressed: onSubscribePressed,
                 );
               },
             ),
@@ -598,16 +754,26 @@ class _ExclusiveVideoCard extends StatelessWidget {
   const _ExclusiveVideoCard({
     required this.video,
     required this.recommendations,
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
   });
 
   final HomeVideoItem video;
   final List<HomeVideoItem> recommendations;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       key: ValueKey<String>('membership-vip-video-card-${video.id}'),
-      onTap: () => _openMembershipVideoDetail(context, video, recommendations),
+      onTap: () => _openMembershipVideoDetail(
+        context,
+        video,
+        recommendations,
+        onSignInPressed: onSignInPressed,
+        onSubscribePressed: onSubscribePressed,
+      ),
       child: _ExclusiveCardFrame(
         imageUrl: video.thumbnailUrl,
         title: video.title,
@@ -771,6 +937,195 @@ class _VipGradient extends StatelessWidget {
   }
 }
 
+class _PaymentSheet extends StatelessWidget {
+  const _PaymentSheet({
+    required this.order,
+    required this.onCopyAddress,
+    required this.onCopyAmount,
+  });
+
+  final MembershipOrder order;
+  final VoidCallback onCopyAddress;
+  final VoidCallback onCopyAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    final String amountLabel = _paymentAmountLabel(order);
+    final String addressLabel = _paymentValue(
+      order.payToAddress,
+      'Payment address unavailable',
+    );
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Complete payment',
+              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.warmBackground,
+                border: Border.all(color: AppColors.softBorder),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _PaymentInfoRow(
+                    label: 'Plan',
+                    value: _paymentPlanLabel(order),
+                  ),
+                  _PaymentInfoRow(label: 'Order no', value: order.orderNo),
+                  _PaymentInfoRow(label: 'Status', value: order.status),
+                  _PaymentInfoRow(label: 'Amount', value: amountLabel),
+                  _PaymentInfoRow(label: 'Pay to', value: addressLabel),
+                  _PaymentInfoRow(
+                    label: 'Expires',
+                    value: _paymentValue(order.expiresAt, 'No expiry provided'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: <Widget>[
+                _PaymentPillButton(
+                  label: 'Copy amount',
+                  icon: Icons.copy_rounded,
+                  onTap: onCopyAmount,
+                ),
+                _PaymentPillButton(
+                  label: 'Copy address',
+                  icon: Icons.content_copy_rounded,
+                  onTap: onCopyAddress,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _GoldButton(
+              label: 'Close',
+              onTap: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentInfoRow extends StatelessWidget {
+  const _PaymentInfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 78,
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.mutedOliveText,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.body.copyWith(fontSize: 12, height: 1.2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentPillButton extends StatelessWidget {
+  const _PaymentPillButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.brandGold.withValues(alpha: 0.12),
+          border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 14, color: AppColors.brandGold),
+            const SizedBox(width: AppSpacing.xxs),
+            Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.brandGold,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _paymentPlanLabel(MembershipOrder order) {
+  final String? title = order.planTitle?.trim();
+  final String? code = order.planCode?.trim();
+  if (title != null && title.isNotEmpty && code != null && code.isNotEmpty) {
+    return '$title ($code)';
+  }
+  if (title != null && title.isNotEmpty) return title;
+  if (code != null && code.isNotEmpty) return code;
+  return 'Plan unavailable';
+}
+
+String _paymentAmountLabel(MembershipOrder order) {
+  final String? amount = order.expectedAmountLbc?.trim();
+  if (amount == null || amount.isEmpty) return 'Amount unavailable';
+  final String? currency = order.currency?.trim();
+  if (currency == null || currency.isEmpty) return amount;
+  return '$amount $currency';
+}
+
+String _paymentValue(String? value, String fallback) {
+  final String? trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return fallback;
+  return trimmed;
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.title});
 
@@ -789,27 +1144,32 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _GoldButton extends StatelessWidget {
-  const _GoldButton({required this.label});
+  const _GoldButton({required this.label, this.onTap});
 
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.brandGold,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: AppTextStyles.body.copyWith(
-          color: AppColors.warmBackground,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          height: 1,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.brandGold,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: AppTextStyles.body.copyWith(
+            color: AppColors.warmBackground,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            height: 1,
+          ),
         ),
       ),
     );
@@ -817,27 +1177,32 @@ class _GoldButton extends StatelessWidget {
 }
 
 class _OutlineGoldButton extends StatelessWidget {
-  const _OutlineGoldButton({required this.label});
+  const _OutlineGoldButton({required this.label, this.onTap});
 
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.brandGold.withValues(alpha: 0.12),
-        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.55)),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: AppTextStyles.caption.copyWith(
-          color: AppColors.brandGold,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.brandGold.withValues(alpha: 0.12),
+          border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.brandGold,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
@@ -902,13 +1267,17 @@ String _membershipVideoSubtitle(HomeVideoItem video) {
 void _openMembershipVideoDetail(
   BuildContext context,
   HomeVideoItem video,
-  List<HomeVideoItem> recommendations,
-) {
+  List<HomeVideoItem> recommendations, {
+  VoidCallback? onSignInPressed,
+  VoidCallback? onSubscribePressed,
+}) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => VideoDetailPage(
         video: video,
         recommendations: recommendations,
+        onSignInPressed: onSignInPressed,
+        onSubscribePressed: onSubscribePressed,
       ),
     ),
   );

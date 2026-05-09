@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/features/membership/application/membership_providers.dart';
 import 'package:meow_media/features/membership/application/membership_state.dart';
+import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
@@ -163,5 +164,28 @@ class _FakeMembershipRepository implements MembershipRepository {
   @override
   Future<List<MembershipPlan>> getPlans() async {
     return const <MembershipPlan>[];
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }

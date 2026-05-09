@@ -1,16 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../core/auth/token_storage.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_error_classifier.dart';
 import '../../core/network/endpoints.dart';
+import '../auth/application/auth_providers.dart';
+import '../auth/application/auth_state.dart';
 import '../home/domain/home_models.dart';
 
 const TextStyle _videoDetailSectionHeadingStyle = TextStyle(
@@ -49,44 +51,43 @@ const TextStyle _videoDetailFollowStyle = TextStyle(
   color: AppColors.brandGold,
 );
 
-class VideoDetailPage extends StatefulWidget {
+class VideoDetailPage extends ConsumerStatefulWidget {
   const VideoDetailPage({
     super.key,
     required this.video,
     this.recommendations = const <HomeVideoItem>[],
     this.apiClient,
     this.loadRemoteDetail = true,
-    this.signedInFuture,
   });
 
   final HomeVideoItem video;
   final List<HomeVideoItem> recommendations;
   final ApiClient? apiClient;
   final bool loadRemoteDetail;
-  final Future<bool>? signedInFuture;
 
   @override
-  State<VideoDetailPage> createState() => _VideoDetailPageState();
+  ConsumerState<VideoDetailPage> createState() => _VideoDetailPageState();
 }
 
-class _VideoDetailPageState extends State<VideoDetailPage> {
+class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
   late ApiClient _apiClient;
   late HomeVideoItem _video;
   VideoPlayerController? _videoController;
   String? _controllerVideoUrl;
   bool _loadingDetail = false;
-  bool _isSignedIn = false;
   bool _initializingVideo = false;
   bool _videoInitializationFailed = false;
   bool _videoPlaying = false;
-  bool _detailAuthDenied = false;
 
   @override
   void initState() {
     super.initState();
     _apiClient = widget.apiClient ?? ApiClient();
     _video = widget.video;
-    _loadSignedInState();
+    Future<void>.microtask(() {
+      if (!mounted) return;
+      ref.read(authControllerProvider.notifier).bootstrap();
+    });
     unawaited(_syncVideoController());
     if (widget.loadRemoteDetail) {
       _loadDetail();
@@ -104,28 +105,6 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     }
   }
 
-  Future<void> _loadSignedInState() async {
-    try {
-      final bool isSignedIn = widget.signedInFuture != null
-          ? await widget.signedInFuture!
-          : await _hasAccessToken();
-      if (!mounted || _detailAuthDenied) return;
-      setState(() {
-        _isSignedIn = isSignedIn;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isSignedIn = false;
-      });
-    }
-  }
-
-  Future<bool> _hasAccessToken() async {
-    final String? token = await TokenStorage().readAccessToken();
-    return token?.trim().isNotEmpty == true;
-  }
-
   Future<void> _loadDetail() async {
     setState(() {
       _loadingDetail = true;
@@ -139,7 +118,6 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
       final HomeVideoItem detail = _mapDetail(response.data, _video);
       if (!mounted) return;
       setState(() {
-        _detailAuthDenied = false;
         _video = detail;
         _loadingDetail = false;
       });
@@ -148,9 +126,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
       if (!mounted) return;
       if (isAuthDeniedError(error)) {
         setState(() {
-          _detailAuthDenied = true;
           _video = _lockedForAuthDenied(_video);
-          _isSignedIn = false;
           _loadingDetail = false;
         });
         unawaited(_syncVideoController());
@@ -313,6 +289,8 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final AuthState authState = ref.watch(authControllerProvider);
+    final bool isSignedIn = _hasSignedInSession(authState);
     final List<HomeVideoItem> recommendations = _recommendations(
       current: _video,
       candidates: widget.recommendations,
@@ -326,7 +304,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
           children: <Widget>[
             _VideoMediaHeader(
               video: _video,
-              isSignedIn: _isSignedIn,
+              isSignedIn: isSignedIn,
               controller: _videoController,
               initializingVideo: _initializingVideo,
               videoInitializationFailed: _videoInitializationFailed,
@@ -362,6 +340,11 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
       SnackBar(content: Text('$action coming soon.')),
     );
   }
+}
+
+bool _hasSignedInSession(AuthState authState) {
+  if (authState.isSignedOut) return false;
+  return authState.session?.isSignedIn == true;
 }
 
 String _detailPath(String id) {

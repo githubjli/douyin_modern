@@ -29,6 +29,19 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
+  void _goToTab(int value) {
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+    if (!mounted) return;
+    setState(() => _index = value);
+  }
+
+  void _goToProfile() => _goToTab(4);
+
+  void _goToMembership() => _goToTab(3);
+
   Future<void> _onTapTab(int value) async {
     if (value == 2) {
       await showModalBottomSheet<void>(
@@ -83,6 +96,8 @@ class _MainShellState extends State<MainShell> {
       MembershipPage(
         useRemote: widget.enableRemoteMembership,
         isActive: _index == 3,
+        onSignInPressed: _goToProfile,
+        onSubscribePressed: _goToMembership,
       ),
       const ProfilePage(),
     ];

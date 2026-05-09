@@ -18,6 +18,7 @@ import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
+import 'package:meow_media/features/membership/membership_payment_page.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
@@ -378,8 +379,9 @@ void main() {
     expect(repository.createOrderCalls, 1);
     expect(repository.createdPlanCodes, <String>['monthly']);
     expect(find.text('Confirm subscription'), findsNothing);
+    expect(find.byType(MembershipPaymentPage), findsOneWidget);
     expect(find.text('Complete payment'), findsWidgets);
-    expect(find.text('Monthly (monthly)'), findsOneWidget);
+    expect(find.text('Monthly (monthly)'), findsWidgets);
     expect(find.text('order-100'), findsOneWidget);
     expect(find.text('12.5 LBC'), findsOneWidget);
     expect(find.text('lbc-address-100'), findsOneWidget);
@@ -543,7 +545,13 @@ void main() {
     await tapFirstBuyNow(tester);
     await tapSheetAction(tester, 'Confirm and create order');
 
+    expect(find.byType(MembershipPaymentPage), findsOneWidget);
     expect(find.text('overpaid'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MembershipPaymentPage), findsNothing);
     expect(find.text('Not subscribed'), findsOneWidget);
     expect(find.text('Member'), findsNothing);
   });

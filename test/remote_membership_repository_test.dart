@@ -32,6 +32,68 @@ void main() {
     expect(plans.single.perks, 'Badge, Exclusive rooms');
   });
 
+  test('maps backend membership plan price_lbc settlement and duration',
+      () async {
+    final RemoteMembershipRepository repository = RemoteMembershipRepository(
+      apiClient: _FakeApiClient(<String, dynamic>{
+        'results': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 1,
+            'code': 'monthly',
+            'name': 'Monthly',
+            'description': '30 day access',
+            'price_lbc': '30.00000000',
+            'settlement': <String, dynamic>{
+              'blockchain': 'THB-LTT',
+              'token_name': 'THB LTT',
+              'token_symbol': 'THB-LTT',
+              'token_peg': 'THB',
+            },
+            'duration_days': 30,
+          },
+          <String, dynamic>{
+            'id': 2,
+            'code': 'quarterly',
+            'name': 'Quarterly',
+            'description': '90 day access',
+            'price_lbc': '80.50000000',
+            'settlement': <String, dynamic>{
+              'token_symbol': 'THB-LTT',
+            },
+            'duration_days': '90',
+          },
+          <String, dynamic>{
+            'id': 3,
+            'code': 'yearly',
+            'name': 'Yearly',
+            'description': '365 day access',
+            'price_lbc': '300.00000000',
+            'settlement': <String, dynamic>{
+              'token_symbol': 'THB-LTT',
+            },
+            'duration_days': 365,
+          },
+        ],
+      }),
+    );
+
+    final plans = await repository.getPlans();
+
+    expect(plans, hasLength(3));
+    expect(plans[0].code, 'monthly');
+    expect(plans[0].title, 'Monthly');
+    expect(plans[0].price, '30 THB-LTT / 30 days');
+    expect(plans[0].perks, '30 day access');
+    expect(plans[0].durationDays, 30);
+    expect(plans[0].settlementBlockchain, 'THB-LTT');
+    expect(plans[0].settlementTokenName, 'THB LTT');
+    expect(plans[0].settlementTokenSymbol, 'THB-LTT');
+    expect(plans[0].settlementTokenPeg, 'THB');
+    expect(plans[1].price, '80.5 THB-LTT / 90 days');
+    expect(plans[1].durationDays, 90);
+    expect(plans[2].price, '300 THB-LTT / 365 days');
+  });
+
   test('maps alternate membership plan fields from list responses', () async {
     final RemoteMembershipRepository repository = RemoteMembershipRepository(
       apiClient: _FakeApiClient(<Map<String, dynamic>>[

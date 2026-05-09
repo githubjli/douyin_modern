@@ -141,6 +141,11 @@ class RemoteMembershipRepository implements MembershipRepository {
       title: title,
       price: _price(data),
       perks: _perks(data),
+      durationDays: _int(data['duration_days']),
+      settlementBlockchain: _settlementStr(data, 'blockchain'),
+      settlementTokenName: _settlementStr(data, 'token_name'),
+      settlementTokenSymbol: _settlementStr(data, 'token_symbol'),
+      settlementTokenPeg: _settlementStr(data, 'token_peg'),
     );
   }
 
@@ -152,22 +157,43 @@ class RemoteMembershipRepository implements MembershipRepository {
   }
 
   String _price(Map<String, dynamic> data) {
-    final String? amount = _nonEmptyStr(data['amount']) ??
+    final String? amount = _nonEmptyStr(data['price_lbc']) ??
+        _nonEmptyStr(data['amount']) ??
         _nonEmptyStr(data['price']) ??
         _nonEmptyStr(data['price_amount']);
-    final String? currency =
-        _nonEmptyStr(data['currency']) ?? _nonEmptyStr(data['price_currency']);
+    final String? currency = _settlementStr(data, 'token_symbol') ??
+        _nonEmptyStr(data['currency']) ??
+        _nonEmptyStr(data['price_currency']);
+    final int? durationDays = _int(data['duration_days']);
     final String? interval = _nonEmptyStr(data['interval']) ??
         _nonEmptyStr(data['billing_interval']);
 
     if (amount == null) return 'Price unavailable';
 
+    final bool usesMembershipPlanShape =
+        data.containsKey('price_lbc') || data.containsKey('duration_days');
+    final String formattedAmount = _formatAmount(amount);
     final StringBuffer price = StringBuffer();
+
+    if (usesMembershipPlanShape) {
+      price.write(formattedAmount);
+      if (currency != null && currency.trim().isNotEmpty) {
+        price.write(' ');
+        price.write(currency.trim());
+      }
+      if (durationDays != null) {
+        price.write(' / ');
+        price.write(durationDays);
+        price.write(durationDays == 1 ? ' day' : ' days');
+      }
+      return price.toString();
+    }
+
     if (currency != null && currency.trim().isNotEmpty) {
       price.write(currency.trim());
       price.write(' ');
     }
-    price.write(amount.trim());
+    price.write(formattedAmount);
     if (interval != null && interval.trim().isNotEmpty) {
       price.write(' / ');
       price.write(interval.trim());
@@ -196,9 +222,28 @@ class RemoteMembershipRepository implements MembershipRepository {
     return null;
   }
 
+  String? _settlementStr(Map<String, dynamic> data, String key) {
+    return _nestedStr(data['settlement'], key);
+  }
+
   String? _nestedStr(dynamic value, String key) {
     if (value is Map<String, dynamic>) return _nonEmptyStr(value[key]);
     return null;
+  }
+
+  int? _int(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  String _formatAmount(String amount) {
+    final String trimmed = amount.trim();
+    if (!trimmed.contains('.')) return trimmed;
+    return trimmed
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   String? _nonEmptyStr(dynamic value) {

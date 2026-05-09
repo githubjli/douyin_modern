@@ -802,6 +802,42 @@ void main() {
     expect(find.text('Current'), findsWidgets);
   });
 
+  testWidgets('shows mapped membership plan token prices',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(
+        plans: <MembershipPlan>[
+          MembershipPlan(
+            code: 'monthly',
+            title: 'Monthly',
+            price: '30 THB-LTT / 30 days',
+            perks: 'Monthly access',
+          ),
+          MembershipPlan(
+            code: 'quarterly',
+            title: 'Quarterly',
+            price: '80 THB-LTT / 90 days',
+            perks: 'Quarterly access',
+          ),
+          MembershipPlan(
+            code: 'yearly',
+            title: 'Yearly',
+            price: '300 THB-LTT / 365 days',
+            perks: 'Yearly access',
+          ),
+        ],
+      ),
+    );
+
+    await dragUntilTextVisible(tester, '30 THB-LTT / 30 days');
+
+    expect(find.text('30 THB-LTT / 30 days'), findsOneWidget);
+    expect(find.text('80 THB-LTT / 90 days'), findsOneWidget);
+    expect(find.text('300 THB-LTT / 365 days'), findsOneWidget);
+    expect(find.text('Pricing coming soon'), findsNothing);
+  });
+
   testWidgets('shows soft price fallback when plan price is unavailable',
       (WidgetTester tester) async {
     await pumpMembershipPage(

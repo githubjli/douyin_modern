@@ -11,6 +11,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import 'domain/membership_order.dart';
 import 'domain/membership_plan.dart';
+import 'domain/membership_repository.dart';
 
 typedef QrCodeSaver = Future<bool> Function(GlobalKey qrKey);
 
@@ -19,11 +20,13 @@ class MembershipPaymentPage extends StatefulWidget {
     super.key,
     required this.order,
     required this.selectedPlan,
+    required this.repository,
     this.qrCodeSaver,
   });
 
   final MembershipOrder order;
   final MembershipPlan selectedPlan;
+  final MembershipRepository repository;
   final QrCodeSaver? qrCodeSaver;
 
   @override
@@ -34,6 +37,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
   final GlobalKey _qrKey = GlobalKey();
   final TextEditingController _txHashController = TextEditingController();
   bool _savingQr = false;
+  bool _submittingTx = false;
 
   @override
   void dispose() {
@@ -81,13 +85,36 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     }
   }
 
-  void _submitTransactionHash() {
+  Future<void> _submitTransactionHash() async {
+    if (_submittingTx) return;
+
     final String txHash = _txHashController.text.trim();
     if (txHash.isEmpty) {
       _showMessage('Please enter transaction hash.');
       return;
     }
-    _showMessage('Transaction hash saved locally');
+
+    setState(() {
+      _submittingTx = true;
+    });
+
+    try {
+      await widget.repository.submitTxHint(
+        orderNo: order.orderNo,
+        txid: txHash,
+      );
+      if (!mounted) return;
+      _showMessage('Transaction hash submitted. Awaiting confirmation.');
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Unable to submit transaction hash. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submittingTx = false;
+        });
+      }
+    }
   }
 
   void _showMessage(String message) {
@@ -138,6 +165,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
               const SizedBox(height: AppSpacing.md),
               _TransactionHashSection(
                 controller: _txHashController,
+                submitting: _submittingTx,
                 onSubmit: _submitTransactionHash,
               ),
             ],
@@ -485,10 +513,12 @@ class _WarningCard extends StatelessWidget {
 class _TransactionHashSection extends StatelessWidget {
   const _TransactionHashSection({
     required this.controller,
+    required this.submitting,
     required this.onSubmit,
   });
 
   final TextEditingController controller;
+  final bool submitting;
   final VoidCallback onSubmit;
 
   @override
@@ -537,8 +567,8 @@ class _TransactionHashSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           _GoldButton(
-            label: 'Submit',
-            onTap: onSubmit,
+            label: submitting ? 'Submitting...' : 'Submit',
+            onTap: submitting ? null : onSubmit,
           ),
         ],
       ),

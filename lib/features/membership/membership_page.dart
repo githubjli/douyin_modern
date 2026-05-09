@@ -211,7 +211,11 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
 
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => MembershipPaymentPage(order: order, selectedPlan: plan),
+        builder: (_) => MembershipPaymentPage(
+          order: order,
+          selectedPlan: plan,
+          repository: _repository,
+        ),
       ),
     );
   }

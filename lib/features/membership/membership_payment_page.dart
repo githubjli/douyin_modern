@@ -49,17 +49,6 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     _showMessage('Address copied');
   }
 
-  Future<void> _copyAmount() async {
-    final String? amount = _trimmed(order.expectedAmountLbc);
-    if (amount == null) {
-      _showMessage('Amount unavailable');
-      return;
-    }
-    await Clipboard.setData(ClipboardData(text: amount));
-    if (!mounted) return;
-    _showMessage('Amount copied');
-  }
-
   Future<void> _saveQrCode() async {
     if (_savingQr || _paymentQrPayload(order) == null) return;
 
@@ -115,7 +104,6 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
                 order: order,
                 plan: plan,
                 tokenSymbol: tokenSymbol,
-                onCopyAmount: _copyAmount,
               ),
               const SizedBox(height: AppSpacing.md),
               _QrPaymentSection(
@@ -156,35 +144,26 @@ class _PaymentHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onBack,
-          child: Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              border: Border.all(color: AppColors.softBorder),
-              borderRadius: BorderRadius.circular(17),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Icon(
+        Tooltip(
+          message: 'Back',
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onBack,
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground.withValues(alpha: 0.54),
+                  border: Border.all(color: AppColors.softBorder),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
                   Icons.arrow_back_rounded,
                   color: AppColors.brandGold,
-                  size: 17,
+                  size: 18,
                 ),
-                const SizedBox(width: AppSpacing.xxs),
-                Text(
-                  'Back',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.brandGold,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -208,95 +187,82 @@ class _SelectedPlanCard extends StatelessWidget {
     required this.order,
     required this.plan,
     required this.tokenSymbol,
-    required this.onCopyAmount,
   });
 
   final MembershipOrder order;
   final MembershipPlan? plan;
   final String tokenSymbol;
-  final VoidCallback onCopyAmount;
 
   @override
   Widget build(BuildContext context) {
-    final String amount = _paymentAmount(order);
+    final String amount = _paymentDisplayAmount(order);
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Color(0xFF5A4324),
-            Color(0xFF322A22),
+            Color(0xFF4D3A22),
+            Color(0xFF302820),
             AppColors.cardBackground,
           ],
         ),
-        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.46)),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.20),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.38)),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Text(
-            'Selected Plan',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.brandGold,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            _paymentPlanTitle(order, plan),
-            style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Flexible(
-                child: Text(
-                  amount,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.sectionTitle.copyWith(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Selected Plan',
+                  style: AppTextStyles.caption.copyWith(
                     color: AppColors.brandGold,
-                    fontSize: 24,
-                    height: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  tokenSymbol,
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.brandGold,
-                    fontSize: 13,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  _paymentPlanTitle(order, plan),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.cardTitle.copyWith(fontSize: 15),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  _durationLabel(plan),
+                  style: AppTextStyles.caption.copyWith(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              Text(
+                amount,
+                style: AppTextStyles.sectionTitle.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 22,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                tokenSymbol,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            _durationLabel(plan),
-            style: AppTextStyles.caption.copyWith(fontSize: 12),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _OutlineGoldButton(
-            label: 'Copy amount',
-            icon: Icons.copy_rounded,
-            onTap: onCopyAmount,
           ),
         ],
       ),
@@ -323,7 +289,7 @@ class _QrPaymentSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? payload = qrPayload;
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(color: AppColors.softBorder),
@@ -335,11 +301,6 @@ class _QrPaymentSection extends StatelessWidget {
           Text(
             'Complete the Payment',
             style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            'Complete payment',
-            style: AppTextStyles.caption.copyWith(fontSize: 11),
           ),
           const SizedBox(height: AppSpacing.sm),
           if (payload == null)
@@ -367,11 +328,11 @@ class _QrPaymentSection extends StatelessWidget {
                   ),
                   child: Container(
                     color: Colors.white,
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(20),
                     child: QrImageView(
                       data: payload,
                       version: QrVersions.auto,
-                      size: 188,
+                      size: 176,
                       padding: EdgeInsets.zero,
                       backgroundColor: Colors.white,
                       eyeStyle: const QrEyeStyle(
@@ -388,9 +349,8 @@ class _QrPaymentSection extends StatelessWidget {
               ),
             ),
           const SizedBox(height: AppSpacing.sm),
-          _OutlineGoldButton(
+          _GoldButton(
             label: saving ? 'Saving...' : 'Download QR Code',
-            icon: Icons.download_rounded,
             onTap: canSave ? onSave : null,
           ),
         ],
@@ -425,7 +385,7 @@ class _ReceivingAddressCard extends StatelessWidget {
     final bool hasAddress = _trimmed(address) != null;
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         border: Border.all(color: AppColors.softBorder),
@@ -436,30 +396,41 @@ class _ReceivingAddressCard extends StatelessWidget {
         children: <Widget>[
           Text(
             'Receiving Address',
-            style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 15),
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.xs),
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.sm),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
             decoration: BoxDecoration(
               color: AppColors.warmBackground,
               border: Border.all(color: AppColors.softBorder),
               borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
             ),
-            child: Text(
-              addressLabel,
-              softWrap: true,
-              style: AppTextStyles.body.copyWith(fontSize: 12, height: 1.25),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _OutlineGoldButton(
-              label: 'Copy address',
-              icon: Icons.content_copy_rounded,
-              onTap: hasAddress ? onCopy : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    addressLabel,
+                    softWrap: true,
+                    style: AppTextStyles.body.copyWith(
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Tooltip(
+                  message: 'Copy address',
+                  child: _IconGoldButton(
+                    icon: Icons.content_copy_rounded,
+                    onTap: hasAddress ? onCopy : null,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -483,7 +454,7 @@ class _WarningCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       ),
       child: Text(
-        'Please transfer funds using $tokenSymbol only.',
+        'Please transfer funds using $tokenSymbol only. Other currencies may be lost.',
         style: AppTextStyles.caption.copyWith(
           color: AppColors.brandGold,
           fontSize: 12,
@@ -569,6 +540,36 @@ class _FooterText extends StatelessWidget {
   }
 }
 
+class _IconGoldButton extends StatelessWidget {
+  const _IconGoldButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? 0.46 : 1,
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: AppColors.brandGold.withValues(alpha: 0.12),
+            border: Border.all(
+              color: AppColors.brandGold.withValues(alpha: 0.55),
+            ),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Icon(icon, size: 15, color: AppColors.brandGold),
+        ),
+      ),
+    );
+  }
+}
+
 class _GoldButton extends StatelessWidget {
   const _GoldButton({required this.label, required this.onTap});
 
@@ -605,56 +606,6 @@ class _GoldButton extends StatelessWidget {
   }
 }
 
-class _OutlineGoldButton extends StatelessWidget {
-  const _OutlineGoldButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Opacity(
-        opacity: onTap == null ? 0.46 : 1,
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: AppColors.brandGold.withValues(alpha: 0.12),
-            border: Border.all(
-              color: AppColors.brandGold.withValues(alpha: 0.55),
-            ),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon, size: 14, color: AppColors.brandGold),
-              const SizedBox(width: AppSpacing.xxs),
-              Text(
-                label,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.brandGold,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 Future<bool> _writeQrPng(GlobalKey qrKey) async {
   final BuildContext? context = qrKey.currentContext;
   if (context == null) return false;
@@ -681,8 +632,12 @@ String _paymentPlanTitle(MembershipOrder order, MembershipPlan? plan) {
   return title ?? code ?? 'Membership Plan';
 }
 
-String _paymentAmount(MembershipOrder order) {
-  return _trimmed(order.expectedAmountLbc) ?? 'Amount unavailable';
+String _paymentDisplayAmount(MembershipOrder order) {
+  final String? rawAmount = _trimmed(order.expectedAmountLbc);
+  if (rawAmount == null) return 'Amount unavailable';
+  final double? numericAmount = double.tryParse(rawAmount);
+  if (numericAmount == null) return rawAmount;
+  return numericAmount.toStringAsFixed(2);
 }
 
 String _paymentPlanLabel(MembershipOrder order) {
@@ -693,7 +648,7 @@ String _paymentPlanLabel(MembershipOrder order) {
 }
 
 String _paymentAmountLabel(MembershipOrder order, String tokenSymbol) {
-  final String amount = _paymentAmount(order);
+  final String amount = _paymentDisplayAmount(order);
   if (amount == 'Amount unavailable') return amount;
   return '$amount $tokenSymbol';
 }

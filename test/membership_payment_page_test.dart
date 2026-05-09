@@ -25,7 +25,7 @@ void main() {
     status: 'pending',
     planCode: 'basic-monthly',
     planTitle: 'Basic Monthly',
-    expectedAmountLbc: '30',
+    expectedAmountLbc: '30.00000000',
     payToAddress: 'thb-ltt-address-200-long-payment-address',
     expiresAt: '2026-06-01T00:00:00Z',
   );
@@ -69,7 +69,8 @@ void main() {
     expect(find.text('Membership Purchase'), findsOneWidget);
     expect(find.text('Selected Plan'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsOneWidget);
-    expect(find.text('30'), findsOneWidget);
+    expect(find.text('30.00'), findsOneWidget);
+    expect(find.text('30.00000000'), findsNothing);
     expect(find.text('THB-LTT'), findsWidgets);
     expect(find.text('Duration: 30 days'), findsOneWidget);
     expect(find.text('Complete the Payment'), findsOneWidget);
@@ -79,10 +80,14 @@ void main() {
       find.text('thb-ltt-address-200-long-payment-address'),
       findsOneWidget,
     );
-    expect(find.text('Copy address'), findsOneWidget);
+    expect(find.byTooltip('Copy address'), findsOneWidget);
+    expect(find.text('Copy amount'), findsNothing);
     expect(find.text('Download QR Code'), findsOneWidget);
     expect(
-      find.text('Please transfer funds using THB-LTT only.'),
+      find.text(
+        'Please transfer funds using THB-LTT only. '
+        'Other currencies may be lost.',
+      ),
       findsOneWidget,
     );
     expect(find.text('Transaction Hash'), findsNothing);
@@ -113,7 +118,11 @@ void main() {
   testWidgets('copies address with confirmation', (WidgetTester tester) async {
     await pumpPaymentPage(tester);
 
-    await tapPaymentAction(tester, 'Copy address');
+    final Finder copyAddress = find.byTooltip('Copy address');
+    await tester.ensureVisible(copyAddress);
+    await tester.pumpAndSettle();
+    await tester.tap(copyAddress);
+    await tester.pumpAndSettle();
 
     expect(find.text('Address copied'), findsOneWidget);
   });

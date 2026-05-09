@@ -382,7 +382,7 @@ void main() {
     expect(find.byType(MembershipPaymentPage), findsOneWidget);
     expect(find.text('Membership Purchase'), findsOneWidget);
     expect(find.text('Receiving Address'), findsOneWidget);
-    expect(find.text('Copy address'), findsOneWidget);
+    expect(find.byTooltip('Copy address'), findsOneWidget);
     expect(find.text('lbc-address-100'), findsOneWidget);
   });
 
@@ -502,14 +502,12 @@ void main() {
     await tapFirstBuyNow(tester);
     await tapSheetAction(tester, 'Confirm and create order');
 
-    await tapSheetAction(tester, 'Copy address');
-    expect(find.text('Address copied'), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 4));
+    final Finder copyAddress = find.byTooltip('Copy address');
+    await tester.ensureVisible(copyAddress);
     await tester.pumpAndSettle();
-
-    await tapSheetAction(tester, 'Copy amount');
-    expect(find.text('Amount copied'), findsOneWidget);
+    await tester.tap(copyAddress);
+    await tester.pumpAndSettle();
+    expect(find.text('Address copied'), findsOneWidget);
   });
 
   testWidgets('paid order status does not locally activate membership',
@@ -545,7 +543,7 @@ void main() {
     expect(find.byType(MembershipPaymentPage), findsOneWidget);
     expect(find.text('overpaid'), findsOneWidget);
 
-    await tester.tap(find.text('Back').first);
+    await tester.tap(find.byTooltip('Back').first);
     await tester.pumpAndSettle();
 
     expect(find.byType(MembershipPaymentPage), findsNothing);

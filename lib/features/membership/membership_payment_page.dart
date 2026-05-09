@@ -81,13 +81,14 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     }
   }
 
-  void _submitTransactionHash() {
+  void _submitTransactionHashAndDone() {
     final String txHash = _txHashController.text.trim();
     if (txHash.isEmpty) {
       _showMessage('Please enter transaction hash.');
       return;
     }
     _showMessage('Transaction hash saved locally');
+    Navigator.of(context).maybePop();
   }
 
   void _showMessage(String message) {
@@ -138,12 +139,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
               const SizedBox(height: AppSpacing.md),
               _TransactionHashSection(
                 controller: _txHashController,
-                onSubmit: _submitTransactionHash,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _GoldButton(
-                label: 'Done',
-                onTap: () => Navigator.of(context).maybePop(),
+                onSubmit: _submitTransactionHashAndDone,
               ),
             ],
           ),
@@ -365,9 +361,15 @@ class _QrPaymentSection extends StatelessWidget {
               ),
             ),
           const SizedBox(height: AppSpacing.sm),
-          _GoldButton(
-            label: saving ? 'Saving...' : 'Download QR Code',
-            onTap: canSave ? onSave : null,
+          Align(
+            alignment: Alignment.center,
+            child: _SecondaryGoldButton(
+              icon: saving
+                  ? Icons.hourglass_top_rounded
+                  : Icons.file_download_outlined,
+              label: saving ? 'Saving...' : 'Download QR Code',
+              onTap: canSave ? onSave : null,
+            ),
           ),
         ],
       ),
@@ -535,8 +537,63 @@ class _TransactionHashSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          _GoldButton(label: 'Submit Transaction Hash', onTap: onSubmit),
+          _GoldButton(
+            icon: Icons.check_rounded,
+            label: 'Submit & Done',
+            onTap: onSubmit,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _SecondaryGoldButton extends StatelessWidget {
+  const _SecondaryGoldButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? 0.46 : 1,
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground,
+            border: Border.all(
+              color: AppColors.brandGold.withValues(alpha: 0.46),
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Icon(icon, size: 15, color: AppColors.brandGold),
+              const SizedBox(width: AppSpacing.xxs),
+              Text(
+                label,
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -573,10 +630,11 @@ class _IconGoldButton extends StatelessWidget {
 }
 
 class _GoldButton extends StatelessWidget {
-  const _GoldButton({required this.label, required this.onTap});
+  const _GoldButton({required this.label, required this.onTap, this.icon});
 
   final String label;
   final VoidCallback? onTap;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -593,14 +651,24 @@ class _GoldButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           alignment: Alignment.center,
-          child: Text(
-            label,
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.warmBackground,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              height: 1,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              if (icon != null) ...<Widget>[
+                Icon(icon, size: 16, color: AppColors.warmBackground),
+                const SizedBox(width: AppSpacing.xxs),
+              ],
+              Text(
+                label,
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.warmBackground,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -577,7 +577,8 @@ class _PlanSection extends StatelessWidget {
               _PlanCard(
                 plan: plans[index],
                 isCurrent: activeStatus?.planTitle == plans[index].title,
-                isBusy: creatingOrderPlanCode == plans[index].code,
+                isBusy: creatingOrderPlanCode != null &&
+                    creatingOrderPlanCode == plans[index].code,
                 onPressed: _planAction(
                   plan: plans[index],
                   hasActiveMembership: activeStatus != null,

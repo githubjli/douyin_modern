@@ -141,6 +141,35 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> tapPlanAction(
+    WidgetTester tester, {
+    required String planTitle,
+    required String actionLabel,
+  }) async {
+    await dragUntilTextVisible(tester, planTitle);
+    final Finder planCard = find
+        .ancestor(
+          of: find.text(planTitle),
+          matching: find.byType(Container),
+        )
+        .first;
+    final Finder action = find.descendant(
+      of: planCard,
+      matching: find.text(actionLabel),
+    );
+
+    expect(
+      action,
+      findsOneWidget,
+      reason: 'Expected "$planTitle" plan card to show "$actionLabel".',
+    );
+
+    await tester.ensureVisible(action);
+    await tester.pumpAndSettle();
+    await tester.tap(action.hitTestable().first);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> tapSheetAction(WidgetTester tester, String label) async {
     final Finder action = find.text(label).first;
     await tester.ensureVisible(action);
@@ -326,9 +355,11 @@ void main() {
     );
 
     await pumpMembershipPage(tester, repository: repository);
-    await dragUntilTextVisible(tester, 'No Code Monthly');
-
-    await tapFirstBuyNow(tester);
+    await tapPlanAction(
+      tester,
+      planTitle: 'No Code Monthly',
+      actionLabel: 'Buy Now',
+    );
 
     expect(repository.createOrderCalls, 0);
     expect(

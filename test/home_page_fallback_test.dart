@@ -268,6 +268,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(remoteRepository.portalAuthenticatedCalls, <bool>[true, false]);
+
+    await tester.tap(find.text('Videos').hitTestable().first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sports'));
+    await tester.pumpAndSettle();
+
+    expect(
+      remoteRepository.videoCalls.any(
+        (_VideoPageCall call) =>
+            call.category == 'sports' && call.authenticated == false,
+      ),
+      isTrue,
+    );
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Load more'));
+    await tester.pumpAndSettle();
+
+    expect(
+      remoteRepository.videoCalls.any(
+        (_VideoPageCall call) =>
+            call.pageUrl == 'https://example.com/videos-next' &&
+            call.authenticated == false,
+      ),
+      isTrue,
+    );
   });
 
   testWidgets('checking auth state keeps existing Home feed without reload storm',

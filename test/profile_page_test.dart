@@ -45,7 +45,7 @@ void main() {
           home: Scaffold(
             body: ProfilePage(
               profileRepository:
-                  profileRepository ?? const _FakeProfileRepository(profile),
+                  profileRepository ?? _FakeProfileRepository(profile),
             ),
           ),
         ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_assets.dart';
@@ -20,6 +19,7 @@ import 'domain/membership_order.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
+import 'membership_payment_page.dart';
 
 class MembershipPage extends ConsumerStatefulWidget {
   const MembershipPage({
@@ -209,7 +209,11 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
     );
     if (!mounted || order == null) return;
 
-    await _showPaymentSheet(order);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => MembershipPaymentPage(order: order, selectedPlan: plan),
+      ),
+    );
   }
 
   Future<MembershipOrder?> _showSubscribeConfirmationSheet({
@@ -266,46 +270,6 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
       _showMessage('Unable to create order. Please try again later.');
       return false;
     }
-  }
-
-  Future<void> _showPaymentSheet(MembershipOrder order) {
-    return showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) {
-        return _PaymentSheet(
-          order: order,
-          onCopyAddress: () => _copyPaymentValue(
-            value: order.payToAddress,
-            emptyMessage: 'Payment address unavailable',
-            copiedMessage: 'Address copied',
-          ),
-          onCopyAmount: () => _copyPaymentValue(
-            value: order.expectedAmountLbc,
-            emptyMessage: 'Amount unavailable',
-            copiedMessage: 'Amount copied',
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _copyPaymentValue({
-    required String? value,
-    required String emptyMessage,
-    required String copiedMessage,
-  }) async {
-    final String? trimmed = value?.trim();
-    if (trimmed == null || trimmed.isEmpty) {
-      _showMessage(emptyMessage);
-      return;
-    }
-    await Clipboard.setData(ClipboardData(text: trimmed));
-    if (!mounted) return;
-    _showMessage(copiedMessage);
   }
 
   void _showMessage(String message) {
@@ -1092,195 +1056,6 @@ class _SubscribeConfirmationSheetState
       ),
     );
   }
-}
-
-class _PaymentSheet extends StatelessWidget {
-  const _PaymentSheet({
-    required this.order,
-    required this.onCopyAddress,
-    required this.onCopyAmount,
-  });
-
-  final MembershipOrder order;
-  final VoidCallback onCopyAddress;
-  final VoidCallback onCopyAmount;
-
-  @override
-  Widget build(BuildContext context) {
-    final String amountLabel = _paymentAmountLabel(order);
-    final String addressLabel = _paymentValue(
-      order.payToAddress,
-      'Payment address unavailable',
-    );
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(
-              'Complete payment',
-              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.warmBackground,
-                border: Border.all(color: AppColors.softBorder),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _PaymentInfoRow(
-                    label: 'Plan',
-                    value: _paymentPlanLabel(order),
-                  ),
-                  _PaymentInfoRow(label: 'Order no', value: order.orderNo),
-                  _PaymentInfoRow(label: 'Status', value: order.status),
-                  _PaymentInfoRow(label: 'Amount', value: amountLabel),
-                  _PaymentInfoRow(label: 'Pay to', value: addressLabel),
-                  _PaymentInfoRow(
-                    label: 'Expires',
-                    value: _paymentValue(order.expiresAt, 'No expiry provided'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: <Widget>[
-                _PaymentPillButton(
-                  label: 'Copy amount',
-                  icon: Icons.copy_rounded,
-                  onTap: onCopyAmount,
-                ),
-                _PaymentPillButton(
-                  label: 'Copy address',
-                  icon: Icons.content_copy_rounded,
-                  onTap: onCopyAddress,
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _GoldButton(
-              label: 'Close',
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PaymentInfoRow extends StatelessWidget {
-  const _PaymentInfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 78,
-            child: Text(
-              label,
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.mutedOliveText,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text(
-              value,
-              style: AppTextStyles.body.copyWith(fontSize: 12, height: 1.2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentPillButton extends StatelessWidget {
-  const _PaymentPillButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: AppColors.brandGold.withValues(alpha: 0.12),
-          border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.55)),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 14, color: AppColors.brandGold),
-            const SizedBox(width: AppSpacing.xxs),
-            Text(
-              label,
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.brandGold,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _paymentPlanLabel(MembershipOrder order) {
-  final String? title = order.planTitle?.trim();
-  final String? code = order.planCode?.trim();
-  if (title != null && title.isNotEmpty && code != null && code.isNotEmpty) {
-    return '$title ($code)';
-  }
-  if (title != null && title.isNotEmpty) return title;
-  if (code != null && code.isNotEmpty) return code;
-  return 'Plan unavailable';
-}
-
-String _paymentAmountLabel(MembershipOrder order) {
-  final String? amount = order.expectedAmountLbc?.trim();
-  if (amount == null || amount.isEmpty) return 'Amount unavailable';
-  final String? currency = order.currency?.trim();
-  if (currency == null || currency.isEmpty) return amount;
-  return '$amount $currency';
-}
-
-String _paymentValue(String? value, String fallback) {
-  final String? trimmed = value?.trim();
-  if (trimmed == null || trimmed.isEmpty) return fallback;
-  return trimmed;
 }
 
 class _SectionTitle extends StatelessWidget {

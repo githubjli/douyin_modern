@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app/theme/app_colors.dart';
 import '../features/feed/feed_page.dart';
 import '../features/home/home_page.dart';
+import '../features/home/domain/home_repository.dart';
 import '../features/membership/membership_page.dart';
 import '../features/profile/profile_page.dart';
 
@@ -15,12 +16,14 @@ class MainShell extends StatefulWidget {
     this.enableRemoteFeed = true,
     this.enableRemoteHome = true,
     this.enableRemoteMembership = true,
+    this.homeRepository,
   });
 
   final bool enableFeedVideo;
   final bool enableRemoteFeed;
   final bool enableRemoteHome;
   final bool enableRemoteMembership;
+  final HomeRepository? homeRepository;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -87,7 +90,12 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final int displayIndex = _index >= 2 ? _index - 1 : _index;
     final List<Widget> displayPages = <Widget>[
-      HomePage(useRemote: widget.enableRemoteHome),
+      HomePage(
+        useRemote: widget.enableRemoteHome,
+        remoteRepository: widget.homeRepository,
+        onSignInPressed: _goToProfile,
+        onSubscribePressed: _goToMembership,
+      ),
       FeedPage(
         enableVideo: widget.enableFeedVideo,
         enableRemoteFeed: widget.enableRemoteFeed,

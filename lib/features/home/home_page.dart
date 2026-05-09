@@ -22,17 +22,44 @@ part 'widgets/hero_widgets.dart';
 part 'widgets/portal_cards.dart';
 part 'widgets/section_grid.dart';
 
+class _HomeDetailCallbacks extends InheritedWidget {
+  const _HomeDetailCallbacks({
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
+    required super.child,
+  });
+
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
+
+  static _HomeDetailCallbacks? maybeOf(BuildContext context) {
+    final InheritedElement? element =
+        context.getElementForInheritedWidgetOfExactType<_HomeDetailCallbacks>();
+    return element?.widget as _HomeDetailCallbacks?;
+  }
+
+  @override
+  bool updateShouldNotify(_HomeDetailCallbacks oldWidget) {
+    return onSignInPressed != oldWidget.onSignInPressed ||
+        onSubscribePressed != oldWidget.onSubscribePressed;
+  }
+}
+
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({
     super.key,
     this.useRemote = true,
     this.remoteRepository,
     this.mockRepository = const MockHomeRepository(),
+    this.onSignInPressed,
+    this.onSubscribePressed,
   });
 
   final bool useRemote;
   final HomeRepository? remoteRepository;
   final HomeRepository mockRepository;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -181,26 +208,30 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     final List<dynamic> heroItems = _heroItemsFor(data);
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        children: <Widget>[
-          const _HomeTopRow(),
-          const SizedBox(height: AppSpacing.md),
-          _ChannelNav(
-            channels: _channels,
-            selectedIndex: _selectedChannelIndex,
-            onSelected: (int index) {
-              setState(() => _selectedChannelIndex = index);
-            },
-          ),
-          if (_notice != null) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            Text(_notice!, style: AppTextStyles.caption),
+    return _HomeDetailCallbacks(
+      onSignInPressed: widget.onSignInPressed,
+      onSubscribePressed: widget.onSubscribePressed,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: <Widget>[
+            const _HomeTopRow(),
+            const SizedBox(height: AppSpacing.md),
+            _ChannelNav(
+              channels: _channels,
+              selectedIndex: _selectedChannelIndex,
+              onSelected: (int index) {
+                setState(() => _selectedChannelIndex = index);
+              },
+            ),
+            if (_notice != null) ...<Widget>[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_notice!, style: AppTextStyles.caption),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            ..._channelContent(data, heroItems),
           ],
-          const SizedBox(height: AppSpacing.md),
-          ..._channelContent(data, heroItems),
-        ],
+        ),
       ),
     );
   }
@@ -1013,11 +1044,14 @@ void _openVideoDetail(
   HomeVideoItem video,
   List<HomeVideoItem> recommendations,
 ) {
+  final _HomeDetailCallbacks? callbacks = _HomeDetailCallbacks.maybeOf(context);
   Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => VideoDetailPage(
         video: video,
         recommendations: recommendations,
+        onSignInPressed: callbacks?.onSignInPressed,
+        onSubscribePressed: callbacks?.onSubscribePressed,
       ),
     ),
   );

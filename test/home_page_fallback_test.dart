@@ -28,6 +28,8 @@ void main() {
     WidgetTester tester, {
     required HomeRepository remoteRepository,
     AuthRepository? authRepository,
+    VoidCallback? onSignInPressed,
+    VoidCallback? onSubscribePressed,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
     addTearDown(() async {
@@ -52,6 +54,8 @@ void main() {
             body: HomePage(
               remoteRepository: remoteRepository,
               mockRepository: const MockHomeRepository(),
+              onSignInPressed: onSignInPressed,
+              onSubscribePressed: onSubscribePressed,
             ),
           ),
         ),
@@ -128,6 +132,79 @@ void main() {
 
     expect(find.text('Members Preview'), findsWidgets);
     expect(find.text('VIP'), findsWidgets);
+  });
+
+  testWidgets('signed-out locked VIP detail Sign in triggers callback',
+      (WidgetTester tester) async {
+    bool signInPressed = false;
+    const HomePortalData portal = HomePortalData(
+      featured: <HomeVideoItem>[],
+      latestVideos: <HomeVideoItem>[
+        HomeVideoItem(
+          id: 'home-locked-vip-sign-in',
+          title: 'Home Locked VIP Sign In',
+          subtitle: 'VIP Studio • 120 views',
+          accessType: 'membership',
+          canWatch: false,
+          isLocked: true,
+        ),
+      ],
+      shortDrama: <HomeDramaItem>[],
+      liveNow: <HomeLiveItem>[],
+      recommended: <HomeVideoItem>[],
+    );
+
+    await pumpHomePage(
+      tester,
+      remoteRepository: _HomePortalRepository.value(portal),
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
+      onSignInPressed: () {
+        signInPressed = true;
+      },
+    );
+
+    await tester.tap(find.text('Home Locked VIP Sign In').first);
+    await tester.pump();
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    expect(signInPressed, isTrue);
+  });
+
+  testWidgets('signed-in locked VIP detail Subscribe triggers callback',
+      (WidgetTester tester) async {
+    bool subscribePressed = false;
+    const HomePortalData portal = HomePortalData(
+      featured: <HomeVideoItem>[],
+      latestVideos: <HomeVideoItem>[
+        HomeVideoItem(
+          id: 'home-locked-vip-subscribe',
+          title: 'Home Locked VIP Subscribe',
+          subtitle: 'VIP Studio • 120 views',
+          accessType: 'membership',
+          canWatch: false,
+          isLocked: true,
+        ),
+      ],
+      shortDrama: <HomeDramaItem>[],
+      liveNow: <HomeLiveItem>[],
+      recommended: <HomeVideoItem>[],
+    );
+
+    await pumpHomePage(
+      tester,
+      remoteRepository: _HomePortalRepository.value(portal),
+      onSubscribePressed: () {
+        subscribePressed = true;
+      },
+    );
+
+    await tester.tap(find.text('Home Locked VIP Subscribe').first);
+    await tester.pump();
+    await tester.tap(find.text('Subscribe'));
+    await tester.pump();
+
+    expect(subscribePressed, isTrue);
   });
 
   testWidgets('remote Home portal load requests videos with authentication',

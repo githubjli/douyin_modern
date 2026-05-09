@@ -57,6 +57,8 @@ void main() {
     RemoteHomeRepository? videoRepository,
     ProviderContainer? container,
     bool settle = true,
+    VoidCallback? onSignInPressed,
+    VoidCallback? onSubscribePressed,
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
@@ -88,6 +90,8 @@ void main() {
                         )
                       : null),
               videoRepository: videoRepository,
+              onSignInPressed: onSignInPressed,
+              onSubscribePressed: onSubscribePressed,
             ),
           ),
         ),
@@ -133,6 +137,25 @@ void main() {
     expect(find.text('Guest'), findsNothing);
     expect(find.text('Sign in required'), findsNothing);
     expect(find.text('Sign in to unlock VIP access'), findsNothing);
+  });
+
+  testWidgets('signed-out Sign in CTA triggers callback',
+      (WidgetTester tester) async {
+    bool signInPressed = false;
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
+      onSignInPressed: () {
+        signInPressed = true;
+      },
+    );
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    expect(signInPressed, isTrue);
   });
 
   testWidgets('renders main Membership structure', (WidgetTester tester) async {

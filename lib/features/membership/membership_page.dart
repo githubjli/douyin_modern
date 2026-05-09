@@ -84,7 +84,10 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
 
     if (!oldWidget.isActive && widget.isActive) {
       _refreshPageData();
-      _refreshMembershipForActiveTab();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _refreshMembershipForActiveTab();
+      });
     }
   }
 

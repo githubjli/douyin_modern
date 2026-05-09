@@ -628,11 +628,10 @@ class _IconGoldButton extends StatelessWidget {
 }
 
 class _GoldButton extends StatelessWidget {
-  const _GoldButton({required this.label, required this.onTap, this.icon});
+  const _GoldButton({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback? onTap;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -649,24 +648,14 @@ class _GoldButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              if (icon != null) ...<Widget>[
-                Icon(icon, size: 16, color: AppColors.warmBackground),
-                const SizedBox(width: AppSpacing.xxs),
-              ],
-              Text(
-                label,
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.warmBackground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-            ],
+          child: Text(
+            label,
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.warmBackground,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
           ),
         ),
       ),

@@ -157,6 +157,38 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final bool showGuest = _shouldShowGuestProfile(authState);
     final bool isChecking = !isSignedIn && !showGuest;
 
+    if (showGuest) {
+      return SafeArea(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double verticalPadding = AppSpacing.md * 2;
+            final double minHeight = constraints.maxHeight > verticalPadding
+                ? constraints.maxHeight - verticalPadding
+                : 0;
+
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minHeight),
+                child: Align(
+                  alignment: const Alignment(0, -0.12),
+                  child: _GuestProfileCard(
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    loggingIn: _loggingIn,
+                    error: _error ?? authState.message,
+                    onLogin: _login,
+                    onSignUp: _showSignUpPlaceholder,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -175,15 +207,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               profile: _profile,
               onLogout: _logout,
               onRefresh: _refreshProfile,
-            )
-          else if (showGuest)
-            _GuestProfileCard(
-              emailController: _emailController,
-              passwordController: _passwordController,
-              loggingIn: _loggingIn,
-              error: _error ?? authState.message,
-              onLogin: _login,
-              onSignUp: _showSignUpPlaceholder,
             ),
           if (_error != null && (isChecking || isSignedIn)) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
@@ -243,121 +266,112 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    final double minHeight = MediaQuery.sizeOf(context).height -
-        MediaQuery.paddingOf(context).vertical -
-        (AppSpacing.md * 2);
-
     return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: minHeight),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 96,
-                height: 96,
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  border: Border.all(color: AppColors.softBorder),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 96,
+            height: 96,
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              border: Border.all(color: AppColors.softBorder),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            ),
+            child: Image.asset(AppAssets.meowLogo, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Text('Meow Media', style: AppTextStyles.sectionTitle),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            'Sign in to continue',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.mutedOliveText,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              border: Border.all(color: AppColors.softBorder),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                TextField(
+                  controller: widget.emailController,
+                  cursorColor: AppColors.brandGold,
+                  keyboardType: TextInputType.emailAddress,
+                  style: AppTextStyles.body,
+                  decoration: _loginInputDecoration('Email'),
                 ),
-                child: Image.asset(AppAssets.meowLogo, fit: BoxFit.contain),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              const Text('Meow Media', style: AppTextStyles.sectionTitle),
-              const SizedBox(height: AppSpacing.xxs),
-              Text(
-                'Sign in to continue',
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.mutedOliveText,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  border: Border.all(color: AppColors.softBorder),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    TextField(
-                      controller: widget.emailController,
-                      cursorColor: AppColors.brandGold,
-                      keyboardType: TextInputType.emailAddress,
-                      style: AppTextStyles.body,
-                      decoration: _loginInputDecoration('Email'),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: widget.passwordController,
-                      cursorColor: AppColors.brandGold,
-                      obscureText: _obscurePassword,
-                      style: AppTextStyles.body,
-                      decoration: _loginInputDecoration(
-                        'Password',
-                        suffixIcon: IconButton(
-                          key: const ValueKey<String>(
-                            'profile-password-visibility-toggle',
-                          ),
-                          tooltip: _obscurePassword
-                              ? 'Show password'
-                              : 'Hide password',
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                          ),
-                          color: AppColors.mutedOliveText,
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                        ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: widget.passwordController,
+                  cursorColor: AppColors.brandGold,
+                  obscureText: _obscurePassword,
+                  style: AppTextStyles.body,
+                  decoration: _loginInputDecoration(
+                    'Password',
+                    suffixIcon: IconButton(
+                      key: const ValueKey<String>(
+                        'profile-password-visibility-toggle',
                       ),
-                    ),
-                    if (widget.error != null) ...<Widget>[
-                      const SizedBox(height: AppSpacing.sm),
-                      _InlineAuthMessage(message: widget.error!),
-                    ],
-                    const SizedBox(height: AppSpacing.md),
-                    ElevatedButton(
-                      onPressed: widget.loggingIn ? null : widget.onLogin,
-                      child: Text(
-                        widget.loggingIn ? 'Signing in...' : 'Sign In',
+                      tooltip: _obscurePassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                       ),
+                      color: AppColors.mutedOliveText,
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextButton(
-                onPressed: widget.onSignUp,
-                child: RichText(
-                  text: const TextSpan(
-                    style: AppTextStyles.caption,
-                    children: <TextSpan>[
-                      TextSpan(text: 'Don’t have an account? '),
-                      TextSpan(
-                        text: 'Sign Up',
-                        style: TextStyle(
-                          color: AppColors.brandGold,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ),
-            ],
+                if (widget.error != null) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  _InlineAuthMessage(message: widget.error!),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                ElevatedButton(
+                  onPressed: widget.loggingIn ? null : widget.onLogin,
+                  child: Text(
+                    widget.loggingIn ? 'Signing in...' : 'Sign In',
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.sm),
+          TextButton(
+            onPressed: widget.onSignUp,
+            child: RichText(
+              text: const TextSpan(
+                style: AppTextStyles.caption,
+                children: <TextSpan>[
+                  TextSpan(text: 'Don’t have an account? '),
+                  TextSpan(
+                    text: 'Sign Up',
+                    style: TextStyle(
+                      color: AppColors.brandGold,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

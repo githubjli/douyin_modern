@@ -121,13 +121,25 @@ class ApiClient {
   }
 
   bool _isAuthEndpoint(String path) {
-    return path == Endpoints.authLogin ||
-        path == Endpoints.authRegister ||
-        path == Endpoints.authRefresh;
+    final String normalizedPath = _normalizeEndpointPath(path);
+    return normalizedPath == _normalizeEndpointPath(Endpoints.authLogin) ||
+        normalizedPath == _normalizeEndpointPath(Endpoints.authRegister) ||
+        normalizedPath == _normalizeEndpointPath(Endpoints.authRefresh);
+  }
+
+  String _normalizeEndpointPath(String path) {
+    final Uri? uri = Uri.tryParse(path);
+    String normalizedPath = uri?.path ?? path.split('?').first;
+    if (normalizedPath.length > 1 && normalizedPath.endsWith('/')) {
+      normalizedPath = normalizedPath.substring(0, normalizedPath.length - 1);
+    }
+    return normalizedPath;
   }
 
   bool _isRefreshAuthFailure(DioException error) {
     final int? statusCode = error.response?.statusCode;
+    // Only confirmed refresh credential failures clear tokens. Do not include
+    // 422 unless the backend contract explicitly defines it as auth failure.
     return statusCode == 400 || statusCode == 401 || statusCode == 403;
   }
 

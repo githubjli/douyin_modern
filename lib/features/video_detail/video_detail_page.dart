@@ -58,12 +58,16 @@ class VideoDetailPage extends ConsumerStatefulWidget {
     this.recommendations = const <HomeVideoItem>[],
     this.apiClient,
     this.loadRemoteDetail = true,
+    this.onSignInPressed,
+    this.onSubscribePressed,
   });
 
   final HomeVideoItem video;
   final List<HomeVideoItem> recommendations;
   final ApiClient? apiClient;
   final bool loadRemoteDetail;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   ConsumerState<VideoDetailPage> createState() => _VideoDetailPageState();
@@ -310,6 +314,8 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
               videoInitializationFailed: _videoInitializationFailed,
               isPlaying: _videoPlaying,
               onTogglePlayback: () => unawaited(_togglePlayback()),
+              onSignInPressed: widget.onSignInPressed,
+              onSubscribePressed: widget.onSubscribePressed,
             ),
             const SizedBox(height: AppSpacing.sm),
             _VideoInfoSection(video: _video, loading: _loadingDetail),
@@ -328,7 +334,11 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
                 message: 'No video recommendations yet.',
               )
             else
-              _VideoRecommendationGrid(items: recommendations),
+              _VideoRecommendationGrid(
+                items: recommendations,
+                onSignInPressed: widget.onSignInPressed,
+                onSubscribePressed: widget.onSubscribePressed,
+              ),
           ],
         ),
       ),
@@ -469,6 +479,8 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.videoInitializationFailed,
     required this.isPlaying,
     required this.onTogglePlayback,
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
   });
 
   final HomeVideoItem video;
@@ -478,6 +490,8 @@ class _VideoMediaHeader extends StatelessWidget {
   final bool videoInitializationFailed;
   final bool isPlaying;
   final VoidCallback onTogglePlayback;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -530,7 +544,11 @@ class _VideoMediaHeader extends StatelessWidget {
             if (lockedVip)
               _LockedVipOverlay(
                 ctaLabel: isSignedIn ? 'Subscribe' : 'Sign in',
-                onCta: () => _showLockedVipPlaceholder(context, isSignedIn),
+                onCta: isSignedIn
+                    ? onSubscribePressed ??
+                        () => _showLockedVipPlaceholder(context, isSignedIn)
+                    : onSignInPressed ??
+                        () => _showLockedVipPlaceholder(context, isSignedIn),
               )
             else if (!isPlaying)
               IgnorePointer(
@@ -978,9 +996,15 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _VideoRecommendationGrid extends StatelessWidget {
-  const _VideoRecommendationGrid({required this.items});
+  const _VideoRecommendationGrid({
+    required this.items,
+    required this.onSignInPressed,
+    required this.onSubscribePressed,
+  });
 
   final List<HomeVideoItem> items;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -1003,6 +1027,8 @@ class _VideoRecommendationGrid extends StatelessWidget {
                 builder: (_) => VideoDetailPage(
                   video: item,
                   recommendations: items,
+                  onSignInPressed: onSignInPressed,
+                  onSubscribePressed: onSubscribePressed,
                 ),
               ),
             );

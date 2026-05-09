@@ -87,6 +87,35 @@ void main() {
     expect(find.text('Profile User'), findsNothing);
   });
 
+  testWidgets('password visibility toggle shows and hides password',
+      (WidgetTester tester) async {
+    await pumpProfilePage(
+      tester,
+      authRepository: _FakeAuthRepository(currentSession: signedOutSession),
+    );
+
+    final Finder passwordField = find.byType(TextField).at(1);
+    TextField passwordTextField = tester.widget<TextField>(passwordField);
+    expect(passwordTextField.obscureText, isTrue);
+
+    final Finder visibilityToggle = find.byKey(
+      const ValueKey<String>('profile-password-visibility-toggle'),
+    );
+    expect(visibilityToggle, findsOneWidget);
+
+    await tester.tap(visibilityToggle);
+    await tester.pump();
+
+    passwordTextField = tester.widget<TextField>(passwordField);
+    expect(passwordTextField.obscureText, isFalse);
+
+    await tester.tap(visibilityToggle);
+    await tester.pump();
+
+    passwordTextField = tester.widget<TextField>(passwordField);
+    expect(passwordTextField.obscureText, isTrue);
+  });
+
   testWidgets('auth signedIn shows signed-in profile card',
       (WidgetTester tester) async {
     await pumpProfilePage(

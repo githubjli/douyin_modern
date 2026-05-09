@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
+
+import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -38,16 +41,116 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
   final TextEditingController _txHashController = TextEditingController();
   bool _savingQr = false;
   bool _submittingTx = false;
+  bool _verifyingNow = false;
+  bool _txSubmitted = false;
+
+  late MembershipOrder _currentOrder;
+  Timer? _countdownTimer;
+  Timer? _pollTimer;
+  Duration _remaining = Duration.zero;
+
+  static const Duration _pollInterval = Duration(seconds: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _currentOrder = widget.order;
+    _startCountdown();
+  }
 
   @override
   void dispose() {
     _txHashController.dispose();
+    _countdownTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  MembershipOrder get order => widget.order;
+  MembershipOrder get order => _currentOrder;
 
   MembershipPlan get selectedPlan => widget.selectedPlan;
+
+  // ---------- countdown ----------
+
+  void _startCountdown() {
+    final String? expiresAt = _currentOrder.expiresAt;
+    if (expiresAt == null) return;
+    final DateTime? expiry = DateTime.tryParse(expiresAt);
+    if (expiry == null) return;
+
+    void tick() {
+      if (!mounted) return;
+      final Duration remaining = expiry.difference(DateTime.now());
+      setState(() {
+        _remaining = remaining.isNegative ? Duration.zero : remaining;
+      });
+      if (remaining.isNegative) {
+        _countdownTimer?.cancel();
+        _pollTimer?.cancel();
+      }
+    }
+
+    tick();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
+  }
+
+  // ---------- polling ----------
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOrder());
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  Future<void> _pollOrder() async {
+    if (!mounted) return;
+    try {
+      final MembershipOrder updated =
+          await widget.repository.getOrder(_currentOrder.orderNo);
+      if (!mounted) return;
+      setState(() {
+        _currentOrder = updated;
+      });
+      if (updated.isSuccessLike) {
+        _stopPolling();
+        _countdownTimer?.cancel();
+      }
+    } catch (_) {
+      // silent — keep polling
+    }
+  }
+
+  // ---------- verify now ----------
+
+  Future<void> _verifyNow() async {
+    if (_verifyingNow) return;
+    setState(() {
+      _verifyingNow = true;
+    });
+    try {
+      final MembershipOrder updated =
+          await widget.repository.verifyNow(_currentOrder.orderNo);
+      if (!mounted) return;
+      setState(() {
+        _currentOrder = updated;
+        _verifyingNow = false;
+      });
+      if (updated.isSuccessLike) {
+        _stopPolling();
+        _countdownTimer?.cancel();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _verifyingNow = false;
+      });
+      _showMessage('Verification failed. Please try again.');
+    }
+  }
 
   Future<void> _copyAddress() async {
     final String? address = _trimmed(order.payToAddress);
@@ -99,21 +202,24 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     });
 
     try {
-      await widget.repository.submitTxHint(
+      final MembershipOrder updated = await widget.repository.submitTxHint(
         orderNo: order.orderNo,
         txid: txHash,
       );
       if (!mounted) return;
+      setState(() {
+        _currentOrder = updated;
+        _submittingTx = false;
+        _txSubmitted = true;
+      });
       _showMessage('Transaction hash submitted. Awaiting confirmation.');
+      _startPolling();
     } catch (_) {
       if (!mounted) return;
+      setState(() {
+        _submittingTx = false;
+      });
       _showMessage('Unable to submit transaction hash. Please try again.');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _submittingTx = false;
-        });
-      }
     }
   }
 
@@ -125,8 +231,13 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool paid = _currentOrder.isSuccessLike;
     final String? qrPayload = _paymentQrPayload(order);
     final String tokenSymbol = _selectedPlanTokenSymbol(selectedPlan, order);
+    final bool expired =
+        _currentOrder.isExpired || (_remaining == Duration.zero &&
+            _currentOrder.expiresAt != null &&
+            !paid);
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -148,26 +259,44 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
                 tokenSymbol: tokenSymbol,
               ),
               const SizedBox(height: AppSpacing.md),
-              _QrPaymentSection(
-                qrKey: _qrKey,
-                qrPayload: qrPayload,
-                canSave: qrPayload != null && !_savingQr,
-                saving: _savingQr,
-                onSave: _saveQrCode,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _ReceivingAddressCard(
-                address: order.payToAddress,
-                onCopy: _copyAddress,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _WarningCard(tokenSymbol: tokenSymbol),
-              const SizedBox(height: AppSpacing.md),
-              _TransactionHashSection(
-                controller: _txHashController,
-                submitting: _submittingTx,
-                onSubmit: _submitTransactionHash,
-              ),
+              if (paid)
+                _PaymentSuccessCard(planTitle: selectedPlan.title)
+              else ...<Widget>[
+                if (_currentOrder.expiresAt != null)
+                  _CountdownBanner(
+                    remaining: _remaining,
+                    expired: expired,
+                  ),
+                if (_currentOrder.expiresAt != null)
+                  const SizedBox(height: AppSpacing.sm),
+                _QrPaymentSection(
+                  qrKey: _qrKey,
+                  qrPayload: qrPayload,
+                  canSave: qrPayload != null && !_savingQr,
+                  saving: _savingQr,
+                  onSave: _saveQrCode,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _ReceivingAddressCard(
+                  address: order.payToAddress,
+                  onCopy: _copyAddress,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _WarningCard(tokenSymbol: tokenSymbol),
+                const SizedBox(height: AppSpacing.md),
+                _TransactionHashSection(
+                  controller: _txHashController,
+                  submitting: _submittingTx,
+                  onSubmit: _submitTransactionHash,
+                ),
+                if (_txSubmitted) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  _VerifyNowSection(
+                    verifying: _verifyingNow,
+                    onVerify: _verifyNow,
+                  ),
+                ],
+              ],
             ],
           ),
         ),
@@ -693,6 +822,152 @@ class _GoldButton extends StatelessWidget {
   }
 }
 
+class _CountdownBanner extends StatelessWidget {
+  const _CountdownBanner({required this.remaining, required this.expired});
+
+  final Duration remaining;
+  final bool expired;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = expired
+        ? 'Order expired'
+        : 'Expires in ${_formatDuration(remaining)}';
+    final Color color =
+        expired ? Colors.redAccent : AppColors.brandGold;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.40)),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(
+            expired ? Icons.timer_off_outlined : Icons.timer_outlined,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: AppSpacing.xxs),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(Duration d) {
+    final int h = d.inHours;
+    final int m = d.inMinutes.remainder(60);
+    final int s = d.inSeconds.remainder(60);
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:'
+          '${m.toString().padLeft(2, '0')}:'
+          '${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:'
+        '${s.toString().padLeft(2, '0')}';
+  }
+}
+
+class _PaymentSuccessCard extends StatelessWidget {
+  const _PaymentSuccessCard({required this.planTitle});
+
+  final String planTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        children: <Widget>[
+          const Icon(
+            Icons.check_circle_rounded,
+            color: AppColors.brandGold,
+            size: 52,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Payment Confirmed',
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 18),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            '$planTitle membership is now active.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body.copyWith(fontSize: 13),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _GoldButton(
+            label: 'Done',
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerifyNowSection extends StatelessWidget {
+  const _VerifyNowSection({
+    required this.verifying,
+    required this.onVerify,
+  });
+
+  final bool verifying;
+  final VoidCallback onVerify;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Already Transferred?',
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 15),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'If you have completed the transfer, tap below to trigger an immediate check.',
+            style: AppTextStyles.body.copyWith(fontSize: 12, height: 1.4),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _SecondaryGoldButton(
+            icon: verifying
+                ? Icons.hourglass_top_rounded
+                : Icons.verified_outlined,
+            label: verifying ? 'Checking...' : 'Check Payment Now',
+            onTap: verifying ? null : onVerify,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 Future<bool> _writeQrPng(GlobalKey qrKey) async {
   final BuildContext? context = qrKey.currentContext;
   if (context == null) return false;
@@ -706,7 +981,8 @@ Future<bool> _writeQrPng(GlobalKey qrKey) async {
   final Uint8List? pngBytes = byteData?.buffer.asUint8List();
   if (pngBytes == null || pngBytes.isEmpty) return false;
 
-  final String filePath = '${Directory.systemTemp.path}'
+  final Directory dir = await getApplicationDocumentsDirectory();
+  final String filePath = '${dir.path}'
       '/membership_payment_qr_${DateTime.now().millisecondsSinceEpoch}.png';
   final File file = File(filePath);
   await file.writeAsBytes(pngBytes, flush: true);

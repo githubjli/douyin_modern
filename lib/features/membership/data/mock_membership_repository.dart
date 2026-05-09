@@ -26,25 +26,71 @@ class MockMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async => null;
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) {
-    throw UnimplementedError('Mock membership orders are not available.');
+  Future<MembershipOrder> createOrder({required String planCode}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    return MembershipOrder(
+      orderNo: 'mock-order-${DateTime.now().millisecondsSinceEpoch}',
+      status: 'pending',
+      planCode: planCode,
+      planTitle: _planTitle(planCode),
+      expectedAmountLbc: _planAmount(planCode),
+      currency: 'THB',
+      tokenSymbol: 'THB-LTT',
+      payToAddress: 'mock-thb-ltt-address-0x1234567890abcdef',
+      qrPayload: 'mock-thb-ltt-address-0x1234567890abcdef',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+    );
   }
 
   @override
-  Future<MembershipOrder> getOrder(String orderNo) {
-    throw UnimplementedError('Mock membership orders are not available.');
+  Future<MembershipOrder> getOrder(String orderNo) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return MembershipOrder(
+      orderNo: orderNo,
+      status: 'pending',
+      payToAddress: 'mock-thb-ltt-address-0x1234567890abcdef',
+    );
   }
 
   @override
   Future<MembershipOrder> submitTxHint({
     required String orderNo,
     required String txid,
-  }) {
-    throw UnimplementedError('Mock membership orders are not available.');
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return MembershipOrder(
+      orderNo: orderNo,
+      status: 'pending',
+      txid: txid,
+      payToAddress: 'mock-thb-ltt-address-0x1234567890abcdef',
+    );
   }
 
   @override
-  Future<MembershipOrder> verifyNow(String orderNo) {
-    throw UnimplementedError('Mock membership orders are not available.');
+  Future<MembershipOrder> verifyNow(String orderNo) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return MembershipOrder(
+      orderNo: orderNo,
+      status: 'pending',
+      payToAddress: 'mock-thb-ltt-address-0x1234567890abcdef',
+    );
+  }
+
+  static String _planTitle(String planCode) {
+    return switch (planCode) {
+      'monthly' => 'Monthly',
+      'quarterly' => 'Quarterly',
+      'yearly' => 'Yearly',
+      _ => 'Membership',
+    };
+  }
+
+  static String _planAmount(String planCode) {
+    return switch (planCode) {
+      'monthly' => '99.00',
+      'quarterly' => '259.00',
+      'yearly' => '899.00',
+      _ => '99.00',
+    };
   }
 }

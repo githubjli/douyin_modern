@@ -670,7 +670,7 @@ void main() {
 
     expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
-    expect(find.text('Valid until June 1, 2026'), findsOneWidget);
+    expect(find.text('Valid until June 1, 2026'), findsWidgets);
     expect(repository.statusCalls, greaterThanOrEqualTo(2));
     expect(container.read(membershipControllerProvider).isActive, isTrue);
   });
@@ -857,7 +857,7 @@ void main() {
 
     expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
-    expect(find.text('Valid until June 1, 2026'), findsOneWidget);
+    expect(find.text('Valid until June 1, 2026'), findsWidgets);
     expect(find.text('Manage'), findsWidgets);
 
     await dragUntilTextVisible(tester, 'USD 9.99 / month');

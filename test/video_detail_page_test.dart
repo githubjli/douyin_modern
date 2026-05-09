@@ -25,6 +25,8 @@ void main() {
     ProviderContainer? container,
     AuthRepository? authRepository,
     bool settle = true,
+    VoidCallback? onSignInPressed,
+    VoidCallback? onSubscribePressed,
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
@@ -45,6 +47,8 @@ void main() {
             video: video,
             apiClient: apiClient,
             loadRemoteDetail: loadRemoteDetail,
+            onSignInPressed: onSignInPressed,
+            onSubscribePressed: onSubscribePressed,
           ),
         ),
       ),
@@ -56,6 +60,58 @@ void main() {
     }
     return effectiveContainer;
   }
+
+  testWidgets('locked VIP signed-out Sign in CTA triggers callback',
+      (WidgetTester tester) async {
+    bool signInPressed = false;
+
+    await pumpVideoDetail(
+      tester,
+      isSignedIn: false,
+      onSignInPressed: () {
+        signInPressed = true;
+      },
+      video: const HomeVideoItem(
+        id: 'vip-locked-sign-in-callback',
+        title: 'Locked VIP Preview',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
+      ),
+    );
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    expect(signInPressed, isTrue);
+  });
+
+  testWidgets('locked VIP signed-in Subscribe CTA triggers callback',
+      (WidgetTester tester) async {
+    bool subscribePressed = false;
+
+    await pumpVideoDetail(
+      tester,
+      onSubscribePressed: () {
+        subscribePressed = true;
+      },
+      video: const HomeVideoItem(
+        id: 'vip-locked-subscribe-callback',
+        title: 'Members Locked Cut',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
+        videoUrl: 'https://example.com/vip.mp4',
+      ),
+    );
+
+    await tester.tap(find.text('Subscribe'));
+    await tester.pump();
+
+    expect(subscribePressed, isTrue);
+  });
 
   testWidgets('auth checking does not show Sign in on locked VIP',
       (WidgetTester tester) async {

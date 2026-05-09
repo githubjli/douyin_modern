@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_client.dart';
@@ -12,6 +13,7 @@ import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/application/membership_providers.dart';
 import 'package:meow_media/features/membership/application/membership_state.dart';
+import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
@@ -44,6 +46,11 @@ void main() {
     isActive: true,
   );
 
+  setUpAll(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (_) async => null);
+  });
+
   Future<ProviderContainer> pumpMembershipPage(
     WidgetTester tester, {
     required MembershipRepository repository,
@@ -57,6 +64,8 @@ void main() {
     RemoteHomeRepository? videoRepository,
     ProviderContainer? container,
     bool settle = true,
+    VoidCallback? onSignInPressed,
+    VoidCallback? onSubscribePressed,
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
@@ -88,6 +97,8 @@ void main() {
                         )
                       : null),
               videoRepository: videoRepository,
+              onSignInPressed: onSignInPressed,
+              onSubscribePressed: onSubscribePressed,
             ),
           ),
         ),
@@ -121,6 +132,23 @@ void main() {
     );
   }
 
+  Future<void> tapFirstBuyNow(WidgetTester tester) async {
+    await dragUntilTextVisible(tester, 'Buy Now');
+    final Finder buyNow = find.text('Buy Now').first;
+    await tester.ensureVisible(buyNow);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy Now').hitTestable().first);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tapSheetAction(WidgetTester tester, String label) async {
+    final Finder action = find.text(label).first;
+    await tester.ensureVisible(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).hitTestable().first);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('auth checking does not show guest sign-in state',
       (WidgetTester tester) async {
     await pumpMembershipPage(
@@ -133,6 +161,25 @@ void main() {
     expect(find.text('Guest'), findsNothing);
     expect(find.text('Sign in required'), findsNothing);
     expect(find.text('Sign in to unlock VIP access'), findsNothing);
+  });
+
+  testWidgets('signed-out Sign in CTA triggers callback',
+      (WidgetTester tester) async {
+    bool signInPressed = false;
+
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
+      onSignInPressed: () {
+        signInPressed = true;
+      },
+    );
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    expect(signInPressed, isTrue);
   });
 
   testWidgets('renders main Membership structure', (WidgetTester tester) async {
@@ -192,6 +239,201 @@ void main() {
     await dragUntilTextVisible(tester, 'Membership Plans');
 
     expect(find.text('Membership Plans'), findsOneWidget);
+  });
+
+  testWidgets('signed-out Buy Now routes to sign-in without creating order',
+      (WidgetTester tester) async {
+    bool signInPressed = false;
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+    );
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
+      onSignInPressed: () {
+        signInPressed = true;
+      },
+    );
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    await tapFirstBuyNow(tester);
+
+    expect(signInPressed, isTrue);
+    expect(repository.createOrderCalls, 0);
+  });
+
+  testWidgets('signed-in Buy Now creates order and shows payment sheet',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+      order: const MembershipOrder(
+        orderNo: 'order-100',
+        status: 'pending',
+        planCode: 'monthly',
+        planTitle: 'Monthly',
+        expectedAmountLbc: '12.5',
+        currency: 'LBC',
+        payToAddress: 'lbc-address-100',
+        expiresAt: '2026-06-01T00:00:00Z',
+      ),
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+    await dragUntilTextVisible(tester, 'Membership Plans');
+
+    await tapFirstBuyNow(tester);
+
+    expect(repository.createOrderCalls, 1);
+    expect(repository.createdPlanCodes, <String>['monthly']);
+    expect(find.text('Complete payment'), findsOneWidget);
+    expect(find.text('Monthly (monthly)'), findsOneWidget);
+    expect(find.text('order-100'), findsOneWidget);
+    expect(find.text('12.5 LBC'), findsOneWidget);
+    expect(find.text('lbc-address-100'), findsOneWidget);
+    expect(find.text('pending'), findsOneWidget);
+    expect(find.text('2026-06-01T00:00:00Z'), findsOneWidget);
+  });
+
+  testWidgets('missing plan code shows error without creating order',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          title: 'No Code Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Plan without code',
+        ),
+      ],
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+    await dragUntilTextVisible(tester, 'No Code Monthly');
+
+    await tapFirstBuyNow(tester);
+
+    expect(repository.createOrderCalls, 0);
+    expect(
+      find.text('Plan is unavailable. Please try again later.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('create order failure shows error without activating membership',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+      createOrderError: Exception('offline'),
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+
+    expect(find.text('Not subscribed'), findsOneWidget);
+    await dragUntilTextVisible(tester, 'Membership Plans');
+    await tapFirstBuyNow(tester);
+
+    expect(repository.createOrderCalls, 1);
+    expect(
+      find.text('Unable to create order. Please try again later.'),
+      findsOneWidget,
+    );
+    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Member'), findsNothing);
+  });
+
+  testWidgets('payment sheet copy actions show confirmation messages',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+      order: const MembershipOrder(
+        orderNo: 'order-copy',
+        status: 'pending',
+        expectedAmountLbc: '4.25',
+        currency: 'LBC',
+        payToAddress: 'copy-address',
+      ),
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+    await dragUntilTextVisible(tester, 'Membership Plans');
+    await tapFirstBuyNow(tester);
+
+    await tapSheetAction(tester, 'Copy address');
+    expect(find.text('Address copied'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    await tapSheetAction(tester, 'Copy amount');
+    expect(find.text('Amount copied'), findsOneWidget);
+  });
+
+  testWidgets('paid order status does not locally activate membership',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly',
+          price: 'USD 9.99 / month',
+          perks: 'Monthly perks',
+        ),
+      ],
+      order: const MembershipOrder(
+        orderNo: 'order-paid',
+        status: 'overpaid',
+        planCode: 'monthly',
+        planTitle: 'Monthly',
+        expectedAmountLbc: '5',
+        currency: 'LBC',
+        payToAddress: 'paid-address',
+      ),
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+
+    expect(find.text('Not subscribed'), findsOneWidget);
+    await dragUntilTextVisible(tester, 'Membership Plans');
+    await tapFirstBuyNow(tester);
+
+    expect(find.text('overpaid'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
+    expect(find.text('Member'), findsNothing);
   });
 
   testWidgets('logout resets active membership to guest state',
@@ -663,6 +905,29 @@ class _MembershipRepositoryFake implements MembershipRepository {
     if (error != null) throw error;
     return status;
   }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
+  }
 }
 
 class _MutableMembershipRepository implements MembershipRepository {
@@ -682,6 +947,29 @@ class _MutableMembershipRepository implements MembershipRepository {
     final Object? error = statusError;
     if (error != null) throw error;
     return status;
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }
 
@@ -785,6 +1073,79 @@ class _TrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async {
     called = true;
     return null;
+  }
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
+  }
+}
+
+class _OrderTrackingMembershipRepository implements MembershipRepository {
+  _OrderTrackingMembershipRepository({
+    required this.plans,
+    this.order = const MembershipOrder(
+      orderNo: 'order-default',
+      status: 'pending',
+    ),
+    this.createOrderError,
+  });
+
+  final List<MembershipPlan> plans;
+  final MembershipOrder order;
+  final Object? createOrderError;
+  int createOrderCalls = 0;
+  final List<String> createdPlanCodes = <String>[];
+
+  @override
+  Future<List<MembershipPlan>> getPlans() async => plans;
+
+  @override
+  Future<MembershipStatus?> getCurrentStatus() async => null;
+
+  @override
+  Future<MembershipOrder> createOrder({required String planCode}) async {
+    createOrderCalls += 1;
+    createdPlanCodes.add(planCode);
+    final Object? error = createOrderError;
+    if (error != null) throw error;
+    return order;
+  }
+
+  @override
+  Future<MembershipOrder> getOrder(String orderNo) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> submitTxHint({
+    required String orderNo,
+    required String txid,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MembershipOrder> verifyNow(String orderNo) {
+    throw UnimplementedError();
   }
 }
 

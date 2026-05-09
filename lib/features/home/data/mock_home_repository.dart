@@ -5,7 +5,7 @@ class MockHomeRepository implements HomeRepository {
   const MockHomeRepository();
 
   @override
-  Future<HomePortalData> getHomePortalData() async {
+  Future<HomePortalData> getHomePortalData({bool authenticated = false}) async {
     return const HomePortalData(
       featured: <HomeVideoItem>[
         HomeVideoItem(id: 'f1', title: 'Midnight Casebook', subtitle: 'Top drama this week'),
@@ -75,7 +75,11 @@ class MockHomeRepository implements HomeRepository {
     );
   }
 
-  Future<HomeVideoPage> getVideoPage({String? pageUrl, String? category}) async {
+  Future<HomeVideoPage> getVideoPage({
+    String? pageUrl,
+    String? category,
+    bool authenticated = false,
+  }) async {
     final HomePortalData data = await getHomePortalData();
     final String? selectedCategory = category?.trim();
     final List<HomeVideoItem> items = data.latestVideos

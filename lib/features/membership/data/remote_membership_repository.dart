@@ -24,7 +24,9 @@ class RemoteMembershipRepository implements MembershipRepository {
     );
     final dynamic data = response.data;
     if (data == null) return null;
-    if (data is! Map<String, dynamic>) return null;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid membership status response');
+    }
     return _mapStatus(data);
   }
 

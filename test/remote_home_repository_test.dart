@@ -84,6 +84,27 @@ void main() {
     expect(apiClient.requestedQuery?['access_type'], 'membership');
     expect(apiClient.requestedAuthenticated, isTrue);
   });
+
+  test('passes authenticated flag to pageUrl video requests', () async {
+    final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
+      'results': <Map<String, dynamic>>[],
+    });
+    final RemoteHomeRepository repository = RemoteHomeRepository(
+      apiClient: apiClient,
+    );
+
+    await repository.getVideoPage(
+      pageUrl: 'https://example.com/api/public/videos/?page=2',
+      authenticated: true,
+    );
+
+    expect(
+      apiClient.requestedPath,
+      'https://example.com/api/public/videos/?page=2',
+    );
+    expect(apiClient.requestedQuery, isNull);
+    expect(apiClient.requestedAuthenticated, isTrue);
+  });
 }
 
 class _FakeApiClient extends ApiClient {

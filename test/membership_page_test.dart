@@ -1102,13 +1102,11 @@ class _OrderTrackingMembershipRepository implements MembershipRepository {
       orderNo: 'order-default',
       status: 'pending',
     ),
-    this.status,
     this.createOrderError,
   });
 
   final List<MembershipPlan> plans;
   final MembershipOrder order;
-  final MembershipStatus? status;
   final Object? createOrderError;
   int createOrderCalls = 0;
   final List<String> createdPlanCodes = <String>[];
@@ -1117,7 +1115,7 @@ class _OrderTrackingMembershipRepository implements MembershipRepository {
   Future<List<MembershipPlan>> getPlans() async => plans;
 
   @override
-  Future<MembershipStatus?> getCurrentStatus() async => status;
+  Future<MembershipStatus?> getCurrentStatus() async => null;
 
   @override
   Future<MembershipOrder> createOrder({required String planCode}) async {

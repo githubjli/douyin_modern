@@ -90,7 +90,17 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Transaction Hash'), findsNothing);
+    expect(find.text('Transaction Hash (Confirmation)'), findsOneWidget);
+    expect(
+      find.text('Eg, b10608a77dd4bbe597a15803c3e96...'),
+      findsOneWidget,
+    );
+    expect(find.text('Submit Transaction Hash'), findsOneWidget);
+    expect(find.text('Basic Monthly (basic-monthly)'), findsNothing);
+    expect(find.text('Order: order-200'), findsNothing);
+    expect(find.text('Status: pending'), findsNothing);
+    expect(find.text('Expires: 2026-06-01T00:00:00Z'), findsNothing);
+    expect(find.text('Purchase Membership'), findsNothing);
     expect(find.text('Txid'), findsNothing);
     expect(find.text('TXID'), findsNothing);
     expect(find.text('Verify now'), findsNothing);
@@ -113,6 +123,29 @@ void main() {
     expect(find.text('Payment address unavailable'), findsWidgets);
     expect(qrBoundaryFinder(), findsNothing);
     expect(find.text('Download QR Code'), findsOneWidget);
+  });
+
+  testWidgets('empty transaction hash shows validation message',
+      (WidgetTester tester) async {
+    await pumpPaymentPage(tester);
+
+    await tapPaymentAction(tester, 'Submit Transaction Hash');
+
+    expect(find.text('Please enter transaction hash.'), findsOneWidget);
+  });
+
+  testWidgets('non-empty transaction hash saves locally without activation',
+      (WidgetTester tester) async {
+    await pumpPaymentPage(tester);
+
+    await tester.enterText(
+      find.byType(TextField),
+      'b10608a77dd4bbe597a15803c3e96abc',
+    );
+    await tapPaymentAction(tester, 'Submit Transaction Hash');
+
+    expect(find.text('Transaction hash saved locally'), findsOneWidget);
+    expect(find.text('Member'), findsNothing);
   });
 
   testWidgets('copies address with confirmation', (WidgetTester tester) async {

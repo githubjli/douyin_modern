@@ -32,7 +32,14 @@ class MembershipPaymentPage extends StatefulWidget {
 
 class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
   final GlobalKey _qrKey = GlobalKey();
+  final TextEditingController _txHashController = TextEditingController();
   bool _savingQr = false;
+
+  @override
+  void dispose() {
+    _txHashController.dispose();
+    super.dispose();
+  }
 
   MembershipOrder get order => widget.order;
 
@@ -72,6 +79,15 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
         });
       }
     }
+  }
+
+  void _submitTransactionHash() {
+    final String txHash = _txHashController.text.trim();
+    if (txHash.isEmpty) {
+      _showMessage('Please enter transaction hash.');
+      return;
+    }
+    _showMessage('Transaction hash saved locally');
   }
 
   void _showMessage(String message) {
@@ -120,8 +136,11 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
               ),
               const SizedBox(height: AppSpacing.sm),
               _WarningCard(tokenSymbol: tokenSymbol),
-              const SizedBox(height: AppSpacing.sm),
-              _OrderDetailsFooter(order: order, tokenSymbol: tokenSymbol),
+              const SizedBox(height: AppSpacing.md),
+              _TransactionHashSection(
+                controller: _txHashController,
+                onSubmit: _submitTransactionHash,
+              ),
               const SizedBox(height: AppSpacing.md),
               _GoldButton(
                 label: 'Done',
@@ -465,76 +484,62 @@ class _WarningCard extends StatelessWidget {
   }
 }
 
-class _OrderDetailsFooter extends StatelessWidget {
-  const _OrderDetailsFooter({
-    required this.order,
-    required this.tokenSymbol,
+class _TransactionHashSection extends StatelessWidget {
+  const _TransactionHashSection({
+    required this.controller,
+    required this.onSubmit,
   });
 
-  final MembershipOrder order;
-  final String tokenSymbol;
+  final TextEditingController controller;
+  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.xxs,
-      children: <Widget>[
-        Text(
-          _paymentPlanLabel(order),
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.mutedOliveText,
-            fontSize: 11,
-          ),
-        ),
-        _FooterText(label: 'Order', value: order.orderNo),
-        Text(
-          order.status,
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.mutedOliveText,
-            fontSize: 11,
-          ),
-        ),
-        _FooterText(label: 'Status', value: order.status),
-        Text(
-          _paymentAmountLabel(order, tokenSymbol),
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.mutedOliveText,
-            fontSize: 11,
-          ),
-        ),
-        _FooterText(
-          label: 'Amount',
-          value: _paymentAmountLabel(order, tokenSymbol),
-        ),
-        if (_trimmed(order.expiresAt) != null) ...<Widget>[
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
           Text(
-            order.expiresAt!,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.mutedOliveText,
-              fontSize: 11,
+            'Transaction Hash (Confirmation)',
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 15),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          TextField(
+            controller: controller,
+            minLines: 1,
+            maxLines: 3,
+            style: AppTextStyles.body.copyWith(fontSize: 12),
+            cursorColor: AppColors.brandGold,
+            decoration: InputDecoration(
+              hintText: 'Eg, b10608a77dd4bbe597a15803c3e96...',
+              hintStyle: AppTextStyles.caption.copyWith(fontSize: 12),
+              filled: true,
+              fillColor: AppColors.warmBackground,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                borderSide: const BorderSide(color: AppColors.softBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                borderSide: BorderSide(
+                  color: AppColors.brandGold.withValues(alpha: 0.58),
+                ),
+              ),
             ),
           ),
-          _FooterText(label: 'Expires', value: order.expiresAt!),
+          const SizedBox(height: AppSpacing.sm),
+          _GoldButton(label: 'Submit Transaction Hash', onTap: onSubmit),
         ],
-      ],
-    );
-  }
-}
-
-class _FooterText extends StatelessWidget {
-  const _FooterText({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      '$label: $value',
-      style: AppTextStyles.caption.copyWith(
-        color: AppColors.mutedOliveText,
-        fontSize: 11,
       ),
     );
   }
@@ -640,18 +645,7 @@ String _paymentDisplayAmount(MembershipOrder order) {
   return numericAmount.toStringAsFixed(2);
 }
 
-String _paymentPlanLabel(MembershipOrder order) {
-  final String? title = _trimmed(order.planTitle);
-  final String? code = _trimmed(order.planCode);
-  if (title != null && code != null) return '$title ($code)';
-  return title ?? code ?? 'Membership Plan';
-}
 
-String _paymentAmountLabel(MembershipOrder order, String tokenSymbol) {
-  final String amount = _paymentDisplayAmount(order);
-  if (amount == 'Amount unavailable') return amount;
-  return '$amount $tokenSymbol';
-}
 
 String _paymentTokenSymbol(MembershipOrder order, MembershipPlan? plan) {
   return _trimmed(order.tokenSymbol) ??

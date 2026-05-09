@@ -541,7 +541,7 @@ void main() {
     await tapSheetAction(tester, 'Confirm and create order');
 
     expect(find.byType(MembershipPaymentPage), findsOneWidget);
-    expect(find.text('overpaid'), findsOneWidget);
+    expect(find.text('Membership Purchase'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Back').first);
     await tester.pumpAndSettle();

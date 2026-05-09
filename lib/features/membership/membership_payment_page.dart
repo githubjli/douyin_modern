@@ -81,14 +81,13 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     }
   }
 
-  void _submitTransactionHashAndDone() {
+  void _submitTransactionHash() {
     final String txHash = _txHashController.text.trim();
     if (txHash.isEmpty) {
       _showMessage('Please enter transaction hash.');
       return;
     }
     _showMessage('Transaction hash saved locally');
-    Navigator.of(context).maybePop();
   }
 
   void _showMessage(String message) {
@@ -139,7 +138,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
               const SizedBox(height: AppSpacing.md),
               _TransactionHashSection(
                 controller: _txHashController,
-                onSubmit: _submitTransactionHashAndDone,
+                onSubmit: _submitTransactionHash,
               ),
             ],
           ),
@@ -538,8 +537,7 @@ class _TransactionHashSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           _GoldButton(
-            icon: Icons.check_rounded,
-            label: 'Submit & Done',
+            label: 'Submit',
             onTap: onSubmit,
           ),
         ],

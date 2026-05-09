@@ -95,7 +95,7 @@ void main() {
       find.text('Eg, b10608a77dd4bbe597a15803c3e96...'),
       findsOneWidget,
     );
-    expect(find.text('Submit & Done'), findsOneWidget);
+    expect(find.text('Submit'), findsOneWidget);
     expect(find.text('Done'), findsNothing);
     expect(find.text('Basic Monthly (basic-monthly)'), findsNothing);
     expect(find.text('Order: order-200'), findsNothing);
@@ -196,7 +196,7 @@ void main() {
       (WidgetTester tester) async {
     await pumpPaymentPage(tester);
 
-    await tapPaymentAction(tester, 'Submit & Done');
+    await tapPaymentAction(tester, 'Submit');
 
     expect(find.text('Please enter transaction hash.'), findsOneWidget);
   });
@@ -209,7 +209,7 @@ void main() {
       find.byType(TextField),
       'b10608a77dd4bbe597a15803c3e96abc',
     );
-    await tapPaymentAction(tester, 'Submit & Done');
+    await tapPaymentAction(tester, 'Submit');
 
     expect(find.text('Transaction hash saved locally'), findsOneWidget);
     expect(find.text('Member'), findsNothing);

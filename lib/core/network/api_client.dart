@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../auth/token_storage.dart';
 import 'api_error.dart';
+import 'endpoints.dart';
 
 class ApiClient {
   ApiClient({
@@ -31,8 +32,23 @@ class ApiClient {
         queryParameters: queryParameters,
         options: options,
       );
-    } on DioException catch (e) {
-      throw _mapDioError(e);
+    } on DioException catch (error) {
+      if (_shouldRefresh(authenticated: authenticated, error: error)) {
+        return _refreshAndRetry<T>(
+          () async {
+            final Options retryOptions = await _buildOptions(
+              authenticated: authenticated,
+            );
+            return _dio.get<T>(
+              path,
+              queryParameters: queryParameters,
+              options: retryOptions,
+            );
+          },
+          originalError: error,
+        );
+      }
+      throw _mapDioError(error);
     }
   }
 
@@ -50,8 +66,24 @@ class ApiClient {
         queryParameters: queryParameters,
         options: options,
       );
-    } on DioException catch (e) {
-      throw _mapDioError(e);
+    } on DioException catch (error) {
+      if (_shouldRefresh(authenticated: authenticated, error: error)) {
+        return _refreshAndRetry<T>(
+          () async {
+            final Options retryOptions = await _buildOptions(
+              authenticated: authenticated,
+            );
+            return _dio.post<T>(
+              path,
+              data: data,
+              queryParameters: queryParameters,
+              options: retryOptions,
+            );
+          },
+          originalError: error,
+        );
+      }
+      throw _mapDioError(error);
     }
   }
 
@@ -68,6 +100,70 @@ class ApiClient {
     return Options(
       headers: <String, String>{'Authorization': 'Bearer $token'},
     );
+  }
+
+  bool _shouldRefresh({
+    required bool authenticated,
+    required DioException error,
+  }) {
+    return authenticated && error.response?.statusCode == 401;
+  }
+
+  Future<Response<T>> _refreshAndRetry<T>(
+    Future<Response<T>> Function() retry, {
+    required DioException originalError,
+  }) async {
+    final String? refreshToken = await _tokenStorage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      throw _mapDioError(originalError);
+    }
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        Endpoints.authRefresh,
+        data: <String, dynamic>{'refresh': refreshToken},
+      );
+      await _persistRefreshTokens(response.data ?? <String, dynamic>{});
+    } on DioException catch (refreshError) {
+      await _tokenStorage.clearAllTokens();
+      throw _mapDioError(refreshError);
+    } catch (refreshError) {
+      await _tokenStorage.clearAllTokens();
+      throw ApiError(message: refreshError.toString());
+    }
+
+    try {
+      return await retry();
+    } on DioException catch (retryError) {
+      throw _mapDioError(retryError);
+    }
+  }
+
+  Future<void> _persistRefreshTokens(Map<String, dynamic> data) async {
+    final String? accessToken = _readString(
+      data,
+      const <String>['access', 'access_token'],
+    );
+    final String? refreshToken = _readString(
+      data,
+      const <String>['refresh', 'refresh_token'],
+    );
+
+    if (accessToken != null && accessToken.isNotEmpty) {
+      await _tokenStorage.writeAccessToken(accessToken);
+    }
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await _tokenStorage.writeRefreshToken(refreshToken);
+    }
+  }
+
+  String? _readString(Map<String, dynamic> data, List<String> keys) {
+    for (final String key in keys) {
+      final dynamic value = data[key];
+      if (value is String && value.isNotEmpty) return value;
+      if (value is num) return value.toString();
+    }
+    return null;
   }
 
   ApiError _mapDioError(DioException error) {

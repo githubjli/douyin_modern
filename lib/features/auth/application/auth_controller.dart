@@ -4,16 +4,14 @@ import '../../../core/network/api_error.dart';
 import '../../../core/network/api_error_classifier.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_session.dart';
-import 'auth_providers.dart';
 import 'auth_state.dart';
 
-class AuthController extends Notifier<AuthState> {
-  AuthRepository get _repository => ref.read(authRepositoryProvider);
+class AuthController extends StateNotifier<AuthState> {
+  AuthController({required AuthRepository repository})
+      : _repository = repository,
+        super(const AuthState.unknown());
 
-  @override
-  AuthState build() {
-    return const AuthState.unknown();
-  }
+  final AuthRepository _repository;
 
   Future<void> bootstrap() async {
     final AuthSession? previous = _signedInSession;

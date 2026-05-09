@@ -22,6 +22,6 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   );
 });
 
-final authControllerProvider = NotifierProvider<AuthController, AuthState>(
-  AuthController.new,
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) => AuthController(repository: ref.watch(authRepositoryProvider)),
 );

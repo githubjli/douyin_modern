@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meow_media/app/app.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/home/domain/home_repository.dart';
+import 'package:meow_media/features/video_detail/video_detail_page.dart';
 import 'package:meow_media/shared/main_shell.dart';
 import 'package:meow_media/features/auth/application/auth_providers.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
@@ -134,9 +135,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Shell Home Locked VIP').first);
-    await tester.pump();
-    await tester.tap(find.text('Sign in'));
+    final Finder titleFinder = find.text('Shell Home Locked VIP').first;
+    await tester.ensureVisible(titleFinder);
+    await tester.pumpAndSettle();
+
+    final Finder visibleTitleFinder =
+        find.text('Shell Home Locked VIP').hitTestable().first;
+    final Finder cardFinder = find
+        .ancestor(
+          of: visibleTitleFinder,
+          matching: find.byType(GestureDetector),
+        )
+        .first;
+    await tester.tap(cardFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VideoDetailPage), findsOneWidget);
+    expect(find.text('VIP video locked'), findsOneWidget);
+
+    final Finder signInFinder = find.text('Sign in').first;
+    await tester.ensureVisible(signInFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in').hitTestable().first);
     await tester.pumpAndSettle();
 
     final BottomNavigationBar bottomNav = tester.widget(

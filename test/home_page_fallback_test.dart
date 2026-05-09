@@ -12,6 +12,7 @@ import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/home/domain/home_repository.dart';
 import 'package:meow_media/features/home/home_page.dart';
+import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,37 @@ void main() {
     );
     await tester.pumpAndSettle();
     return container;
+  }
+
+
+  Future<void> openHomeVideoDetail(
+    WidgetTester tester,
+    String title,
+  ) async {
+    final Finder titleFinder = find.text(title).first;
+    await tester.ensureVisible(titleFinder);
+    await tester.pumpAndSettle();
+
+    final Finder visibleTitleFinder = find.text(title).hitTestable().first;
+    final Finder cardFinder = find
+        .ancestor(
+          of: visibleTitleFinder,
+          matching: find.byType(GestureDetector),
+        )
+        .first;
+    await tester.tap(cardFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VideoDetailPage), findsOneWidget);
+    expect(find.text('VIP video locked'), findsOneWidget);
+  }
+
+  Future<void> tapLockedVipCta(WidgetTester tester, String label) async {
+    final Finder ctaFinder = find.text(label).first;
+    await tester.ensureVisible(ctaFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).hitTestable().first);
+    await tester.pumpAndSettle();
   }
 
   testWidgets('empty remote portal falls back to mock Home content',
@@ -163,10 +195,8 @@ void main() {
       },
     );
 
-    await tester.tap(find.text('Home Locked VIP Sign In').first);
-    await tester.pump();
-    await tester.tap(find.text('Sign in'));
-    await tester.pump();
+    await openHomeVideoDetail(tester, 'Home Locked VIP Sign In');
+    await tapLockedVipCta(tester, 'Sign in');
 
     expect(signInPressed, isTrue);
   });
@@ -199,10 +229,8 @@ void main() {
       },
     );
 
-    await tester.tap(find.text('Home Locked VIP Subscribe').first);
-    await tester.pump();
-    await tester.tap(find.text('Subscribe'));
-    await tester.pump();
+    await openHomeVideoDetail(tester, 'Home Locked VIP Subscribe');
+    await tapLockedVipCta(tester, 'Subscribe');
 
     expect(subscribePressed, isTrue);
   });

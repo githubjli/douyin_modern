@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../auth/application/auth_providers.dart';
+import '../auth/application/auth_state.dart';
 import '../drama_detail/drama_detail_page.dart';
 import '../video_detail/video_detail_page.dart';
 import 'data/mock_home_repository.dart';
@@ -19,7 +22,7 @@ part 'widgets/hero_widgets.dart';
 part 'widgets/portal_cards.dart';
 part 'widgets/section_grid.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({
     super.key,
     this.useRemote = true,
@@ -32,10 +35,10 @@ class HomePage extends StatefulWidget {
   final HomeRepository mockRepository;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> {
   late final HomeRepository _remoteRepo;
   final PageController _heroController = PageController();
   final PageController _newsHeroController = PageController();
@@ -60,6 +63,7 @@ class _HomePageState extends State<HomePage> {
   bool _loadingMoreNewsVideos = false;
   bool _loadingVideoCategory = false;
   bool _usingNewsVideoFallback = false;
+  int _loadGeneration = 0;
 
   static const List<String> _channels = <String>[
     'Home',
@@ -79,20 +83,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _load() async {
+    final int loadGeneration = ++_loadGeneration;
+    final bool authenticated = _shouldUseAuthenticatedFeed(
+      ref.read(authControllerProvider),
+    );
     HomePortalData? portal;
+    String? notice;
     bool usingPortalFallback = !widget.useRemote;
     if (widget.useRemote) {
       try {
-        final HomePortalData remotePortal =
-            await _remoteRepo.getHomePortalData(authenticated: true);
+        final HomePortalData remotePortal = await _remoteRepo.getHomePortalData(
+          authenticated: authenticated,
+        );
         if (_isEmpty(remotePortal)) {
-          _notice = 'Showing local content.';
+          notice = 'Showing local content.';
           usingPortalFallback = true;
         } else {
           portal = remotePortal;
         }
       } catch (_) {
-        _notice = 'Network unavailable. Showing local content.';
+        notice = 'Network unavailable. Showing local content.';
         usingPortalFallback = true;
       }
     }
@@ -106,7 +116,10 @@ class _HomePageState extends State<HomePage> {
     bool usingNewsFallback = false;
     if (!usingPortalFallback) {
       try {
-        newsVideoPage = await _getVideoPage(category: 'news');
+        newsVideoPage = await _getVideoPage(
+          category: 'news',
+          authenticated: authenticated,
+        );
         if (newsVideoPage.items.isEmpty && localNewsVideos.isNotEmpty) {
           newsVideoPage = null;
         }
@@ -115,8 +128,9 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    if (!mounted) return;
+    if (!mounted || loadGeneration != _loadGeneration) return;
     setState(() {
+      _notice = notice;
       _data = loadedPortal;
       _videoItems = loadedPortal.latestVideos;
       _newsVideoItems = newsVideoPage?.items ?? localNewsVideos;
@@ -147,6 +161,19 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final AuthState authState = ref.watch(authControllerProvider);
+    ref.listen<AuthState>(
+      authControllerProvider,
+      (AuthState? previous, AuthState next) {
+        if (previous == null) return;
+        final bool wasAuthenticated = _shouldUseAuthenticatedFeed(previous);
+        final bool isAuthenticated = _shouldUseAuthenticatedFeed(next);
+        if (wasAuthenticated != isAuthenticated) {
+          _load();
+        }
+      },
+    );
+    _shouldUseAuthenticatedFeed(authState);
     final HomePortalData? data = _data;
     if (_loading || data == null) {
       return const Center(child: CircularProgressIndicator());
@@ -543,33 +570,40 @@ class _HomePageState extends State<HomePage> {
   Future<HomeVideoPage> _getVideoPage({
     String? pageUrl,
     String? category,
-    bool authenticated = true,
+    bool? authenticated,
   }) {
+    final bool useAuthenticated = authenticated ??
+        _shouldUseAuthenticatedFeed(ref.read(authControllerProvider));
     if (!widget.useRemote && widget.mockRepository is MockHomeRepository) {
       return (widget.mockRepository as MockHomeRepository).getVideoPage(
         pageUrl: pageUrl,
         category: category,
-        authenticated: authenticated,
+        authenticated: useAuthenticated,
       );
     }
     if (_remoteRepo is RemoteHomeRepository) {
       return (_remoteRepo as RemoteHomeRepository).getVideoPage(
         pageUrl: pageUrl,
         category: category,
-        authenticated: authenticated,
+        authenticated: useAuthenticated,
       );
     }
     if (_remoteRepo is MockHomeRepository) {
       return (_remoteRepo as MockHomeRepository).getVideoPage(
         pageUrl: pageUrl,
         category: category,
-        authenticated: authenticated,
+        authenticated: useAuthenticated,
       );
     }
     return Future<HomeVideoPage>.error(
       UnsupportedError('Video paging is not supported by this repository.'),
     );
   }
+}
+
+bool _shouldUseAuthenticatedFeed(AuthState authState) {
+  return authState.session?.isSignedIn == true ||
+      authState.status == AuthStatus.signedIn;
 }
 
 class _VideoCategoryOption {

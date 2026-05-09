@@ -153,8 +153,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _handleAuthState(next);
     });
     final AuthState authState = ref.watch(authControllerProvider);
-    final bool isSignedIn = authState.isSignedIn;
-    final bool isChecking = authState.isChecking;
+    final bool isSignedIn = _hasSignedInSession(authState);
+    final bool showGuest = _shouldShowGuestProfile(authState);
+    final bool isChecking = !isSignedIn && !showGuest;
 
     return SafeArea(
       child: ListView(
@@ -175,7 +176,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               onLogout: _logout,
               onRefresh: _refreshProfile,
             )
-          else
+          else if (showGuest)
             _GuestProfileCard(
               emailController: _emailController,
               passwordController: _passwordController,
@@ -198,6 +199,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       const SnackBar(content: Text('Sign Up coming soon.')),
     );
   }
+}
+
+bool _hasSignedInSession(AuthState authState) {
+  return authState.session?.isSignedIn == true;
+}
+
+bool _shouldShowGuestProfile(AuthState authState) {
+  if (authState.status == AuthStatus.signedOut) return true;
+  return authState.status == AuthStatus.error && !_hasSignedInSession(authState);
 }
 
 String _friendlyAuthError(String message) {

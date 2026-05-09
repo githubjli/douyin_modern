@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
-import '../../core/network/api_error_classifier.dart';
-import '../auth/data/remote_auth_repository.dart';
-import '../auth/domain/auth_repository.dart';
+import '../auth/application/auth_providers.dart';
+import '../auth/application/auth_state.dart';
 import '../home/data/remote_home_repository.dart';
 import '../home/domain/home_models.dart';
 import '../video_detail/video_detail_page.dart';
+import 'application/membership_providers.dart';
+import 'application/membership_state.dart';
 import 'data/mock_membership_repository.dart';
 import 'data/remote_membership_repository.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
 
-class MembershipPage extends StatefulWidget {
+class MembershipPage extends ConsumerStatefulWidget {
   const MembershipPage({
     super.key,
     this.repository,
@@ -25,8 +27,6 @@ class MembershipPage extends StatefulWidget {
     this.useRemote = true,
     this.vipVideosFuture,
     this.videoRepository,
-    this.authRepository,
-    this.signedInFuture,
     this.isActive = true,
   });
 
@@ -35,31 +35,38 @@ class MembershipPage extends StatefulWidget {
   final bool useRemote;
   final Future<List<HomeVideoItem>>? vipVideosFuture;
   final RemoteHomeRepository? videoRepository;
-  final AuthRepository? authRepository;
-  final Future<bool>? signedInFuture;
   final bool isActive;
 
   @override
-  State<MembershipPage> createState() => _MembershipPageState();
+  ConsumerState<MembershipPage> createState() => _MembershipPageState();
 }
 
-class _MembershipPageState extends State<MembershipPage> {
+class _MembershipPageState extends ConsumerState<MembershipPage> {
   late MembershipRepository _repository;
   late RemoteHomeRepository _videoRepository;
-  late AuthRepository _authRepository;
   late Future<List<MembershipPlan>> _plansFuture;
-  late Future<MembershipStatus?> _statusFuture;
-  late Future<bool> _signedInFuture;
   late Future<List<HomeVideoItem>> _vipVideosFuture;
   bool _refreshing = false;
-  bool? _lastKnownSignedIn;
-  MembershipStatus? _lastKnownStatus;
+  late final ProviderSubscription<AuthState> _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _configureRepositories();
-    _refreshMembershipState(notify: false);
+    _authSubscription = ref.listenManual<AuthState>(
+      authControllerProvider,
+      _handleAuthStateChanged,
+    );
+    _refreshPageData(notify: false);
+    Future<void>.microtask(() {
+      ref.read(authControllerProvider.notifier).bootstrap();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.close();
+    super.dispose();
   }
 
   @override
@@ -69,40 +76,36 @@ class _MembershipPageState extends State<MembershipPage> {
         oldWidget.mockRepository != widget.mockRepository ||
         oldWidget.useRemote != widget.useRemote ||
         oldWidget.vipVideosFuture != widget.vipVideosFuture ||
-        oldWidget.videoRepository != widget.videoRepository ||
-        oldWidget.authRepository != widget.authRepository ||
-        oldWidget.signedInFuture != widget.signedInFuture) {
+        oldWidget.videoRepository != widget.videoRepository) {
       _configureRepositories();
-      _refreshMembershipState();
+      _refreshPageData();
       return;
     }
 
     if (!oldWidget.isActive && widget.isActive) {
-      _refreshMembershipState();
+      _refreshPageData();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _refreshMembershipForActiveTab();
+      });
     }
   }
 
   void _configureRepositories() {
     _repository = _defaultRepository();
     _videoRepository = _defaultVideoRepository();
-    _authRepository = _defaultAuthRepository();
   }
 
-  void _refreshMembershipState({bool notify = true}) {
+  void _refreshPageData({bool notify = true}) {
     if (_refreshing) return;
     _refreshing = true;
 
     final Future<List<MembershipPlan>> plansFuture = _loadPlans();
-    final Future<MembershipStatus?> statusFuture = _loadStatus();
-    final Future<bool> signedInFuture =
-        widget.signedInFuture ?? _loadSignedInState();
     final Future<List<HomeVideoItem>> vipVideosFuture =
         widget.vipVideosFuture ?? _loadVipVideos();
 
     void applyFutures() {
       _plansFuture = plansFuture;
-      _statusFuture = statusFuture;
-      _signedInFuture = signedInFuture;
       _vipVideosFuture = vipVideosFuture;
     }
 
@@ -114,8 +117,6 @@ class _MembershipPageState extends State<MembershipPage> {
 
     Future.wait<dynamic>(<Future<dynamic>>[
       plansFuture,
-      statusFuture,
-      signedInFuture,
       vipVideosFuture,
     ]).whenComplete(() {
       _refreshing = false;
@@ -124,57 +125,31 @@ class _MembershipPageState extends State<MembershipPage> {
 
   MembershipRepository _defaultRepository() {
     if (!widget.useRemote) return widget.mockRepository;
-    return widget.repository ?? RemoteMembershipRepository(apiClient: ApiClient());
+    return widget.repository ??
+        RemoteMembershipRepository(apiClient: ApiClient());
   }
 
   RemoteHomeRepository _defaultVideoRepository() {
-    return widget.videoRepository ?? RemoteHomeRepository(apiClient: ApiClient());
+    return widget.videoRepository ??
+        RemoteHomeRepository(apiClient: ApiClient());
   }
 
-  AuthRepository _defaultAuthRepository() {
-    return widget.authRepository ?? RemoteAuthRepository(apiClient: ApiClient());
-  }
-
-  Future<bool> _loadSignedInState() async {
-    if (!widget.useRemote) {
-      _lastKnownSignedIn = true;
-      return true;
+  void _handleAuthStateChanged(AuthState? _, AuthState next) {
+    if (next.isSignedOut) {
+      ref.read(membershipControllerProvider.notifier).reset();
+      return;
     }
-    try {
-      final session = await _authRepository.getCurrentSession();
-      _lastKnownSignedIn = session.isSignedIn;
-      if (!session.isSignedIn) {
-        _lastKnownStatus = null;
-      }
-      return session.isSignedIn;
-    } catch (error) {
-      if (isAuthDeniedError(error)) {
-        _lastKnownSignedIn = false;
-        _lastKnownStatus = null;
-        return false;
-      }
-      if (isTransientError(error)) {
-        return _lastKnownSignedIn ?? false;
-      }
-      return _lastKnownSignedIn ?? false;
+    final bool shouldRefreshMembership = next.session?.isSignedIn == true &&
+        (next.status == AuthStatus.signedIn || next.status == AuthStatus.error);
+    if (shouldRefreshMembership) {
+      ref.read(membershipControllerProvider.notifier).refresh();
     }
   }
 
-  Future<MembershipStatus?> _loadStatus() async {
-    try {
-      final MembershipStatus? status = await _repository.getCurrentStatus();
-      _lastKnownStatus = status;
-      return status;
-    } catch (error) {
-      if (isAuthDeniedError(error)) {
-        _lastKnownSignedIn = false;
-        _lastKnownStatus = null;
-        return null;
-      }
-      if (isTransientError(error)) {
-        return _lastKnownStatus;
-      }
-      return _lastKnownStatus;
+  void _refreshMembershipForActiveTab() {
+    final AuthState authState = ref.read(authControllerProvider);
+    if (authState.session?.isSignedIn == true) {
+      ref.read(membershipControllerProvider.notifier).refresh();
     }
   }
 
@@ -215,6 +190,13 @@ class _MembershipPageState extends State<MembershipPage> {
 
   @override
   Widget build(BuildContext context) {
+    final AuthState authState = ref.watch(authControllerProvider);
+    final MembershipState membershipState =
+        ref.watch(membershipControllerProvider);
+    final bool isSignedIn = _isMembershipUser(authState);
+    final MembershipStatus? status =
+        isSignedIn ? _visibleMembershipStatus(membershipState) : null;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
@@ -228,30 +210,14 @@ class _MembershipPageState extends State<MembershipPage> {
           children: <Widget>[
             const _MembershipHeader(),
             const SizedBox(height: 14),
-            FutureBuilder<bool>(
-              future: _signedInFuture,
-              builder: (
-                BuildContext context,
-                AsyncSnapshot<bool> signedInSnapshot,
-              ) {
-                return FutureBuilder<MembershipStatus?>(
-                  future: _statusFuture,
-                  builder: (
-                    BuildContext context,
-                    AsyncSnapshot<MembershipStatus?> statusSnapshot,
-                  ) {
-                    return _VipHeroCard(
-                      status: statusSnapshot.data,
-                      isSignedIn: signedInSnapshot.data ?? false,
-                    );
-                  },
-                );
-              },
+            _VipHeroCard(
+              status: status,
+              isSignedIn: isSignedIn,
             ),
             const SizedBox(height: AppSpacing.md),
             _PlanSection(
               plansFuture: _plansFuture,
-              statusFuture: _statusFuture,
+              status: status,
             ),
             const SizedBox(height: AppSpacing.md),
             _ExclusiveSection(videosFuture: _vipVideosFuture),
@@ -260,6 +226,20 @@ class _MembershipPageState extends State<MembershipPage> {
       ),
     );
   }
+}
+
+bool _isMembershipUser(AuthState authState) {
+  if (authState.isSignedOut) return false;
+  if (authState.session?.isSignedIn == true) return true;
+  if (authState.status == AuthStatus.error) return false;
+  return authState.status == AuthStatus.unknown ||
+      authState.status == AuthStatus.checking ||
+      authState.status == AuthStatus.refreshing;
+}
+
+MembershipStatus? _visibleMembershipStatus(MembershipState membershipState) {
+  final MembershipStatus? membership = membershipState.membership;
+  return membership?.isActive == true ? membership : null;
 }
 
 class _MembershipHeader extends StatelessWidget {
@@ -440,11 +420,11 @@ class _VipHeroCard extends StatelessWidget {
 class _PlanSection extends StatelessWidget {
   const _PlanSection({
     required this.plansFuture,
-    required this.statusFuture,
+    required this.status,
   });
 
   final Future<List<MembershipPlan>> plansFuture;
-  final Future<MembershipStatus?> statusFuture;
+  final MembershipStatus? status;
 
   @override
   Widget build(BuildContext context) {
@@ -457,29 +437,21 @@ class _PlanSection extends StatelessWidget {
         final List<MembershipPlan> plans = _displayPlans(
           planSnapshot.data ?? const <MembershipPlan>[],
         );
-        return FutureBuilder<MembershipStatus?>(
-          future: statusFuture,
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<MembershipStatus?> statusSnapshot,
-          ) {
-            final MembershipStatus? activeStatus =
-                statusSnapshot.data?.isActive == true ? statusSnapshot.data : null;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const _SectionTitle(title: 'Membership Plans'),
-                const SizedBox(height: AppSpacing.xs),
-                for (int index = 0; index < plans.length; index++) ...<Widget>[
-                  _PlanCard(
-                    plan: plans[index],
-                    isCurrent: activeStatus?.planTitle == plans[index].title,
-                  ),
-                  if (index != plans.length - 1) const SizedBox(height: 10),
-                ],
-              ],
-            );
-          },
+        final MembershipStatus? activeStatus =
+            status?.isActive == true ? status : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const _SectionTitle(title: 'Membership Plans'),
+            const SizedBox(height: AppSpacing.xs),
+            for (int index = 0; index < plans.length; index++) ...<Widget>[
+              _PlanCard(
+                plan: plans[index],
+                isCurrent: activeStatus?.planTitle == plans[index].title,
+              ),
+              if (index != plans.length - 1) const SizedBox(height: 10),
+            ],
+          ],
         );
       },
     );

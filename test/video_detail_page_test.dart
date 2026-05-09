@@ -1,30 +1,81 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/core/network/endpoints.dart';
+import 'package:meow_media/features/auth/application/auth_providers.dart';
+import 'package:meow_media/features/auth/domain/auth_repository.dart';
+import 'package:meow_media/features/auth/domain/auth_session.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
 import 'package:video_player/video_player.dart';
 
 void main() {
-  Future<void> pumpVideoDetail(
+  Future<ProviderContainer> pumpVideoDetail(
     WidgetTester tester, {
     required HomeVideoItem video,
-    required bool isSignedIn,
+    bool isSignedIn = true,
+    ApiClient? apiClient,
+    bool loadRemoteDetail = false,
+    Key? key,
+    ProviderContainer? container,
+    AuthRepository? authRepository,
+    bool settle = true,
   }) async {
+    final ProviderContainer effectiveContainer = container ??
+        ProviderContainer(
+          overrides: <Override>[
+            authRepositoryProvider.overrideWithValue(
+              authRepository ?? _FakeAuthRepository(isSignedIn: isSignedIn),
+            ),
+          ],
+        );
+    if (container == null) addTearDown(effectiveContainer.dispose);
+
     await tester.pumpWidget(
-      MaterialApp(
-        home: VideoDetailPage(
-          video: video,
-          loadRemoteDetail: false,
-          signedInFuture: Future<bool>.value(isSignedIn),
+      UncontrolledProviderScope(
+        container: effectiveContainer,
+        child: MaterialApp(
+          home: VideoDetailPage(
+            key: key,
+            video: video,
+            apiClient: apiClient,
+            loadRemoteDetail: loadRemoteDetail,
+          ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
+    return effectiveContainer;
   }
+
+  testWidgets('auth checking does not show Sign in on locked VIP',
+      (WidgetTester tester) async {
+    await pumpVideoDetail(
+      tester,
+      authRepository: _NeverCompletingAuthRepository(),
+      settle: false,
+      video: const HomeVideoItem(
+        id: 'vip-locked-checking',
+        title: 'Checking Locked Cut',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
+      ),
+    );
+
+    expect(find.text('VIP video locked'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
+  });
 
   testWidgets('loads remote detail with authenticated request',
       (WidgetTester tester) async {
@@ -37,23 +88,19 @@ void main() {
       'file_url': 'https://example.com/member.mp4',
     });
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: VideoDetailPage(
-          video: const HomeVideoItem(
-            id: '42',
-            title: 'Local VIP',
-            subtitle: 'VIP Studio • 120 views',
-            accessType: 'membership',
-            canWatch: false,
-            isLocked: true,
-          ),
-          apiClient: apiClient,
-          signedInFuture: Future<bool>.value(true),
-        ),
+    await pumpVideoDetail(
+      tester,
+      video: const HomeVideoItem(
+        id: '42',
+        title: 'Local VIP',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: false,
+        isLocked: true,
       ),
+      apiClient: apiClient,
+      loadRemoteDetail: true,
     );
-    await tester.pumpAndSettle();
 
     expect(apiClient.requestedPath, Endpoints.publicVideoDetail(42));
     expect(apiClient.requestedAuthenticated, isTrue);
@@ -68,24 +115,20 @@ void main() {
         const ApiError(message: 'Network unavailable'),
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: VideoDetailPage(
-            video: const HomeVideoItem(
-              id: '99',
-              title: 'Unlocked Local VIP',
-              subtitle: 'VIP Studio • 120 views',
-              accessType: 'membership',
-              canWatch: true,
-              isLocked: false,
-              videoUrl: 'https://example.com/member.mp4',
-            ),
-            apiClient: apiClient,
-            signedInFuture: Future<bool>.value(true),
-          ),
+      await pumpVideoDetail(
+        tester,
+        video: const HomeVideoItem(
+          id: '99',
+          title: 'Unlocked Local VIP',
+          subtitle: 'VIP Studio • 120 views',
+          accessType: 'membership',
+          canWatch: true,
+          isLocked: false,
+          videoUrl: 'https://example.com/member.mp4',
         ),
+        apiClient: apiClient,
+        loadRemoteDetail: true,
       );
-      await tester.pumpAndSettle();
 
       expect(apiClient.requestedAuthenticated, isTrue);
       expect(find.text('Playback preview'), findsOneWidget);
@@ -116,17 +159,13 @@ void main() {
         'file_url': 'https://example.com/member.mp4',
       });
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: VideoDetailPage(
-            key: detailKey,
-            video: lockedListVideo,
-            apiClient: successClient,
-            signedInFuture: Future<bool>.value(true),
-          ),
-        ),
+      final ProviderContainer container = await pumpVideoDetail(
+        tester,
+        key: detailKey,
+        video: lockedListVideo,
+        apiClient: successClient,
+        loadRemoteDetail: true,
       );
-      await tester.pumpAndSettle();
 
       expect(find.text('Playback preview'), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
@@ -135,17 +174,14 @@ void main() {
         const ApiError(message: 'Server error', statusCode: 500),
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: VideoDetailPage(
-            key: detailKey,
-            video: lockedListVideo,
-            apiClient: failureClient,
-            signedInFuture: Future<bool>.value(true),
-          ),
-        ),
+      await pumpVideoDetail(
+        tester,
+        key: detailKey,
+        video: lockedListVideo,
+        apiClient: failureClient,
+        loadRemoteDetail: true,
+        container: container,
       );
-      await tester.pumpAndSettle();
 
       expect(failureClient.requestedAuthenticated, isTrue);
       expect(find.text('Playback preview'), findsOneWidget);
@@ -176,17 +212,13 @@ void main() {
         'file_url': 'https://example.com/member.mp4',
       });
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: VideoDetailPage(
-            key: detailKey,
-            video: lockedListVideo,
-            apiClient: unlockClient,
-            signedInFuture: Future<bool>.value(true),
-          ),
-        ),
+      final ProviderContainer container = await pumpVideoDetail(
+        tester,
+        key: detailKey,
+        video: lockedListVideo,
+        apiClient: unlockClient,
+        loadRemoteDetail: true,
       );
-      await tester.pumpAndSettle();
 
       expect(find.text('Playback preview'), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
@@ -197,17 +229,14 @@ void main() {
         'access_type': 'membership',
       });
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: VideoDetailPage(
-            key: detailKey,
-            video: lockedListVideo,
-            apiClient: partialClient,
-            signedInFuture: Future<bool>.value(true),
-          ),
-        ),
+      await pumpVideoDetail(
+        tester,
+        key: detailKey,
+        video: lockedListVideo,
+        apiClient: partialClient,
+        loadRemoteDetail: true,
+        container: container,
       );
-      await tester.pumpAndSettle();
 
       expect(partialClient.requestedAuthenticated, isTrue);
       expect(find.text('Playback preview'), findsOneWidget);
@@ -218,7 +247,7 @@ void main() {
   );
 
   testWidgets(
-    'explicit locked remote detail response keeps VIP locked',
+    'explicit locked remote detail response keeps VIP locked for signed-in user',
     (WidgetTester tester) async {
       final _FakeApiClient apiClient = _FakeApiClient(<String, dynamic>{
         'id': 101,
@@ -230,27 +259,24 @@ void main() {
         'file_url': 'https://example.com/member.mp4',
       });
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: VideoDetailPage(
-            video: const HomeVideoItem(
-              id: '101',
-              title: 'Unlocked Local VIP',
-              subtitle: 'VIP Studio • 120 views',
-              accessType: 'membership',
-              canWatch: true,
-              isLocked: false,
-              videoUrl: 'https://example.com/member.mp4',
-            ),
-            apiClient: apiClient,
-            signedInFuture: Future<bool>.value(true),
-          ),
+      await pumpVideoDetail(
+        tester,
+        video: const HomeVideoItem(
+          id: '101',
+          title: 'Unlocked Local VIP',
+          subtitle: 'VIP Studio • 120 views',
+          accessType: 'membership',
+          canWatch: true,
+          isLocked: false,
+          videoUrl: 'https://example.com/member.mp4',
         ),
+        apiClient: apiClient,
+        loadRemoteDetail: true,
       );
-      await tester.pumpAndSettle();
 
       expect(find.text('VIP video locked'), findsOneWidget);
       expect(find.text('Subscribe'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
       expect(find.text('Playback preview'), findsNothing);
       expect(find.byType(VideoPlayer), findsNothing);
     },
@@ -258,30 +284,27 @@ void main() {
 
   for (final int statusCode in <int>[401, 403]) {
     testWidgets(
-      'auth denied $statusCode remote detail locks VIP with Sign in CTA',
+      'auth denied $statusCode remote detail uses current signed-out CTA',
       (WidgetTester tester) async {
         final _FakeApiClient apiClient = _FakeApiClient.error(
           ApiError(message: 'Auth denied', statusCode: statusCode),
         );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: VideoDetailPage(
-              video: const HomeVideoItem(
-                id: '102',
-                title: 'Unlocked Local VIP',
-                subtitle: 'VIP Studio • 120 views',
-                accessType: 'membership',
-                canWatch: true,
-                isLocked: false,
-                videoUrl: 'https://example.com/member.mp4',
-              ),
-              apiClient: apiClient,
-              signedInFuture: Future<bool>.value(true),
-            ),
+        await pumpVideoDetail(
+          tester,
+          isSignedIn: false,
+          video: const HomeVideoItem(
+            id: '102',
+            title: 'Unlocked Local VIP',
+            subtitle: 'VIP Studio • 120 views',
+            accessType: 'membership',
+            canWatch: true,
+            isLocked: false,
+            videoUrl: 'https://example.com/member.mp4',
           ),
+          apiClient: apiClient,
+          loadRemoteDetail: true,
         );
-        await tester.pumpAndSettle();
 
         expect(find.text('VIP video locked'), findsOneWidget);
         expect(find.text('Sign in'), findsOneWidget);
@@ -291,6 +314,32 @@ void main() {
       },
     );
   }
+
+  testWidgets('auth denied remote detail uses signed-in Subscribe CTA',
+      (WidgetTester tester) async {
+    final _FakeApiClient apiClient = _FakeApiClient.error(
+      const ApiError(message: 'Auth denied', statusCode: 401),
+    );
+
+    await pumpVideoDetail(
+      tester,
+      video: const HomeVideoItem(
+        id: '104',
+        title: 'Unlocked Local VIP',
+        subtitle: 'VIP Studio • 120 views',
+        accessType: 'membership',
+        canWatch: true,
+        isLocked: false,
+        videoUrl: 'https://example.com/member.mp4',
+      ),
+      apiClient: apiClient,
+      loadRemoteDetail: true,
+    );
+
+    expect(find.text('VIP video locked'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
+  });
 
   testWidgets('locked VIP detail for anonymous user shows Sign in',
       (WidgetTester tester) async {
@@ -319,7 +368,6 @@ void main() {
       (WidgetTester tester) async {
     await pumpVideoDetail(
       tester,
-      isSignedIn: true,
       video: const HomeVideoItem(
         id: 'vip-locked-signed-in',
         title: 'Members Locked Cut',
@@ -338,11 +386,41 @@ void main() {
     expect(find.byType(VideoPlayer), findsNothing);
   });
 
+  testWidgets(
+    'auth error with previous signed-in session shows Subscribe not Sign in',
+    (WidgetTester tester) async {
+      final _FakeAuthRepository authRepository = _FakeAuthRepository(
+        isSignedIn: true,
+      );
+
+      final ProviderContainer container = await pumpVideoDetail(
+        tester,
+        authRepository: authRepository,
+        video: const HomeVideoItem(
+          id: 'vip-locked-auth-error',
+          title: 'Members Locked Cut',
+          subtitle: 'VIP Studio • 120 views',
+          accessType: 'membership',
+          canWatch: false,
+          isLocked: true,
+          videoUrl: 'https://example.com/vip.mp4',
+        ),
+      );
+
+      authRepository.currentSessionError = Exception('offline');
+      await container.read(authControllerProvider.notifier).refreshSession();
+      await tester.pumpAndSettle();
+
+      expect(find.text('VIP video locked'), findsOneWidget);
+      expect(find.text('Subscribe'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
+    },
+  );
+
   testWidgets('unlocked VIP detail for member keeps playable preview',
       (WidgetTester tester) async {
     await pumpVideoDetail(
       tester,
-      isSignedIn: true,
       video: const HomeVideoItem(
         id: 'vip-unlocked-member',
         title: 'Unlocked Member Cut',
@@ -405,5 +483,70 @@ class _FakeApiClient extends ApiClient {
       data: data as T,
       requestOptions: RequestOptions(path: path),
     );
+  }
+}
+
+class _FakeAuthRepository implements AuthRepository {
+  _FakeAuthRepository({required this.isSignedIn});
+
+  bool isSignedIn;
+  Object? currentSessionError;
+
+  @override
+  Future<AuthSession> getCurrentSession() async {
+    final Object? error = currentSessionError;
+    if (error != null) throw error;
+    return AuthSession(
+      isSignedIn: isSignedIn,
+      userId: isSignedIn ? 'user-1' : null,
+      displayName: isSignedIn ? 'Meow User' : 'Guest',
+    );
+  }
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {
+    isSignedIn = false;
+  }
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _NeverCompletingAuthRepository implements AuthRepository {
+  @override
+  Future<AuthSession> getCurrentSession() => Completer<AuthSession>().future;
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
   }
 }

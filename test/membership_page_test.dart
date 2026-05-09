@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/api_error.dart';
+import 'package:meow_media/features/auth/application/auth_providers.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
 import 'package:meow_media/features/auth/domain/auth_session.dart';
 import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
+import 'package:meow_media/features/membership/application/membership_providers.dart';
+import 'package:meow_media/features/membership/application/membership_state.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
@@ -38,7 +44,7 @@ void main() {
     isActive: true,
   );
 
-  Future<void> pumpMembershipPage(
+  Future<ProviderContainer> pumpMembershipPage(
     WidgetTester tester, {
     required MembershipRepository repository,
     MembershipRepository mockRepository = const _MembershipRepositoryFake(
@@ -47,33 +53,52 @@ void main() {
     bool useRemote = true,
     bool isActive = true,
     Future<List<HomeVideoItem>>? vipVideosFuture,
-    Future<bool>? signedInFuture,
     AuthRepository? authRepository,
     RemoteHomeRepository? videoRepository,
+    ProviderContainer? container,
+    bool settle = true,
   }) async {
+    final ProviderContainer effectiveContainer = container ??
+        ProviderContainer(
+          overrides: <Override>[
+            authRepositoryProvider.overrideWithValue(
+              authRepository ?? _AuthRepositoryFake(isSignedIn: true),
+            ),
+            membershipRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+    if (container == null) {
+      addTearDown(effectiveContainer.dispose);
+    }
+
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MembershipPage(
-            repository: repository,
-            mockRepository: mockRepository,
-            useRemote: useRemote,
-            isActive: isActive,
-            vipVideosFuture: vipVideosFuture ??
-                (videoRepository == null
-                    ? Future<List<HomeVideoItem>>.value(
-                        const <HomeVideoItem>[],
-                      )
-                    : null),
-            signedInFuture: signedInFuture ??
-                (authRepository == null ? Future<bool>.value(true) : null),
-            authRepository: authRepository,
-            videoRepository: videoRepository,
+      UncontrolledProviderScope(
+        container: effectiveContainer,
+        child: MaterialApp(
+          home: Scaffold(
+            body: MembershipPage(
+              repository: repository,
+              mockRepository: mockRepository,
+              useRemote: useRemote,
+              isActive: isActive,
+              vipVideosFuture: vipVideosFuture ??
+                  (videoRepository == null
+                      ? Future<List<HomeVideoItem>>.value(
+                          const <HomeVideoItem>[],
+                        )
+                      : null),
+              videoRepository: videoRepository,
+            ),
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
+    return effectiveContainer;
   }
 
   Future<void> dragUntilTextVisible(
@@ -96,6 +121,20 @@ void main() {
     );
   }
 
+  testWidgets('auth checking does not show guest sign-in state',
+      (WidgetTester tester) async {
+    await pumpMembershipPage(
+      tester,
+      repository: const _MembershipRepositoryFake(plans: backendPlans),
+      authRepository: _NeverCompletingAuthRepository(),
+      settle: false,
+    );
+
+    expect(find.text('Guest'), findsNothing);
+    expect(find.text('Sign in required'), findsNothing);
+    expect(find.text('Sign in to unlock VIP access'), findsNothing);
+  });
+
   testWidgets('renders main Membership structure', (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
@@ -115,13 +154,12 @@ void main() {
     expect(find.text('Yearly'), findsOneWidget);
   });
 
-
   testWidgets('signed-out state shows Sign in CTA',
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
       repository: const _MembershipRepositoryFake(plans: backendPlans),
-      signedInFuture: Future<bool>.value(false),
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
     );
 
     expect(find.text('Membership'), findsOneWidget);
@@ -142,7 +180,6 @@ void main() {
     await pumpMembershipPage(
       tester,
       repository: const _MembershipRepositoryFake(plans: backendPlans),
-      signedInFuture: Future<bool>.value(true),
     );
 
     expect(find.text('Membership'), findsOneWidget);
@@ -157,40 +194,43 @@ void main() {
     expect(find.text('Membership Plans'), findsOneWidget);
   });
 
-
   testWidgets('refreshes membership state when tab becomes active',
       (WidgetTester tester) async {
     final _MutableMembershipRepository repository = _MutableMembershipRepository(
       plans: backendPlans,
     );
     final _AuthRepositoryFake authRepository = _AuthRepositoryFake(
-      isSignedIn: false,
+      isSignedIn: true,
     );
+    final Future<List<HomeVideoItem>> vipVideosFuture =
+        Future<List<HomeVideoItem>>.value(const <HomeVideoItem>[]);
 
-    await pumpMembershipPage(
+    final ProviderContainer container = await pumpMembershipPage(
       tester,
       repository: repository,
       authRepository: authRepository,
       isActive: false,
+      vipVideosFuture: vipVideosFuture,
     );
 
-    expect(find.text('Guest'), findsOneWidget);
-    expect(find.text('Sign in required'), findsOneWidget);
+    expect(find.text('Meow Plus'), findsOneWidget);
+    expect(find.text('Not subscribed'), findsOneWidget);
 
     repository.status = activeStatus;
-    authRepository.isSignedIn = true;
 
     await pumpMembershipPage(
       tester,
       repository: repository,
       authRepository: authRepository,
+      container: container,
+      vipVideosFuture: vipVideosFuture,
     );
 
     expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
     expect(find.text('Valid until June 1, 2026'), findsOneWidget);
     expect(repository.statusCalls, greaterThanOrEqualTo(2));
-    expect(authRepository.sessionCalls, greaterThanOrEqualTo(2));
+    expect(container.read(membershipControllerProvider).isActive, isTrue);
   });
 
   testWidgets(
@@ -204,7 +244,7 @@ void main() {
         isSignedIn: true,
       );
 
-      await pumpMembershipPage(
+      final ProviderContainer container = await pumpMembershipPage(
         tester,
         repository: repository,
         authRepository: authRepository,
@@ -215,11 +255,14 @@ void main() {
       expect(find.text('Not subscribed'), findsOneWidget);
 
       authRepository.sessionError = Exception('offline');
+      await container.read(authControllerProvider.notifier).refreshSession();
+      await tester.pumpAndSettle();
 
       await pumpMembershipPage(
         tester,
         repository: repository,
         authRepository: authRepository,
+        container: container,
       );
 
       expect(find.text('Meow Plus'), findsOneWidget);
@@ -241,7 +284,7 @@ void main() {
         isSignedIn: true,
       );
 
-      await pumpMembershipPage(
+      final ProviderContainer container = await pumpMembershipPage(
         tester,
         repository: repository,
         authRepository: authRepository,
@@ -252,11 +295,14 @@ void main() {
       expect(find.text('Basic Monthly'), findsWidgets);
 
       repository.statusError = Exception('temporary server failure');
+      await container.read(membershipControllerProvider.notifier).refresh();
+      await tester.pumpAndSettle();
 
       await pumpMembershipPage(
         tester,
         repository: repository,
         authRepository: authRepository,
+        container: container,
       );
 
       expect(find.text('Member'), findsOneWidget);
@@ -279,7 +325,7 @@ void main() {
           isSignedIn: true,
         );
 
-        await pumpMembershipPage(
+        final ProviderContainer container = await pumpMembershipPage(
           tester,
           repository: repository,
           authRepository: authRepository,
@@ -298,15 +344,23 @@ void main() {
           statusCode: statusCode,
         );
 
+        await container.read(authControllerProvider.notifier).refreshSession();
+        await tester.pumpAndSettle();
+
         await pumpMembershipPage(
           tester,
           repository: repository,
           authRepository: authRepository,
+          container: container,
         );
 
         expect(find.text('Guest'), findsOneWidget);
         expect(find.text('Sign in required'), findsOneWidget);
         expect(find.text('Member'), findsNothing);
+        expect(
+          container.read(membershipControllerProvider).status,
+          MembershipLoadStatus.unknown,
+        );
       },
     );
   }
@@ -546,6 +600,7 @@ void main() {
       tester,
       repository: repository,
       useRemote: false,
+      authRepository: _AuthRepositoryFake(isSignedIn: false),
     );
 
     expect(repository.called, isFalse);
@@ -583,7 +638,6 @@ class _MembershipRepositoryFake implements MembershipRepository {
     return status;
   }
 }
-
 
 class _MutableMembershipRepository implements MembershipRepository {
   _MutableMembershipRepository({required this.plans});
@@ -645,7 +699,6 @@ class _AuthRepositoryFake implements AuthRepository {
   }
 }
 
-
 class _TrackingHomeRepository extends RemoteHomeRepository {
   _TrackingHomeRepository({required this.pages}) : super(apiClient: ApiClient());
 
@@ -706,5 +759,30 @@ class _TrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async {
     called = true;
     return null;
+  }
+}
+
+class _NeverCompletingAuthRepository implements AuthRepository {
+  @override
+  Future<AuthSession> getCurrentSession() => Completer<AuthSession>().future;
+
+  @override
+  Future<AuthSession> login({required String email, required String password}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthSession> refreshSession() => getCurrentSession();
+
+  @override
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) {
+    throw UnimplementedError();
   }
 }

@@ -386,6 +386,65 @@ void main() {
     expect(find.text('lbc-address-100'), findsOneWidget);
   });
 
+  testWidgets('quarterly selected plan opens payment page with 90 day duration',
+      (WidgetTester tester) async {
+    final _OrderTrackingMembershipRepository repository =
+        _OrderTrackingMembershipRepository(
+      plans: const <MembershipPlan>[
+        MembershipPlan(
+          code: 'monthly',
+          title: 'Monthly Membership',
+          price: '30.00 THB-LTT / 30 days',
+          perks: 'Monthly access',
+          durationDays: 30,
+          settlementTokenSymbol: 'THB-LTT',
+        ),
+        MembershipPlan(
+          code: 'quarterly',
+          title: 'Quarterly Membership',
+          price: '80.00 THB-LTT / 90 days',
+          perks: 'Quarterly access',
+          durationDays: 90,
+          settlementTokenSymbol: 'THB-LTT',
+        ),
+        MembershipPlan(
+          code: 'yearly',
+          title: 'Yearly Membership',
+          price: '300.00 THB-LTT / 365 days',
+          perks: 'Yearly access',
+          durationDays: 365,
+          settlementTokenSymbol: 'THB-LTT',
+        ),
+      ],
+      order: const MembershipOrder(
+        orderNo: 'order-quarterly',
+        status: 'pending',
+        planCode: 'quarterly',
+        planTitle: 'Quarterly Membership',
+        expectedAmountLbc: '80.00000000',
+        payToAddress: 'quarterly-pay-address',
+      ),
+    );
+
+    await pumpMembershipPage(tester, repository: repository);
+    await tapPlanAction(
+      tester,
+      planTitle: 'Quarterly Membership',
+      actionLabel: 'Buy Now',
+    );
+    await tapSheetAction(tester, 'Confirm and create order');
+
+    expect(repository.createdPlanCodes, <String>['quarterly']);
+    expect(find.byType(MembershipPaymentPage), findsOneWidget);
+    expect(find.text('Quarterly Membership'), findsOneWidget);
+    expect(find.text('80.00'), findsOneWidget);
+    expect(find.text('THB-LTT'), findsWidgets);
+    expect(find.text('Duration: 90 days'), findsOneWidget);
+    expect(find.text('Duration: 30 days'), findsNothing);
+    expect(find.text('Duration: 365 days'), findsNothing);
+    expect(find.text('quarterly-pay-address'), findsOneWidget);
+  });
+
   testWidgets('cancel confirmation does not create order',
       (WidgetTester tester) async {
     final _OrderTrackingMembershipRepository repository =

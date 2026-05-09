@@ -33,14 +33,14 @@ void main() {
   Future<void> pumpPaymentPage(
     WidgetTester tester, {
     MembershipOrder order = basicOrder,
-    MembershipPlan? plan = basicPlan,
+    MembershipPlan selectedPlan = basicPlan,
     QrCodeSaver? qrCodeSaver,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
         home: MembershipPaymentPage(
           order: order,
-          plan: plan,
+          selectedPlan: selectedPlan,
           qrCodeSaver: qrCodeSaver,
         ),
       ),
@@ -106,6 +106,72 @@ void main() {
     expect(find.text('Verify now'), findsNothing);
     expect(find.text('Polling'), findsNothing);
     expect(find.text('LBC'), findsNothing);
+  });
+
+  testWidgets('uses selected monthly plan duration', (WidgetTester tester) async {
+    await pumpPaymentPage(
+      tester,
+      selectedPlan: const MembershipPlan(
+        code: 'monthly',
+        title: 'Monthly Membership',
+        price: '30.00 THB-LTT / 30 days',
+        perks: 'Monthly access',
+        durationDays: 30,
+        settlementTokenSymbol: 'THB-LTT',
+      ),
+    );
+
+    expect(find.text('Monthly Membership'), findsOneWidget);
+    expect(find.text('30.00'), findsOneWidget);
+    expect(find.text('Duration: 30 days'), findsOneWidget);
+  });
+
+  testWidgets('uses selected quarterly plan duration',
+      (WidgetTester tester) async {
+    await pumpPaymentPage(
+      tester,
+      selectedPlan: const MembershipPlan(
+        code: 'quarterly',
+        title: 'Quarterly Membership',
+        price: '80.00 THB-LTT / 90 days',
+        perks: 'Quarterly access',
+        durationDays: 90,
+        settlementTokenSymbol: 'THB-LTT',
+      ),
+      order: const MembershipOrder(
+        orderNo: 'order-quarterly',
+        status: 'pending',
+        planCode: 'monthly',
+        planTitle: 'Wrong order plan',
+        expectedAmountLbc: '999.00000000',
+        payToAddress: 'quarterly-order-address',
+      ),
+    );
+
+    expect(find.text('Quarterly Membership'), findsOneWidget);
+    expect(find.text('80.00'), findsOneWidget);
+    expect(find.text('Duration: 90 days'), findsOneWidget);
+    expect(find.text('Duration: 30 days'), findsNothing);
+    expect(find.text('Duration: 365 days'), findsNothing);
+    expect(find.text('quarterly-order-address'), findsOneWidget);
+  });
+
+  testWidgets('uses selected yearly plan duration', (WidgetTester tester) async {
+    await pumpPaymentPage(
+      tester,
+      selectedPlan: const MembershipPlan(
+        code: 'yearly',
+        title: 'Yearly Membership',
+        price: '300.00 THB-LTT / 365 days',
+        perks: 'Yearly access',
+        durationDays: 365,
+        settlementTokenSymbol: 'THB-LTT',
+      ),
+    );
+
+    expect(find.text('Yearly Membership'), findsOneWidget);
+    expect(find.text('300.00'), findsOneWidget);
+    expect(find.text('Duration: 365 days'), findsOneWidget);
   });
 
   testWidgets('shows unavailable state when payment address is missing',

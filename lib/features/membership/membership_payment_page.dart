@@ -18,12 +18,12 @@ class MembershipPaymentPage extends StatefulWidget {
   const MembershipPaymentPage({
     super.key,
     required this.order,
-    this.plan,
+    required this.selectedPlan,
     this.qrCodeSaver,
   });
 
   final MembershipOrder order;
-  final MembershipPlan? plan;
+  final MembershipPlan selectedPlan;
   final QrCodeSaver? qrCodeSaver;
 
   @override
@@ -43,7 +43,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
 
   MembershipOrder get order => widget.order;
 
-  MembershipPlan? get plan => widget.plan;
+  MembershipPlan get selectedPlan => widget.selectedPlan;
 
   Future<void> _copyAddress() async {
     final String? address = _trimmed(order.payToAddress);
@@ -99,7 +99,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
   @override
   Widget build(BuildContext context) {
     final String? qrPayload = _paymentQrPayload(order);
-    final String tokenSymbol = _paymentTokenSymbol(order, plan);
+    final String tokenSymbol = _selectedPlanTokenSymbol(selectedPlan, order);
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -117,8 +117,7 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
               _PaymentHeader(onBack: () => Navigator.of(context).maybePop()),
               const SizedBox(height: AppSpacing.md),
               _SelectedPlanCard(
-                order: order,
-                plan: plan,
+                selectedPlan: selectedPlan,
                 tokenSymbol: tokenSymbol,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -203,18 +202,16 @@ class _PaymentHeader extends StatelessWidget {
 
 class _SelectedPlanCard extends StatelessWidget {
   const _SelectedPlanCard({
-    required this.order,
-    required this.plan,
+    required this.selectedPlan,
     required this.tokenSymbol,
   });
 
-  final MembershipOrder order;
-  final MembershipPlan? plan;
+  final MembershipPlan selectedPlan;
   final String tokenSymbol;
 
   @override
   Widget build(BuildContext context) {
-    final String amount = _paymentDisplayAmount(order);
+    final String amount = _selectedPlanDisplayAmount(selectedPlan);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
@@ -247,14 +244,14 @@ class _SelectedPlanCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  _paymentPlanTitle(order, plan),
+                  selectedPlan.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(fontSize: 15),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  _durationLabel(plan),
+                  _durationLabel(selectedPlan),
                   style: AppTextStyles.caption.copyWith(fontSize: 12),
                 ),
               ],
@@ -631,25 +628,23 @@ Future<bool> _writeQrPng(GlobalKey qrKey) async {
   return true;
 }
 
-String _paymentPlanTitle(MembershipOrder order, MembershipPlan? plan) {
-  final String? title = _trimmed(order.planTitle) ?? _trimmed(plan?.title);
-  final String? code = _trimmed(order.planCode) ?? _trimmed(plan?.code);
-  return title ?? code ?? 'Membership Plan';
-}
-
-String _paymentDisplayAmount(MembershipOrder order) {
-  final String? rawAmount = _trimmed(order.expectedAmountLbc);
+String _selectedPlanDisplayAmount(MembershipPlan selectedPlan) {
+  final RegExpMatch? amountMatch = RegExp(
+    r'\d+(?:\.\d+)?',
+  ).firstMatch(selectedPlan.price);
+  final String? rawAmount = amountMatch?.group(0);
   if (rawAmount == null) return 'Amount unavailable';
   final double? numericAmount = double.tryParse(rawAmount);
   if (numericAmount == null) return rawAmount;
   return numericAmount.toStringAsFixed(2);
 }
 
-
-
-String _paymentTokenSymbol(MembershipOrder order, MembershipPlan? plan) {
-  return _trimmed(order.tokenSymbol) ??
-      _trimmed(plan?.settlementTokenSymbol) ??
+String _selectedPlanTokenSymbol(
+  MembershipPlan selectedPlan,
+  MembershipOrder order,
+) {
+  return _trimmed(selectedPlan.settlementTokenSymbol) ??
+      _trimmed(order.tokenSymbol) ??
       _trimmed(order.currency) ??
       'LBC';
 }

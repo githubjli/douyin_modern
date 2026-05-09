@@ -133,6 +133,7 @@ void main() {
   }
 
   Future<void> tapFirstBuyNow(WidgetTester tester) async {
+    await dragUntilTextVisible(tester, 'Buy Now');
     final Finder buyNow = find.text('Buy Now').first;
     await tester.ensureVisible(buyNow);
     await tester.pumpAndSettle();
@@ -393,6 +394,9 @@ void main() {
 
     await tapSheetAction(tester, 'Copy address');
     expect(find.text('Address copied'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
 
     await tapSheetAction(tester, 'Copy amount');
     expect(find.text('Amount copied'), findsOneWidget);

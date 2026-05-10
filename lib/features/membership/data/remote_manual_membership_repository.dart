@@ -69,11 +69,25 @@ class RemoteManualMembershipRepository implements ManualMembershipRepository {
     } on ManualTxSubmitDisabledException {
       rethrow;
     } on ApiError catch (e) {
-      // Server returns 4xx with {"detail": "...does not accept..."}.
-      // ApiClient converts 4xx to ApiError before we see the body, so we
-      // check the mapped message here instead.
-      if (e.message.toLowerCase().contains('does not accept')) {
+      final String msg = e.message.toLowerCase();
+      // Endpoint disabled — server says "does not accept".
+      if (msg.contains('does not accept')) {
         throw ManualTxSubmitDisabledException(e.message);
+      }
+      // 409 Conflict — txid already submitted.
+      if (e.statusCode == 409 || msg.contains('already submitted')) {
+        throw ManualTxDuplicateException(
+          e.message,
+          manualPaymentId: _intFromError(e),
+        );
+      }
+      // User already has a pending payment.
+      if (msg.contains('pending manual membership payment already exists') ||
+          msg.contains('pending payment already exists')) {
+        throw ManualTxPendingExistsException(
+          e.message,
+          manualPaymentId: _intFromError(e),
+        );
       }
       rethrow;
     }
@@ -144,3 +158,5 @@ class RemoteManualMembershipRepository implements ManualMembershipRepository {
 // Re-export so callers only need one import.
 // ignore: unused_element
 ApiError _unused() => throw UnimplementedError();
+
+int? _intFromError(ApiError e) => null; // detail body not accessible after mapping

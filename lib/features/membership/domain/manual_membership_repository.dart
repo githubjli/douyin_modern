@@ -36,6 +36,24 @@ class ManualTxSubmitDisabledException implements Exception {
   String toString() => message ?? 'txid submission is not available yet';
 }
 
+/// Thrown on 409 Conflict: the txid was already submitted before.
+class ManualTxDuplicateException implements Exception {
+  const ManualTxDuplicateException(this.message, {this.manualPaymentId});
+  final String message;
+  final int? manualPaymentId;
+  @override
+  String toString() => message;
+}
+
+/// Thrown when the user already has a pending payment for this plan.
+class ManualTxPendingExistsException implements Exception {
+  const ManualTxPendingExistsException(this.message, {this.manualPaymentId});
+  final String message;
+  final int? manualPaymentId;
+  @override
+  String toString() => message;
+}
+
 class ManualTxHintVerifyResult {
   const ManualTxHintVerifyResult({
     required this.verified,

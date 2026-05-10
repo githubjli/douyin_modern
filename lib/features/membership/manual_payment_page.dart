@@ -203,6 +203,20 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
         _submittingTx = false;
       });
       _showMessage(e.message ?? 'txid submission is not available yet.');
+    } on ManualTxDuplicateException {
+      if (!mounted) return;
+      setState(() {
+        _txSubmitted = true;
+        _submittingTx = false;
+      });
+      _showMessage('This transaction has already been submitted.');
+    } on ManualTxPendingExistsException {
+      if (!mounted) return;
+      setState(() {
+        _txSubmitted = true;
+        _submittingTx = false;
+      });
+      _showMessage('You already have a pending payment under review.');
     } catch (_) {
       if (!mounted) return;
       setState(() => _submittingTx = false);
@@ -242,10 +256,16 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
                 info: info,
                 displayCurrency: widget.displayCurrency,
               ),
+              if (info.purchaseMode != PurchaseMode.unknown &&
+                  info.purchaseMode != PurchaseMode.newSubscription) ...<Widget>[
+                const SizedBox(height: AppSpacing.sm),
+                _PurchaseModeCard(info: info),
+              ],
               const SizedBox(height: AppSpacing.md),
               if (activated)
                 _SuccessCard(
                   planName: _activeMembership!.planTitle,
+                  endsAt: _activeMembership!.endsAt,
                   onDone: () => Navigator.of(context).maybePop(),
                 )
               else ...<Widget>[
@@ -424,6 +444,104 @@ class _PlanSummaryCard extends StatelessWidget {
         .toStringAsFixed(8)
         .replaceFirst(RegExp(r'0+$'), '')
         .replaceFirst(RegExp(r'\.$'), '');
+  }
+}
+
+class _PurchaseModeCard extends StatelessWidget {
+  const _PurchaseModeCard({required this.info});
+  final ManualPaymentInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.brandGold.withValues(alpha: 0.08),
+        border: Border.all(
+            color: AppColors.brandGold.withValues(alpha: 0.32)),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          _modeLabel(),
+          if (info.currentMembership?.endsAt != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.xs),
+            _InfoLine(
+              label: 'Current plan expires',
+              value: _fmtDate(info.currentMembership!.endsAt),
+            ),
+          ],
+          if (info.estimatedNewEndsAt != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.xxs),
+            _InfoLine(
+              label: info.isRenewal ? 'Renews to' : 'New expiry',
+              value: _fmtDate(info.estimatedNewEndsAt),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _modeLabel() {
+    final String label = switch (info.purchaseMode) {
+      PurchaseMode.renewal => 'Renewal — extends your current plan',
+      PurchaseMode.planChange =>
+        'Plan change — takes effect after current plan ends',
+      _ => '',
+    };
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Text(
+      label,
+      style: AppTextStyles.caption.copyWith(
+        color: AppColors.brandGold,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        height: 1.4,
+      ),
+    );
+  }
+
+  static String _fmtDate(String? raw) {
+    if (raw == null) return '—';
+    final DateTime? dt = DateTime.tryParse(raw);
+    if (dt == null) return raw;
+    const List<String> months = <String>[
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Text(
+          '$label: ',
+          style: AppTextStyles.caption.copyWith(
+            fontSize: 12,
+            color: AppColors.mutedOliveText,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -805,12 +923,18 @@ class _CheckStatusButton extends StatelessWidget {
 }
 
 class _SuccessCard extends StatelessWidget {
-  const _SuccessCard({required this.planName, required this.onDone});
+  const _SuccessCard({
+    required this.planName,
+    required this.onDone,
+    this.endsAt,
+  });
   final String planName;
+  final String? endsAt;
   final VoidCallback onDone;
 
   @override
   Widget build(BuildContext context) {
+    final String? formattedEnd = _fmtDate(endsAt);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -835,11 +959,34 @@ class _SuccessCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTextStyles.body.copyWith(fontSize: 13),
           ),
+          if (formattedEnd != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              'Valid until $formattedEnd',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.brandGold,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           _GoldButton(label: 'Done', onTap: onDone),
         ],
       ),
     );
+  }
+
+  static String? _fmtDate(String? raw) {
+    if (raw == null) return null;
+    final DateTime? dt = DateTime.tryParse(raw);
+    if (dt == null) return null;
+    const List<String> months = <String>[
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 }
 

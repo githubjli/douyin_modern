@@ -1,6 +1,43 @@
+enum PurchaseMode {
+  newSubscription,
+  renewal,
+  planChange,
+  unknown;
+
+  static PurchaseMode fromString(String? raw) => switch (raw?.toLowerCase().trim()) {
+        'new' => PurchaseMode.newSubscription,
+        'renewal' => PurchaseMode.renewal,
+        'plan_change' => PurchaseMode.planChange,
+        _ => PurchaseMode.unknown,
+      };
+}
+
+class ManualCurrentMembership {
+  const ManualCurrentMembership({
+    required this.planCode,
+    required this.planName,
+    this.startsAt,
+    this.endsAt,
+  });
+
+  factory ManualCurrentMembership.fromJson(Map<String, dynamic> json) {
+    return ManualCurrentMembership(
+      planCode: _str(json['plan_code']) ?? '',
+      planName: _str(json['plan_name']) ?? _str(json['plan_title']) ?? '',
+      startsAt: _str(json['starts_at']),
+      endsAt: _str(json['ends_at']),
+    );
+  }
+
+  final String planCode;
+  final String planName;
+  final String? startsAt;
+  final String? endsAt;
+}
+
 /// Payment information returned by GET /api/membership/manual/payment-info/
-/// This endpoint does NOT create an order; it only provides the address and
-/// expected amount so the user can initiate an on-chain transfer manually.
+/// This endpoint does NOT create an order; it provides the address, amount,
+/// and context (new / renewal / plan_change) for the user's purchase.
 class ManualPaymentInfo {
   const ManualPaymentInfo({
     required this.planCode,
@@ -10,6 +47,13 @@ class ManualPaymentInfo {
     required this.payToAddress,
     required this.requiredConfirmations,
     this.notice,
+    this.purchaseMode = PurchaseMode.unknown,
+    this.isRenewal = false,
+    this.isPlanChange = false,
+    this.hasActiveMembership = false,
+    this.currentMembership,
+    this.estimatedNewStartsAt,
+    this.estimatedNewEndsAt,
   });
 
   factory ManualPaymentInfo.fromJson(Map<String, dynamic> json) {
@@ -19,6 +63,13 @@ class ManualPaymentInfo {
     if (planCode == null || payToAddress == null) {
       throw const FormatException('Invalid manual payment info response');
     }
+
+    final dynamic currentJson = json['current_membership'];
+    final ManualCurrentMembership? currentMembership =
+        currentJson is Map<String, dynamic>
+            ? ManualCurrentMembership.fromJson(currentJson)
+            : null;
+
     return ManualPaymentInfo(
       planCode: planCode,
       planName: _str(json['plan_name']) ?? _str(json['plan_title']) ?? planCode,
@@ -32,6 +83,13 @@ class ManualPaymentInfo {
       payToAddress: payToAddress,
       requiredConfirmations: _int(json['required_confirmations']) ?? 0,
       notice: _str(json['notice']),
+      purchaseMode: PurchaseMode.fromString(_str(json['purchase_mode'])),
+      isRenewal: json['is_renewal'] == true,
+      isPlanChange: json['is_plan_change'] == true,
+      hasActiveMembership: json['has_active_membership'] == true,
+      currentMembership: currentMembership,
+      estimatedNewStartsAt: _str(json['estimated_new_starts_at']),
+      estimatedNewEndsAt: _str(json['estimated_new_ends_at']),
     );
   }
 
@@ -42,6 +100,13 @@ class ManualPaymentInfo {
   final String payToAddress;
   final int requiredConfirmations;
   final String? notice;
+  final PurchaseMode purchaseMode;
+  final bool isRenewal;
+  final bool isPlanChange;
+  final bool hasActiveMembership;
+  final ManualCurrentMembership? currentMembership;
+  final String? estimatedNewStartsAt;
+  final String? estimatedNewEndsAt;
 }
 
 String? _str(dynamic v) {

@@ -50,14 +50,20 @@ class ManualTxHint {
     required this.expectedAmountLbc,
     required this.payToAddress,
     required this.createdAt,
+    this.verified = false,
     this.actualAmountLbc,
     this.orderNo,
     this.rejectReason,
     this.verifiedAt,
+    this.purchaseMode,
+    this.estimatedNewStartsAt,
+    this.estimatedNewEndsAt,
   });
 
   factory ManualTxHint.fromJson(Map<String, dynamic> json) {
-    final int? id = _int(json['id']);
+    // Submit response uses manual_payment_id; list response uses id.
+    final int? id =
+        _int(json['id']) ?? _int(json['manual_payment_id']);
     final String? txid = _str(json['txid']);
     final String? statusRaw = _str(json['status']);
     if (id == null || txid == null || statusRaw == null) {
@@ -77,6 +83,10 @@ class ManualTxHint {
       rejectReason: _str(json['reject_reason']),
       createdAt: _str(json['created_at']) ?? '',
       verifiedAt: _str(json['verified_at']),
+      verified: json['verified'] == true,
+      purchaseMode: _str(json['purchase_mode']),
+      estimatedNewStartsAt: _str(json['estimated_new_starts_at']),
+      estimatedNewEndsAt: _str(json['estimated_new_ends_at']),
     );
   }
 
@@ -93,6 +103,11 @@ class ManualTxHint {
   final String? rejectReason;
   final String createdAt;
   final String? verifiedAt;
+  /// Only populated in submit response.
+  final bool verified;
+  final String? purchaseMode;
+  final String? estimatedNewStartsAt;
+  final String? estimatedNewEndsAt;
 }
 
 String? _str(dynamic v) {

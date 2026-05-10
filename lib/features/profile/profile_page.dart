@@ -241,7 +241,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               subtitle: 'Checking your session...',
             )
           else if (isSignedIn)
-            _SignedInProfileCard(
+            _SignedInProfileBody(
               profile: _profile,
               onLogout: _logout,
               onRefresh: _refreshProfile,
@@ -513,8 +513,12 @@ class _InlineAuthMessage extends StatelessWidget {
   }
 }
 
-class _SignedInProfileCard extends StatelessWidget {
-  const _SignedInProfileCard({
+// ---------------------------------------------------------------------------
+// Signed-in profile body — full sectioned layout
+// ---------------------------------------------------------------------------
+
+class _SignedInProfileBody extends StatelessWidget {
+  const _SignedInProfileBody({
     required this.profile,
     required this.onLogout,
     required this.onRefresh,
@@ -526,6 +530,121 @@ class _SignedInProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isCreator = profile?.isCreator == true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // ── Avatar + name ──────────────────────────────────────────────
+        _ProfileHeader(profile: profile, onRefresh: onRefresh),
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Meow Points card ───────────────────────────────────────────
+        const _PointsCard(points: null), // TODO: wire up backend
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Creator tools (only when isCreator) ────────────────────────
+        if (isCreator) ...<Widget>[
+          _SectionCard(
+            label: 'Creator Studio',
+            items: <_MenuItem>[
+              _MenuItem(
+                icon: Icons.play_circle_outline_rounded,
+                label: 'My Videos',
+                onTap: () => _showComingSoon(context),
+              ),
+              _MenuItem(
+                icon: Icons.upload_outlined,
+                label: 'Upload Video',
+                onTap: () => _showComingSoon(context),
+              ),
+              _MenuItem(
+                icon: Icons.live_tv_outlined,
+                label: 'Live Creator',
+                onTap: () => _showComingSoon(context),
+              ),
+              _MenuItem(
+                icon: Icons.menu_book_outlined,
+                label: 'Drama Creator',
+                onTap: () => _showComingSoon(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+
+        // ── My content ─────────────────────────────────────────────────
+        _SectionCard(
+          label: 'My Content',
+          items: <_MenuItem>[
+            _MenuItem(
+              icon: Icons.video_library_outlined,
+              label: 'My Library',
+              onTap: () => _showComingSoon(context),
+            ),
+            _MenuItem(
+              icon: Icons.workspace_premium_outlined,
+              label: 'Membership & Orders',
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MembershipOrdersPage(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Account ────────────────────────────────────────────────────
+        _SectionCard(
+          label: 'Account',
+          items: <_MenuItem>[
+            _MenuItem(
+              icon: Icons.account_balance_wallet_outlined,
+              label: 'Wallet & Billing',
+              onTap: () => _showComingSoon(context),
+            ),
+            _MenuItem(
+              icon: Icons.lock_outline_rounded,
+              label: 'Change Password',
+              onTap: () => _showComingSoon(context),
+            ),
+            _MenuItem(
+              icon: Icons.logout_rounded,
+              label: 'Logout',
+              destructive: true,
+              onTap: onLogout,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+      ],
+    );
+  }
+
+  void _showComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Coming soon.')),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Avatar + display name header
+// ---------------------------------------------------------------------------
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.profile, required this.onRefresh});
+
+  final UserProfile? profile;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final String name = profile?.displayName ?? 'User';
+    final String? email = profile?.email;
+    final String initials = _initials(name);
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -533,36 +652,122 @@ class _SignedInProfileCard extends StatelessWidget {
         border: Border.all(color: AppColors.softBorder),
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: <Widget>[
-          Text(profile?.displayName ?? 'User', style: AppTextStyles.cardTitle),
-          const SizedBox(height: AppSpacing.xs),
-          Text(profile?.email ?? 'No email from backend', style: AppTextStyles.body),
-          const SizedBox(height: AppSpacing.sm),
-          Text('Creator: ${profile?.isCreator == true ? 'Yes' : 'No'}', style: AppTextStyles.caption),
-          Text('Seller: ${profile?.isSeller == true ? 'Yes' : 'No'}', style: AppTextStyles.caption),
-          Text('Wallet linked: ${profile?.walletLinked == true ? 'Yes' : 'No'}', style: AppTextStyles.caption),
-          Text('Wallet: ${profile?.walletAddress ?? '-'}', style: AppTextStyles.caption),
-          const SizedBox(height: AppSpacing.md),
-          _MembershipOrdersEntry(),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onRefresh,
-                  child: const Text('Refresh profile'),
+          // Avatar circle
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.brandGold.withAlpha(30),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.brandGold, width: 1.5),
+            ),
+            child: Center(
+              child: Text(
+                initials,
+                style: AppTextStyles.sectionTitle.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 20,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: onLogout,
-                  child: const Text('Logout'),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(name, style: AppTextStyles.cardTitle),
+                if (email != null && email != name) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.mutedOliveText,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // Refresh button
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            color: AppColors.mutedOliveText,
+            tooltip: 'Refresh profile',
+            onPressed: onRefresh,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final List<String> parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Meow Points card
+// ---------------------------------------------------------------------------
+
+class _PointsCard extends StatelessWidget {
+  const _PointsCard({required this.points});
+
+  final int? points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.brandGold.withAlpha(25),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.stars_rounded,
+              color: AppColors.brandGold,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('Meow Points', style: AppTextStyles.body),
+                Text(
+                  points != null ? '$points pts' : '— pts',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.mutedOliveText,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Coming soon.')),
+            ),
+            child: const Text('Details'),
           ),
         ],
       ),
@@ -570,45 +775,108 @@ class _SignedInProfileCard extends StatelessWidget {
   }
 }
 
-class _MembershipOrdersEntry extends StatelessWidget {
+// ---------------------------------------------------------------------------
+// Generic section card with list items
+// ---------------------------------------------------------------------------
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.label, required this.items});
+
+  final String label;
+  final List<_MenuItem> items;
+
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(
+            left: AppSpacing.xs,
+            bottom: AppSpacing.xs,
+          ),
+          child: Text(
+            label.toUpperCase(),
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.mutedOliveText,
+              letterSpacing: 0.8,
+              fontSize: 11,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            border: Border.all(color: AppColors.softBorder),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          ),
+          child: Column(
+            children: <Widget>[
+              for (int i = 0; i < items.length; i++) ...<Widget>[
+                _MenuRow(item: items[i]),
+                if (i < items.length - 1)
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.softBorder,
+                    indent: AppSpacing.md + 28,
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MenuItem {
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.item});
+
+  final _MenuItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color =
+        item.destructive ? Colors.redAccent.shade100 : AppColors.cocoaText;
     return InkWell(
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      onTap: () => Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => const MembershipOrdersPage(),
-        ),
-      ),
-      child: Container(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      onTap: item.onTap,
+      child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.warmBackground,
-          border: Border.all(color: AppColors.softBorder),
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
         ),
         child: Row(
           children: <Widget>[
-            const Icon(
-              Icons.workspace_premium_outlined,
-              color: AppColors.brandGold,
-              size: 18,
-            ),
-            const SizedBox(width: AppSpacing.xs),
+            Icon(item.icon, size: 20, color: color),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                'Membership & Orders',
-                style: AppTextStyles.body.copyWith(fontSize: 13),
+                item.label,
+                style: AppTextStyles.body.copyWith(color: color),
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.cocoaText,
-              size: 18,
-            ),
+            if (!item.destructive)
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: AppColors.mutedOliveText,
+              ),
           ],
         ),
       ),

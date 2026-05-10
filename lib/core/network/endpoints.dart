@@ -12,6 +12,15 @@ class Endpoints {
 
   static String publicVideoDetail(int id) => '/api/public/videos/$id/';
 
+  static String videoComments(int id) => '/api/public/videos/$id/comments/';
+
+  static String videoPostComment(int id) => '/api/videos/$id/comments/';
+
+  static String videoLike(int id) => '/api/videos/$id/like/';
+
+  static String creatorFollow(int creatorId) =>
+      '/api/creators/$creatorId/follow/';
+
   static const String dramas = '/api/dramas/';
 
   static String dramaDetail(int id) => '/api/dramas/$id/';

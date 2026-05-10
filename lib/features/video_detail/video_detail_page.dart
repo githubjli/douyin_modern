@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/theme/app_assets.dart';
@@ -51,6 +52,68 @@ const TextStyle _videoDetailFollowStyle = TextStyle(
   color: AppColors.brandGold,
 );
 
+// ---------------------------------------------------------------------------
+// Interaction state (owned by _VideoDetailPageState, not HomeVideoItem)
+// ---------------------------------------------------------------------------
+
+class _InteractionState {
+  const _InteractionState({
+    this.likeCount = 0,
+    this.isLiked = false,
+    this.commentCount = 0,
+    this.creatorId,
+    this.subscriberCount,
+    this.isFollowing = false,
+  });
+
+  final int likeCount;
+  final bool isLiked;
+  final int commentCount;
+  final int? creatorId;
+  final int? subscriberCount;
+  final bool isFollowing;
+
+  _InteractionState copyWith({
+    int? likeCount,
+    bool? isLiked,
+    int? commentCount,
+    int? creatorId,
+    int? subscriberCount,
+    bool? isFollowing,
+  }) {
+    return _InteractionState(
+      likeCount: likeCount ?? this.likeCount,
+      isLiked: isLiked ?? this.isLiked,
+      commentCount: commentCount ?? this.commentCount,
+      creatorId: creatorId ?? this.creatorId,
+      subscriberCount: subscriberCount ?? this.subscriberCount,
+      isFollowing: isFollowing ?? this.isFollowing,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Comment model
+// ---------------------------------------------------------------------------
+
+class _Comment {
+  const _Comment({
+    required this.id,
+    required this.author,
+    required this.content,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String author;
+  final String content;
+  final String createdAt;
+}
+
+// ---------------------------------------------------------------------------
+// Main page widget
+// ---------------------------------------------------------------------------
+
 class VideoDetailPage extends ConsumerStatefulWidget {
   const VideoDetailPage({
     super.key,
@@ -76,6 +139,7 @@ class VideoDetailPage extends ConsumerStatefulWidget {
 class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
   late ApiClient _apiClient;
   late HomeVideoItem _video;
+  _InteractionState _interaction = const _InteractionState();
   VideoPlayerController? _videoController;
   String? _controllerVideoUrl;
   bool _loadingDetail = false;
@@ -119,10 +183,16 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
         _detailPath(widget.video.id),
         authenticated: true,
       );
+      final Map<String, dynamic>? data =
+          response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : null;
       final HomeVideoItem detail = _mapDetail(response.data, _video);
+      final _InteractionState interaction = data != null
+          ? _mapInteraction(data, _interaction)
+          : _interaction;
       if (!mounted) return;
       setState(() {
         _video = detail;
+        _interaction = interaction;
         _loadingDetail = false;
       });
       unawaited(_syncVideoController());
@@ -168,6 +238,146 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
       lockReason: video.lockReason ?? 'auth_required',
     );
   }
+
+  // ── Like ──────────────────────────────────────────────────────────────────
+
+  Future<void> _toggleLike() async {
+    final int? videoId = int.tryParse(_video.id);
+    if (videoId == null) return;
+
+    final bool wasLiked = _interaction.isLiked;
+    // Optimistic update
+    setState(() {
+      _interaction = _interaction.copyWith(
+        isLiked: !wasLiked,
+        likeCount: _interaction.likeCount + (wasLiked ? -1 : 1),
+      );
+    });
+
+    try {
+      final response = await _apiClient.post<dynamic>(
+        Endpoints.videoLike(videoId),
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (data is Map<String, dynamic> && mounted) {
+        setState(() {
+          _interaction = _interaction.copyWith(
+            isLiked: _bool(data['is_liked']) ?? !wasLiked,
+            likeCount: _int(data['like_count']) ?? _interaction.likeCount,
+          );
+        });
+      }
+    } catch (_) {
+      // Roll back
+      if (mounted) {
+        setState(() {
+          _interaction = _interaction.copyWith(
+            isLiked: wasLiked,
+            likeCount: _interaction.likeCount + (wasLiked ? 1 : -1),
+          );
+        });
+      }
+    }
+  }
+
+  // ── Follow ────────────────────────────────────────────────────────────────
+
+  Future<void> _toggleFollow() async {
+    final int? creatorId = _interaction.creatorId;
+    if (creatorId == null) return;
+
+    final bool wasFollowing = _interaction.isFollowing;
+    setState(() {
+      _interaction = _interaction.copyWith(
+        isFollowing: !wasFollowing,
+        subscriberCount: (_interaction.subscriberCount ?? 0) +
+            (wasFollowing ? -1 : 1),
+      );
+    });
+
+    try {
+      final dynamic data;
+      if (wasFollowing) {
+        await _apiClient.delete<dynamic>(
+          Endpoints.creatorFollow(creatorId),
+          authenticated: true,
+        );
+        data = null;
+      } else {
+        final response = await _apiClient.post<dynamic>(
+          Endpoints.creatorFollow(creatorId),
+          authenticated: true,
+        );
+        data = response.data;
+      }
+      if (data is Map<String, dynamic> && mounted) {
+        setState(() {
+          _interaction = _interaction.copyWith(
+            isFollowing: _bool(data['is_following']) ??
+                _bool(data['viewer_is_following']) ??
+                !wasFollowing,
+            subscriberCount: _int(data['subscriber_count']) ??
+                _int(data['follower_count']) ??
+                _interaction.subscriberCount,
+          );
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _interaction = _interaction.copyWith(
+            isFollowing: wasFollowing,
+            subscriberCount: (_interaction.subscriberCount ?? 1) +
+                (wasFollowing ? 1 : -1),
+          );
+        });
+      }
+    }
+  }
+
+  // ── Comments ──────────────────────────────────────────────────────────────
+
+  void _openComments() {
+    final int? videoId = int.tryParse(_video.id);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.warmBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusLg),
+        ),
+      ),
+      builder: (_) => _CommentSheet(
+        videoId: videoId,
+        apiClient: _apiClient,
+        isSignedIn: _hasSignedInSession(ref.read(authControllerProvider)),
+        onCommentPosted: () {
+          if (mounted) {
+            setState(() {
+              _interaction = _interaction.copyWith(
+                commentCount: _interaction.commentCount + 1,
+              );
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  // ── Share ─────────────────────────────────────────────────────────────────
+
+  void _shareVideo() {
+    final String title = _video.title;
+    final String? videoUrl = _video.videoUrl;
+    final String text = videoUrl != null && videoUrl.isNotEmpty
+        ? '$title\n$videoUrl'
+        : title;
+    SharePlus.instance.share(ShareParams(text: text));
+  }
+
+  // ── Video controller ──────────────────────────────────────────────────────
 
   Future<void> _syncVideoController() async {
     final String? playableUrl = _playableVideoUrl(_video);
@@ -320,9 +530,20 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
             const SizedBox(height: AppSpacing.sm),
             _VideoInfoSection(video: _video, loading: _loadingDetail),
             const SizedBox(height: AppSpacing.xs),
-            _AuthorFollowRow(video: _video, onFollow: _showActionPlaceholder),
+            _AuthorFollowRow(
+              video: _video,
+              interaction: _interaction,
+              isSignedIn: isSignedIn,
+              onFollow: _toggleFollow,
+            ),
             const SizedBox(height: AppSpacing.xs),
-            _VideoActionRow(onAction: _showActionPlaceholder),
+            _VideoActionRow(
+              interaction: _interaction,
+              isSignedIn: isSignedIn,
+              onLike: _toggleLike,
+              onComment: _openComments,
+              onShare: _shareVideo,
+            ),
             const SizedBox(height: AppSpacing.md),
             const Text(
               'Recommendations',
@@ -342,12 +563,6 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
           ],
         ),
       ),
-    );
-  }
-
-  void _showActionPlaceholder(String action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$action coming soon.')),
     );
   }
 }
@@ -398,6 +613,33 @@ HomeVideoItem _mapDetail(dynamic data, HomeVideoItem fallback) {
     canWatch: _bool(data['can_watch']) ?? fallback.canWatch,
     isLocked: _bool(data['is_locked']) ?? fallback.isLocked,
     lockReason: _str(data['lock_reason']) ?? fallback.lockReason,
+  );
+}
+
+_InteractionState _mapInteraction(
+  Map<String, dynamic> data,
+  _InteractionState current,
+) {
+  final dynamic creator = data['creator'];
+  final int? creatorId = creator is Map<String, dynamic>
+      ? _int(creator['id'])
+      : current.creatorId;
+  final int? subscriberCount = creator is Map<String, dynamic>
+      ? (_int(creator['subscriber_count']) ?? _int(data['owner_subscriber_count']))
+      : _int(data['owner_subscriber_count']) ?? current.subscriberCount;
+  final bool isFollowing = creator is Map<String, dynamic>
+      ? (_bool(creator['is_following']) ??
+          _bool(data['is_following_owner']) ??
+          current.isFollowing)
+      : (_bool(data['is_following_owner']) ?? current.isFollowing);
+
+  return _InteractionState(
+    likeCount: _int(data['like_count']) ?? current.likeCount,
+    isLiked: _bool(data['is_liked']) ?? current.isLiked,
+    commentCount: _int(data['comment_count']) ?? current.commentCount,
+    creatorId: creatorId ?? current.creatorId,
+    subscriberCount: subscriberCount,
+    isFollowing: isFollowing,
   );
 }
 
@@ -469,6 +711,16 @@ String _ownerLabel(HomeVideoItem video) {
 String _viewsLabel(HomeVideoItem video) {
   return '${video.viewCount ?? 0} views';
 }
+
+String _formatCount(int count) {
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
+  return '$count';
+}
+
+// ---------------------------------------------------------------------------
+// Video media header (unchanged logic, same UI)
+// ---------------------------------------------------------------------------
 
 class _VideoMediaHeader extends StatelessWidget {
   const _VideoMediaHeader({
@@ -799,6 +1051,10 @@ class _CircleIconButton extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Info section
+// ---------------------------------------------------------------------------
+
 class _VideoInfoSection extends StatelessWidget {
   const _VideoInfoSection({required this.video, required this.loading});
 
@@ -850,14 +1106,31 @@ class _InfoBadge extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Author + Follow row — now live
+// ---------------------------------------------------------------------------
+
 class _AuthorFollowRow extends StatelessWidget {
-  const _AuthorFollowRow({required this.video, required this.onFollow});
+  const _AuthorFollowRow({
+    required this.video,
+    required this.interaction,
+    required this.isSignedIn,
+    required this.onFollow,
+  });
 
   final HomeVideoItem video;
-  final ValueChanged<String> onFollow;
+  final _InteractionState interaction;
+  final bool isSignedIn;
+  final VoidCallback onFollow;
 
   @override
   Widget build(BuildContext context) {
+    final int? subs = interaction.subscriberCount;
+    final String meta = <String>[
+      'Creator',
+      if (subs != null) '${_formatCount(subs)} followers',
+    ].join(' · ');
+
     return Row(
       children: <Widget>[
         ClipRRect(
@@ -881,8 +1154,8 @@ class _AuthorFollowRow extends StatelessWidget {
                 style: _videoDetailCreatorNameStyle,
               ),
               const SizedBox(height: AppSpacing.xxs),
-              const Text(
-                'Creator · Public video',
+              Text(
+                meta,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _videoDetailCreatorMetaStyle,
@@ -891,15 +1164,26 @@ class _AuthorFollowRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        _FollowButton(onTap: () => onFollow('Follow')),
+        if (interaction.creatorId != null || !isSignedIn)
+          _FollowButton(
+            isFollowing: interaction.isFollowing,
+            onTap: isSignedIn
+                ? onFollow
+                : () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Sign in to follow creators.'),
+                      ),
+                    ),
+          ),
       ],
     );
   }
 }
 
 class _FollowButton extends StatelessWidget {
-  const _FollowButton({required this.onTap});
+  const _FollowButton({required this.isFollowing, required this.onTap});
 
+  final bool isFollowing;
   final VoidCallback onTap;
 
   @override
@@ -907,8 +1191,11 @@ class _FollowButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.brandGold,
-        side: const BorderSide(color: AppColors.brandGold),
+        foregroundColor:
+            isFollowing ? AppColors.mutedOliveText : AppColors.brandGold,
+        side: BorderSide(
+          color: isFollowing ? AppColors.softBorder : AppColors.brandGold,
+        ),
         minimumSize: const Size(0, 30),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
@@ -917,15 +1204,29 @@ class _FollowButton extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         textStyle: _videoDetailFollowStyle,
       ),
-      child: const Text('Follow'),
+      child: Text(isFollowing ? 'Following' : 'Follow'),
     );
   }
 }
 
-class _VideoActionRow extends StatelessWidget {
-  const _VideoActionRow({required this.onAction});
+// ---------------------------------------------------------------------------
+// Action row — Like, Comment, Gift, Share
+// ---------------------------------------------------------------------------
 
-  final ValueChanged<String> onAction;
+class _VideoActionRow extends StatelessWidget {
+  const _VideoActionRow({
+    required this.interaction,
+    required this.isSignedIn,
+    required this.onLike,
+    required this.onComment,
+    required this.onShare,
+  });
+
+  final _InteractionState interaction;
+  final bool isSignedIn;
+  final VoidCallback onLike;
+  final VoidCallback onComment;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -934,28 +1235,33 @@ class _VideoActionRow extends StatelessWidget {
       runSpacing: AppSpacing.xs,
       children: <Widget>[
         _ActionButton(
-          icon: Icons.favorite_border,
-          label: '25k',
-          action: 'Like',
-          onTap: onAction,
+          icon: interaction.isLiked
+              ? Icons.favorite
+              : Icons.favorite_border,
+          label: _formatCount(interaction.likeCount),
+          active: interaction.isLiked,
+          onTap: isSignedIn
+              ? onLike
+              : () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sign in to like videos.')),
+                  ),
         ),
         _ActionButton(
           icon: Icons.chat_bubble_outline,
-          label: '2.1k',
-          action: 'Comment',
-          onTap: onAction,
+          label: _formatCount(interaction.commentCount),
+          onTap: onComment,
         ),
         _ActionButton(
           icon: Icons.card_giftcard,
-          label: '73',
-          action: 'Gift',
-          onTap: onAction,
+          label: 'Gift',
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gifts coming soon.')),
+          ),
         ),
         _ActionButton(
           icon: Icons.ios_share,
           label: 'Share',
-          action: 'Share',
-          onTap: onAction,
+          onTap: onShare,
         ),
       ],
     );
@@ -966,24 +1272,28 @@ class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,
     required this.label,
-    required this.action,
     required this.onTap,
+    this.active = false,
   });
 
   final IconData icon;
   final String label;
-  final String action;
-  final ValueChanged<String> onTap;
+  final VoidCallback onTap;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
+    final Color color =
+        active ? AppColors.brandGold : AppColors.mutedOliveText;
     return OutlinedButton.icon(
-      onPressed: () => onTap(action),
-      icon: Icon(icon, size: 14),
-      label: Text(label),
+      onPressed: onTap,
+      icon: Icon(icon, size: 14, color: color),
+      label: Text(label, style: TextStyle(color: color)),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.mutedOliveText,
-        side: const BorderSide(color: AppColors.softBorder),
+        foregroundColor: color,
+        side: BorderSide(
+          color: active ? AppColors.brandGold : AppColors.softBorder,
+        ),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
           vertical: AppSpacing.xxs,
@@ -994,6 +1304,321 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Comment bottom sheet
+// ---------------------------------------------------------------------------
+
+class _CommentSheet extends StatefulWidget {
+  const _CommentSheet({
+    required this.videoId,
+    required this.apiClient,
+    required this.isSignedIn,
+    required this.onCommentPosted,
+  });
+
+  final int? videoId;
+  final ApiClient apiClient;
+  final bool isSignedIn;
+  final VoidCallback onCommentPosted;
+
+  @override
+  State<_CommentSheet> createState() => _CommentSheetState();
+}
+
+class _CommentSheetState extends State<_CommentSheet> {
+  final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  List<_Comment> _comments = <_Comment>[];
+  bool _loading = true;
+  bool _posting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComments();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadComments() async {
+    final int? videoId = widget.videoId;
+    if (videoId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final response = await widget.apiClient.get<dynamic>(
+        Endpoints.videoComments(videoId),
+      );
+      final dynamic data = response.data;
+      final List<dynamic> rows = switch (data) {
+        final List<dynamic> list => list,
+        final Map<String, dynamic> map when map['results'] is List =>
+          map['results'] as List<dynamic>,
+        _ => <dynamic>[],
+      };
+      if (!mounted) return;
+      setState(() {
+        _comments = rows
+            .whereType<Map<String, dynamic>>()
+            .map(_mapComment)
+            .nonNulls
+            .toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _postComment() async {
+    final String text = _controller.text.trim();
+    if (text.isEmpty) return;
+    final int? videoId = widget.videoId;
+    if (videoId == null) return;
+
+    setState(() {
+      _posting = true;
+      _error = null;
+    });
+
+    try {
+      final response = await widget.apiClient.post<dynamic>(
+        Endpoints.videoPostComment(videoId),
+        data: <String, dynamic>{'content': text},
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      final _Comment? comment =
+          data is Map<String, dynamic> ? _mapComment(data) : null;
+      if (!mounted) return;
+      _controller.clear();
+      setState(() {
+        if (comment != null) {
+          _comments = <_Comment>[comment, ..._comments];
+        }
+        _posting = false;
+      });
+      widget.onCommentPosted();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to post comment.';
+        _posting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.75 + bottomInset,
+      child: Column(
+        children: <Widget>[
+          // Handle + title
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Column(
+              children: <Widget>[
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.softBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                const Text('Comments', style: AppTextStyles.cardTitle),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.softBorder),
+          // Comment list
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _comments.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No comments yet. Be the first!',
+                          style: AppTextStyles.caption,
+                        ),
+                      )
+                    : ListView.separated(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        itemCount: _comments.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemBuilder: (_, int i) =>
+                            _CommentTile(comment: _comments[i]),
+                      ),
+          ),
+          // Compose bar
+          const Divider(height: 1, color: AppColors.softBorder),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.md,
+                0,
+              ),
+              child: Text(
+                _error!,
+                style: AppTextStyles.caption.copyWith(color: Colors.redAccent),
+              ),
+            ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.sm + bottomInset,
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    enabled: widget.isSignedIn,
+                    maxLines: 1,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _postComment(),
+                    style: AppTextStyles.body,
+                    decoration: InputDecoration(
+                      hintText: widget.isSignedIn
+                          ? 'Write a comment...'
+                          : 'Sign in to comment',
+                      hintStyle: AppTextStyles.caption,
+                      isDense: true,
+                      filled: true,
+                      fillColor: AppColors.cardBackground,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.sm,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusSm),
+                        borderSide:
+                            const BorderSide(color: AppColors.softBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusSm),
+                        borderSide:
+                            const BorderSide(color: AppColors.brandGold),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusSm),
+                        borderSide:
+                            const BorderSide(color: AppColors.softBorder),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                IconButton(
+                  onPressed:
+                      _posting || !widget.isSignedIn ? null : _postComment,
+                  icon: _posting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded),
+                  color: AppColors.brandGold,
+                  disabledColor: AppColors.softBorder,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentTile extends StatelessWidget {
+  const _CommentTile({required this.comment});
+
+  final _Comment comment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppColors.brandGold.withAlpha(25),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              comment.author.isNotEmpty
+                  ? comment.author[0].toUpperCase()
+                  : '?',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.brandGold,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(comment.author, style: AppTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.cocoaText,
+              )),
+              const SizedBox(height: 2),
+              Text(comment.content, style: AppTextStyles.body),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+_Comment? _mapComment(Map<String, dynamic> data) {
+  final int? id = _int(data['id']);
+  final String? content = _str(data['content']) ?? _str(data['text']);
+  if (id == null || content == null) return null;
+  final String author = _str(data['author_name']) ??
+      _nestedStr(data['author'], 'username') ??
+      _nestedStr(data['user'], 'username') ??
+      'User';
+  return _Comment(
+    id: id,
+    author: author,
+    content: content,
+    createdAt: _str(data['created_at']) ?? '',
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Recommendation grid (unchanged)
+// ---------------------------------------------------------------------------
 
 class _VideoRecommendationGrid extends StatelessWidget {
   const _VideoRecommendationGrid({

@@ -562,7 +562,6 @@ class _PlanSection extends StatelessWidget {
   }) {
     if (authBusy) return null;
     if (!canCreateOrders) return onSignInPressed;
-    if (hasActiveMembership) return null;
     final String? code = plan.code?.trim();
     if (code != null && pendingReviewPlanCodes.contains(code)) {
       return onPendingReviewPressed;
@@ -707,16 +706,16 @@ class _PlanCard extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           _OutlineGoldButton(
-            label: isCurrent
-                ? 'Manage'
-                : isBusy
-                    ? 'Loading...'
-                    : isPending
-                        ? 'Pending Review'
+            label: isBusy
+                ? 'Loading...'
+                : isPending
+                    ? 'Pending Review'
+                    : isCurrent
+                        ? 'Renew'
                         : hasActiveMembership
                             ? 'Upgrade'
                             : 'Buy Now',
-            onTap: isCurrent ? null : onPressed,
+            onTap: onPressed,
           ),
         ],
       ),

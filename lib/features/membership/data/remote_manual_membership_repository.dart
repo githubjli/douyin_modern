@@ -49,22 +49,34 @@ class RemoteManualMembershipRepository implements ManualMembershipRepository {
     required String planCode,
     required String txid,
   }) async {
-    final response = await _apiClient.post<dynamic>(
-      Endpoints.manualTxHints,
-      data: <String, dynamic>{'plan_code': planCode, 'txid': txid},
-      authenticated: true,
-    );
-    final dynamic data = response.data;
-    // Server may explicitly disable this endpoint.
-    if (data is Map<String, dynamic>) {
-      final String? detail = _str(data['detail']);
-      if (detail != null &&
-          detail.toLowerCase().contains('does not accept')) {
-        throw ManualTxSubmitDisabledException(detail);
+    try {
+      final response = await _apiClient.post<dynamic>(
+        Endpoints.manualTxHints,
+        data: <String, dynamic>{'plan_code': planCode, 'txid': txid},
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      // Server may explicitly disable this endpoint (2xx with detail field).
+      if (data is Map<String, dynamic>) {
+        final String? detail = _str(data['detail']);
+        if (detail != null &&
+            detail.toLowerCase().contains('does not accept')) {
+          throw ManualTxSubmitDisabledException(detail);
+        }
+        return ManualTxHint.fromJson(data);
       }
-      return ManualTxHint.fromJson(data);
+      throw const FormatException('Invalid tx hint response');
+    } on ManualTxSubmitDisabledException {
+      rethrow;
+    } on ApiError catch (e) {
+      // Server returns 4xx with {"detail": "...does not accept..."}.
+      // ApiClient converts 4xx to ApiError before we see the body, so we
+      // check the mapped message here instead.
+      if (e.message.toLowerCase().contains('does not accept')) {
+        throw ManualTxSubmitDisabledException(e.message);
+      }
+      rethrow;
     }
-    throw const FormatException('Invalid tx hint response');
   }
 
   @override

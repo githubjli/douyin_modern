@@ -18,6 +18,7 @@ import 'data/remote_membership_repository.dart';
 import 'data/remote_manual_membership_repository.dart';
 import 'domain/manual_membership_repository.dart';
 import 'domain/manual_payment_info.dart';
+import 'domain/manual_tx_hint.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
@@ -59,9 +60,9 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
   late Future<List<HomeVideoItem>> _vipVideosFuture;
   bool _refreshing = false;
   String? _loadingPaymentInfoPlanCode;
+  Set<String> _pendingReviewPlanCodes = <String>{};
   late final ProviderSubscription<AuthState> _authSubscription;
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _activeCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -72,6 +73,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
       _handleAuthStateChanged,
     );
     _refreshPageData(notify: false);
+    _loadPendingReviews();
     Future<void>.microtask(() {
       ref.read(authControllerProvider.notifier).bootstrap();
     });
@@ -84,13 +86,30 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
     super.dispose();
   }
 
-  void _scrollToActiveCard() {
-    final BuildContext? cardContext = _activeCardKey.currentContext;
-    if (cardContext == null) return;
-    Scrollable.ensureVisible(
-      cardContext,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOut,
+  Future<void> _loadPendingReviews() async {
+    try {
+      final List<ManualTxHint> hints = await _manualRepository.getTxHints();
+      final Set<String> pending = hints
+          .where((ManualTxHint h) =>
+              h.status != ManualTxHintStatus.verified &&
+              h.status != ManualTxHintStatus.rejected &&
+              h.status != ManualTxHintStatus.unknown)
+          .map((ManualTxHint h) => h.planCode)
+          .toSet();
+      if (!mounted) return;
+      setState(() => _pendingReviewPlanCodes = pending);
+    } catch (_) {
+      // silent — pending badge is best-effort
+    }
+  }
+
+  void _showPendingReviewMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'We are reviewing your payment. This usually takes 1–2 business days.',
+        ),
+      ),
     );
   }
 
@@ -109,6 +128,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
 
     if (!oldWidget.isActive && widget.isActive) {
       _refreshPageData();
+      _loadPendingReviews();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _refreshMembershipForActiveTab();
@@ -243,6 +263,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
           ),
         ),
       );
+      if (mounted) _loadPendingReviews();
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingPaymentInfoPlanCode = null);
@@ -285,24 +306,18 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
               status: status,
               isSignedIn: isSignedIn,
               onSignInPressed: widget.onSignInPressed,
-              onManagePressed: status != null ? _scrollToActiveCard : null,
             ),
             const SizedBox(height: AppSpacing.md),
-            if (status != null) ...<Widget>[
-              _ActiveMembershipCard(
-                key: _activeCardKey,
-                status: status,
-              ),
-              const SizedBox(height: AppSpacing.md),
-            ],
             _PlanSection(
               plansFuture: _plansFuture,
               status: status,
               canCreateOrders: canCreateOrders,
               authBusy: authBusy,
               loadingPaymentInfoPlanCode: _loadingPaymentInfoPlanCode,
+              pendingReviewPlanCodes: _pendingReviewPlanCodes,
               onSignInPressed: widget.onSignInPressed,
               onBuyNowPressed: _handleBuyNowPressed,
+              onPendingReviewPressed: _showPendingReviewMessage,
             ),
             const SizedBox(height: AppSpacing.md),
             _ExclusiveSection(
@@ -387,13 +402,11 @@ class _VipHeroCard extends StatelessWidget {
     required this.status,
     required this.isSignedIn,
     required this.onSignInPressed,
-    this.onManagePressed,
   });
 
   final MembershipStatus? status;
   final bool isSignedIn;
   final VoidCallback? onSignInPressed;
-  final VoidCallback? onManagePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -414,11 +427,7 @@ class _VipHeroCard extends StatelessWidget {
         : isActive
             ? _validUntilLabel(currentStatus!.endsAt)
             : 'Choose a plan to unlock VIP access';
-    final String cta = !isSignedIn
-        ? 'Sign in'
-        : isActive
-            ? 'Manage'
-            : 'Subscribe';
+    final String cta = !isSignedIn ? 'Sign in' : 'Subscribe';
 
     return Container(
       height: 166,
@@ -511,103 +520,13 @@ class _VipHeroCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          _GoldButton(
-            label: cta,
-            onTap: !isSignedIn
-                ? onSignInPressed
-                : isActive
-                    ? onManagePressed
-                    : null,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActiveMembershipCard extends StatelessWidget {
-  const _ActiveMembershipCard({super.key, required this.status});
-
-  final MembershipStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.46)),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Icon(
-                Icons.workspace_premium_rounded,
-                color: AppColors.brandGold,
-                size: 18,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                'Active Membership',
-                style: AppTextStyles.cardTitle.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _InfoRow(label: 'Plan', value: status.planTitle),
-          if (status.startsAt != null)
-            _InfoRow(
-              label: 'Started',
-              value: _validUntilLabel(status.startsAt),
+          if (!isActive) ...<Widget>[
+            const SizedBox(width: AppSpacing.sm),
+            _GoldButton(
+              label: cta,
+              onTap: !isSignedIn ? onSignInPressed : null,
             ),
-          if (status.endsAt != null)
-            _InfoRow(
-              label: 'Renews / Expires',
-              value: _validUntilLabel(status.endsAt),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xxs),
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: AppTextStyles.caption.copyWith(fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.body.copyWith(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -621,8 +540,10 @@ class _PlanSection extends StatelessWidget {
     required this.canCreateOrders,
     required this.authBusy,
     required this.loadingPaymentInfoPlanCode,
+    required this.pendingReviewPlanCodes,
     required this.onSignInPressed,
     required this.onBuyNowPressed,
+    required this.onPendingReviewPressed,
   });
 
   final Future<List<MembershipPlan>> plansFuture;
@@ -630,15 +551,22 @@ class _PlanSection extends StatelessWidget {
   final bool canCreateOrders;
   final bool authBusy;
   final String? loadingPaymentInfoPlanCode;
+  final Set<String> pendingReviewPlanCodes;
   final VoidCallback? onSignInPressed;
   final ValueChanged<MembershipPlan> onBuyNowPressed;
+  final VoidCallback onPendingReviewPressed;
 
   VoidCallback? _planAction({
     required MembershipPlan plan,
     required bool hasActiveMembership,
   }) {
-    if (hasActiveMembership || authBusy) return null;
+    if (authBusy) return null;
     if (!canCreateOrders) return onSignInPressed;
+    if (hasActiveMembership) return null;
+    final String? code = plan.code?.trim();
+    if (code != null && pendingReviewPlanCodes.contains(code)) {
+      return onPendingReviewPressed;
+    }
     if (loadingPaymentInfoPlanCode != null) return null;
     return () => onBuyNowPressed(plan);
   }
@@ -667,6 +595,9 @@ class _PlanSection extends StatelessWidget {
                 isCurrent: activeStatus?.planTitle == plans[index].title,
                 isBusy: loadingPaymentInfoPlanCode != null &&
                     loadingPaymentInfoPlanCode == plans[index].code,
+                isPending: pendingReviewPlanCodes
+                    .contains(plans[index].code ?? ''),
+                hasActiveMembership: activeStatus != null,
                 onPressed: _planAction(
                   plan: plans[index],
                   hasActiveMembership: activeStatus != null,
@@ -686,12 +617,16 @@ class _PlanCard extends StatelessWidget {
     required this.plan,
     required this.isCurrent,
     required this.isBusy,
+    required this.isPending,
+    required this.hasActiveMembership,
     required this.onPressed,
   });
 
   final MembershipPlan plan;
   final bool isCurrent;
   final bool isBusy;
+  final bool isPending;
+  final bool hasActiveMembership;
   final VoidCallback? onPressed;
 
   @override
@@ -776,7 +711,11 @@ class _PlanCard extends StatelessWidget {
                 ? 'Manage'
                 : isBusy
                     ? 'Loading...'
-                    : 'Buy Now',
+                    : isPending
+                        ? 'Pending Review'
+                        : hasActiveMembership
+                            ? 'Upgrade'
+                            : 'Buy Now',
             onTap: isCurrent ? null : onPressed,
           ),
         ],

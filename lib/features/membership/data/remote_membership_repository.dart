@@ -91,7 +91,7 @@ class RemoteMembershipRepository implements MembershipRepository {
       final bool isActive = data['is_active'] == true;
       final dynamic current = data['current_membership'];
       if (!isActive || current is! Map<String, dynamic>) {
-        return MembershipStatus(
+        return const MembershipStatus(
           planTitle: 'Membership',
           status: 'inactive',
           isActive: false,

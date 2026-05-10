@@ -100,25 +100,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void _openEditProfile() {
     final UserProfile? current = _profile;
     if (current == null) return;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.warmBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => EditProfilePage(
+          profile: current,
+          profileRepository: _profileRepository,
+          onSaved: (UserProfile updated) {
+            if (mounted) setState(() => _profile = updated);
+          },
         ),
-      ),
-      builder: (_) => _EditProfileSheet(
-        profile: current,
-        profileRepository: _profileRepository,
-        onSaved: (UserProfile updated) {
-          if (mounted) {
-            setState(() {
-              _profile = updated;
-            });
-          }
-        },
       ),
     );
   }
@@ -694,11 +684,14 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final String name = profile?.displayName ?? 'User';
     final String? email = profile?.email;
-    final String? bio = profile?.bio.trim().isEmpty == true ? null : profile?.bio.trim();
+    final String? bio =
+        profile?.bio.trim().isNotEmpty == true ? profile!.bio.trim() : null;
+    final bool isCreator = profile?.isCreator == true;
+    final bool isSeller = profile?.isSeller == true;
     final String initials = _initials(name);
-    final String? avatarUrl = profile?.avatarUrl.trim().isEmpty == true
-        ? null
-        : profile?.avatarUrl.trim();
+    final String? avatarUrl = profile?.avatarUrl.trim().isNotEmpty == true
+        ? profile!.avatarUrl.trim()
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -708,54 +701,30 @@ class _ProfileHeader extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Avatar — network image or initials fallback
-          GestureDetector(
-            onTap: onEdit,
-            child: Stack(
-              children: <Widget>[
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppColors.brandGold.withAlpha(30),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.brandGold, width: 1.5),
-                  ),
-                  child: avatarUrl != null
-                      ? ClipOval(
-                          child: Image.network(
-                            avatarUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _InitialsAvatar(
-                              initials: initials,
-                            ),
-                          ),
-                        )
-                      : _InitialsAvatar(initials: initials),
-                ),
-                // Camera badge
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: const BoxDecoration(
-                      color: AppColors.brandGold,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt_rounded,
-                      size: 10,
-                      color: AppColors.warmBackground,
-                    ),
-                  ),
-                ),
-              ],
+          // Avatar
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.brandGold.withAlpha(30),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.brandGold, width: 1.5),
             ),
+            child: avatarUrl != null
+                ? ClipOval(
+                    child: Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _InitialsAvatar(initials: initials),
+                    ),
+                  )
+                : _InitialsAvatar(initials: initials),
           ),
           const SizedBox(width: AppSpacing.md),
+          // Name, email, badges, bio
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,11 +739,21 @@ class _ProfileHeader extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (isCreator || isSeller) ...<Widget>[
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    children: <Widget>[
+                      if (isCreator) const _RoleBadge(label: 'Creator'),
+                      if (isSeller) const _RoleBadge(label: 'Seller'),
+                    ],
+                  ),
+                ],
                 if (bio != null) ...<Widget>[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     bio,
-                    maxLines: 2,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.mutedOliveText,
@@ -784,7 +763,7 @@ class _ProfileHeader extends StatelessWidget {
               ],
             ),
           ),
-          // Edit + Refresh buttons
+          // Action buttons
           Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
@@ -832,6 +811,34 @@ class _InitialsAvatar extends StatelessWidget {
         style: AppTextStyles.sectionTitle.copyWith(
           color: AppColors.brandGold,
           fontSize: 20,
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleBadge extends StatelessWidget {
+  const _RoleBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs + 2,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.brandGold.withAlpha(22),
+        border: Border.all(color: AppColors.brandGold.withAlpha(80)),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -1011,11 +1018,12 @@ class _MenuRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Edit profile bottom sheet
+// Edit profile — full-page, ManualPayment card style
 // ---------------------------------------------------------------------------
 
-class _EditProfileSheet extends StatefulWidget {
-  const _EditProfileSheet({
+class EditProfilePage extends StatefulWidget {
+  const EditProfilePage({
+    super.key,
     required this.profile,
     required this.profileRepository,
     required this.onSaved,
@@ -1026,32 +1034,26 @@ class _EditProfileSheet extends StatefulWidget {
   final ValueChanged<UserProfile> onSaved;
 
   @override
-  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+  State<EditProfilePage> createState() => _EditProfilePageState();
 }
 
-class _EditProfileSheetState extends State<_EditProfileSheet> {
+class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
-  late final TextEditingController _avatarController;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _nameController =
-        TextEditingController(text: widget.profile.displayName);
-    _bioController =
-        TextEditingController(text: widget.profile.bio);
-    _avatarController =
-        TextEditingController(text: widget.profile.avatarUrl);
+    _nameController = TextEditingController(text: widget.profile.displayName);
+    _bioController = TextEditingController(text: widget.profile.bio);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
-    _avatarController.dispose();
     super.dispose();
   }
 
@@ -1066,13 +1068,9 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       _error = null;
     });
     try {
-      final String? avatarUrl = _avatarController.text.trim().isEmpty
-          ? null
-          : _avatarController.text.trim();
       final UserProfile updated = await widget.profileRepository.updateProfile(
         displayName: name,
         bio: _bioController.text.trim(),
-        avatarUrl: avatarUrl,
       );
       if (!mounted) return;
       widget.onSaved(updated);
@@ -1088,75 +1086,190 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Scaffold(
+      backgroundColor: AppColors.warmBackground,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              // Header
+              Row(
+                children: <Widget>[
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground.withValues(alpha: 0.54),
+                          border: Border.all(color: AppColors.softBorder),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: AppColors.brandGold,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Edit Profile',
+                    style: AppTextStyles.sectionTitle.copyWith(
+                      fontSize: 18,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
+              // Display Name card
+              _EditCard(
+                label: 'Display Name',
+                child: TextField(
+                  controller: _nameController,
+                  cursorColor: AppColors.brandGold,
+                  textCapitalization: TextCapitalization.words,
+                  style: AppTextStyles.body,
+                  decoration: _editFieldDecoration('Your name'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+
+              // Bio card
+              _EditCard(
+                label: 'Bio',
+                child: TextField(
+                  controller: _bioController,
+                  cursorColor: AppColors.brandGold,
+                  maxLines: 5,
+                  minLines: 3,
+                  style: AppTextStyles.body,
+                  decoration: _editFieldDecoration(
+                    'Tell others a bit about yourself…',
+                  ),
+                ),
+              ),
+
+              // Error message
+              if (_error != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withAlpha(20),
+                    border: Border.all(color: Colors.redAccent.withAlpha(80)),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                  child: Text(
+                    _error!,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brandGold,
+                  foregroundColor: AppColors.warmBackground,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                ),
+                child: Text(
+                  _saving ? 'Saving...' : 'Save',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditCard extends StatelessWidget {
+  const _EditCard({required this.label, required this.child});
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
         AppSpacing.md,
         AppSpacing.md,
-        AppSpacing.md,
-        AppSpacing.md + bottomInset,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.softBorder,
-                borderRadius: BorderRadius.circular(2),
-              ),
+          Text(
+            label.toUpperCase(),
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.brandGold,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
             ),
           ),
-          const Text('Edit Profile', style: AppTextStyles.sectionTitle),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _nameController,
-            cursorColor: AppColors.brandGold,
-            textCapitalization: TextCapitalization.words,
-            style: AppTextStyles.body,
-            decoration: _inputDecoration('Display name'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _bioController,
-            cursorColor: AppColors.brandGold,
-            maxLines: 3,
-            minLines: 1,
-            style: AppTextStyles.body,
-            decoration: _inputDecoration('Bio (optional)'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _avatarController,
-            cursorColor: AppColors.brandGold,
-            keyboardType: TextInputType.url,
-            style: AppTextStyles.body,
-            decoration: _inputDecoration('Avatar URL (optional)'),
-          ),
-          if (_error != null) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              _error!,
-              style: AppTextStyles.caption.copyWith(
-                color: Colors.redAccent,
-              ),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.md),
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'Saving...' : 'Save'),
-          ),
+          const SizedBox(height: AppSpacing.xs),
+          child,
         ],
       ),
     );
   }
+}
+
+InputDecoration _editFieldDecoration(String hint) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: AppTextStyles.caption,
+    isDense: true,
+    filled: true,
+    fillColor: AppColors.warmBackground,
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.sm,
+      vertical: AppSpacing.sm,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: AppColors.softBorder),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: AppColors.brandGold),
+    ),
+  );
 }
 
 class _WarmCard extends StatelessWidget {

@@ -45,7 +45,7 @@ class MockManualMembershipRepository implements ManualMembershipRepository {
           planCode: planCode,
           planName: _planName(planCode),
           expectedAmountLbc: _planAmount(planCode),
-          currency: 'LBC',
+          currency: 'THB-LTT',
           payToAddress: _defaultPaymentInfo.payToAddress,
           requiredConfirmations: 0,
           notice: _defaultPaymentInfo.notice,

@@ -25,7 +25,10 @@ class ManualPaymentInfo {
       expectedAmountLbc: _str(json['expected_amount_lbc']) ??
           _str(json['amount']) ??
           'Amount unavailable',
-      currency: _str(json['currency']) ?? 'LBC',
+      currency: _str(json['currency']) ??
+          _str(json['token_symbol']) ??
+          _nestedStr(json['settlement'], 'token_symbol') ??
+          'LBC',
       payToAddress: payToAddress,
       requiredConfirmations: _int(json['required_confirmations']) ?? 0,
       notice: _str(json['notice']),
@@ -44,6 +47,11 @@ class ManualPaymentInfo {
 String? _str(dynamic v) {
   if (v is String && v.trim().isNotEmpty) return v.trim();
   if (v is num) return v.toString();
+  return null;
+}
+
+String? _nestedStr(dynamic map, String key) {
+  if (map is Map<String, dynamic>) return _str(map[key]);
   return null;
 }
 

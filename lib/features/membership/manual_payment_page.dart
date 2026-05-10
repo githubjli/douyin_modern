@@ -1,0 +1,932 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
+import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_spacing.dart';
+import '../../app/theme/app_text_styles.dart';
+import 'domain/manual_membership_repository.dart';
+import 'domain/manual_payment_info.dart';
+import 'domain/manual_tx_hint.dart';
+import 'domain/membership_status.dart';
+
+typedef QrCodeSaver = Future<bool> Function(GlobalKey qrKey);
+
+class ManualPaymentPage extends StatefulWidget {
+  const ManualPaymentPage({
+    super.key,
+    required this.paymentInfo,
+    required this.repository,
+    this.qrCodeSaver,
+  });
+
+  final ManualPaymentInfo paymentInfo;
+  final ManualMembershipRepository repository;
+  final QrCodeSaver? qrCodeSaver;
+
+  @override
+  State<ManualPaymentPage> createState() => _ManualPaymentPageState();
+}
+
+class _ManualPaymentPageState extends State<ManualPaymentPage> {
+  final GlobalKey _qrKey = GlobalKey();
+  final TextEditingController _txController = TextEditingController();
+
+  bool _savingQr = false;
+  bool _submittingTx = false;
+  bool _checkingStatus = false;
+  bool _txSubmitDisabled = false; // server said endpoint is closed
+  bool _txSubmitted = false;
+
+  MembershipStatus? _activeMembership;
+  ManualTxHint? _submittedHint;
+
+  Timer? _pollTimer;
+  static const Duration _pollInterval = Duration(seconds: 30);
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
+  @override
+  void initState() {
+    super.initState();
+    _startPassivePoll();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _txController.dispose();
+    super.dispose();
+  }
+
+  ManualPaymentInfo get info => widget.paymentInfo;
+
+  // ---------------------------------------------------------------------------
+  // Polling — passive, 30-second interval
+  // ---------------------------------------------------------------------------
+
+  void _startPassivePoll() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollMembershipStatus());
+  }
+
+  void _stopPoll() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  Future<void> _pollMembershipStatus() async {
+    if (!mounted) return;
+    try {
+      final MembershipStatus? status =
+          await widget.repository.getMembershipStatus();
+      if (!mounted) return;
+      if (status?.isActive == true) {
+        setState(() => _activeMembership = status);
+        _stopPoll();
+      }
+    } catch (_) {
+      // silent — keep polling
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------------
+
+  Future<void> _checkStatusNow() async {
+    if (_checkingStatus) return;
+    setState(() => _checkingStatus = true);
+    try {
+      final MembershipStatus? status =
+          await widget.repository.getMembershipStatus();
+      if (!mounted) return;
+      if (status?.isActive == true) {
+        setState(() => _activeMembership = status);
+        _stopPoll();
+      } else {
+        _showMessage('Membership not active yet. Please allow time for staff review.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Unable to check status. Please try again.');
+    } finally {
+      if (mounted) setState(() => _checkingStatus = false);
+    }
+  }
+
+  Future<void> _copyAddress() async {
+    await Clipboard.setData(ClipboardData(text: info.payToAddress));
+    if (!mounted) return;
+    _showMessage('Address copied');
+  }
+
+  Future<void> _saveQrCode() async {
+    if (_savingQr) return;
+    setState(() => _savingQr = true);
+    try {
+      final bool saved =
+          await (widget.qrCodeSaver ?? _writeQrPng)(_qrKey);
+      if (!mounted) return;
+      _showMessage(saved ? 'QR saved' : 'Unable to save QR. Please try again.');
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Unable to save QR. Please try again.');
+    } finally {
+      if (mounted) setState(() => _savingQr = false);
+    }
+  }
+
+  Future<void> _submitTxid() async {
+    if (_submittingTx) return;
+    final String txid = _txController.text.trim();
+    if (txid.isEmpty) {
+      _showMessage('Please enter your transaction ID.');
+      return;
+    }
+
+    setState(() => _submittingTx = true);
+    try {
+      final ManualTxHint hint = await widget.repository.submitTxHint(
+        planCode: info.planCode,
+        txid: txid,
+      );
+      if (!mounted) return;
+      setState(() {
+        _submittedHint = hint;
+        _txSubmitted = true;
+        _submittingTx = false;
+      });
+      _showMessage('Transaction submitted. Staff will verify shortly.');
+    } on ManualTxSubmitDisabledException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _txSubmitDisabled = true;
+        _submittingTx = false;
+      });
+      _showMessage(e.message ?? 'txid submission is not available yet.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submittingTx = false);
+      _showMessage('Unable to submit. Please try again.');
+    }
+  }
+
+  void _showMessage(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    final bool activated = _activeMembership?.isActive == true;
+
+    return Scaffold(
+      backgroundColor: AppColors.warmBackground,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _Header(onBack: () => Navigator.of(context).maybePop()),
+              const SizedBox(height: AppSpacing.md),
+              _PlanSummaryCard(info: info),
+              const SizedBox(height: AppSpacing.md),
+              if (activated)
+                _SuccessCard(
+                  planName: _activeMembership!.planTitle,
+                  onDone: () => Navigator.of(context).maybePop(),
+                )
+              else ...<Widget>[
+                _QrSection(
+                  qrKey: _qrKey,
+                  address: info.payToAddress,
+                  saving: _savingQr,
+                  onSave: _saveQrCode,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _AddressCard(
+                  address: info.payToAddress,
+                  onCopy: _copyAddress,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _NoticeCard(
+                  currency: info.currency,
+                  notice: info.notice,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (!_txSubmitDisabled)
+                  _TxidSection(
+                    controller: _txController,
+                    submitting: _submittingTx,
+                    submitted: _txSubmitted,
+                    hint: _submittedHint,
+                    onSubmit: _submitTxid,
+                  ),
+                if (_txSubmitDisabled)
+                  _TxidDisabledCard(),
+                const SizedBox(height: AppSpacing.sm),
+                _CheckStatusButton(
+                  checking: _checkingStatus,
+                  onCheck: _checkStatusNow,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sub-widgets
+// ---------------------------------------------------------------------------
+
+class _Header extends StatelessWidget {
+  const _Header({required this.onBack});
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onBack,
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground.withValues(alpha: 0.54),
+                border: Border.all(color: AppColors.softBorder),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: AppColors.brandGold,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            'Manual Payment',
+            style: AppTextStyles.sectionTitle.copyWith(
+              fontSize: 18,
+              height: 1.1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlanSummaryCard extends StatelessWidget {
+  const _PlanSummaryCard({required this.info});
+  final ManualPaymentInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFF4D3A22),
+            Color(0xFF302820),
+            AppColors.cardBackground,
+          ],
+        ),
+        border: Border.all(
+            color: AppColors.brandGold.withValues(alpha: 0.38)),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Selected Plan',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.brandGold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  info.planName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      AppTextStyles.cardTitle.copyWith(fontSize: 15),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              Text(
+                _formatAmount(info.expectedAmountLbc),
+                style: AppTextStyles.sectionTitle.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 22,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                info.currency,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatAmount(String raw) {
+    final double? v = double.tryParse(raw.trim());
+    if (v == null) return raw.trim();
+    // Show up to 8 decimal places, strip trailing zeros.
+    return v
+        .toStringAsFixed(8)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+}
+
+class _QrSection extends StatelessWidget {
+  const _QrSection({
+    required this.qrKey,
+    required this.address,
+    required this.saving,
+    required this.onSave,
+  });
+
+  final GlobalKey qrKey;
+  final String address;
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Scan to Pay',
+            style:
+                AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Center(
+            child: RepaintBoundary(
+              key: qrKey,
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(20),
+                child: QrImageView(
+                  data: address,
+                  version: QrVersions.auto,
+                  size: 176,
+                  padding: EdgeInsets.zero,
+                  backgroundColor: Colors.white,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Colors.black,
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.center,
+            child: _SecondaryButton(
+              icon: saving
+                  ? Icons.hourglass_top_rounded
+                  : Icons.file_download_outlined,
+              label: saving ? 'Saving...' : 'Download QR Code',
+              onTap: saving ? null : onSave,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddressCard extends StatelessWidget {
+  const _AddressCard({required this.address, required this.onCopy});
+  final String address;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Receiving Address',
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 15),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.warmBackground,
+              border: Border.all(color: AppColors.softBorder),
+              borderRadius:
+                  BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    address,
+                    softWrap: true,
+                    style: AppTextStyles.body
+                        .copyWith(fontSize: 12, height: 1.25),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Tooltip(
+                  message: 'Copy address',
+                  child: _IconButton(
+                    icon: Icons.content_copy_rounded,
+                    onTap: onCopy,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.currency, this.notice});
+  final String currency;
+  final String? notice;
+
+  @override
+  Widget build(BuildContext context) {
+    final String text = notice?.isNotEmpty == true
+        ? notice!
+        : 'Send $currency only to the address above, then wait for staff verification.';
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.brandGold.withValues(alpha: 0.10),
+        border: Border.all(
+            color: AppColors.brandGold.withValues(alpha: 0.36)),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Text(
+        text,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+}
+
+class _TxidSection extends StatelessWidget {
+  const _TxidSection({
+    required this.controller,
+    required this.submitting,
+    required this.submitted,
+    required this.hint,
+    required this.onSubmit,
+  });
+
+  final TextEditingController controller;
+  final bool submitting;
+  final bool submitted;
+  final ManualTxHint? hint;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Already Transferred?',
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 15),
+          ),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            'Enter your transaction ID to speed up verification.',
+            style: AppTextStyles.body
+                .copyWith(fontSize: 12, height: 1.4),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (submitted && hint != null) ...<Widget>[
+            _TxidStatusRow(hint: hint!),
+          ] else ...<Widget>[
+            TextField(
+              controller: controller,
+              minLines: 1,
+              maxLines: 3,
+              style: AppTextStyles.body.copyWith(fontSize: 12),
+              cursorColor: AppColors.brandGold,
+              decoration: InputDecoration(
+                hintText: 'e.g. b10608a77dd4bbe597a15803c3e96...',
+                hintStyle:
+                    AppTextStyles.caption.copyWith(fontSize: 12),
+                filled: true,
+                fillColor: AppColors.warmBackground,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusSm),
+                  borderSide:
+                      const BorderSide(color: AppColors.softBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusSm),
+                  borderSide: BorderSide(
+                    color: AppColors.brandGold.withValues(alpha: 0.58),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _GoldButton(
+              label: submitting ? 'Submitting...' : 'Submit Transaction ID',
+              onTap: submitting ? null : onSubmit,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TxidStatusRow extends StatelessWidget {
+  const _TxidStatusRow({required this.hint});
+  final ManualTxHint hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color statusColor = hint.status.isSuccess
+        ? AppColors.brandGold
+        : hint.status == ManualTxHintStatus.rejected
+            ? Colors.redAccent
+            : AppColors.cocoaText;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.warmBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.check_circle_outline_rounded,
+                  size: 14, color: AppColors.brandGold),
+              const SizedBox(width: 4),
+              Text(
+                'Transaction ID submitted',
+                style: AppTextStyles.body.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            hint.txid,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption
+                .copyWith(fontSize: 11),
+          ),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            'Status: ${hint.status.displayLabel}',
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 11,
+              color: statusColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (hint.rejectReason?.isNotEmpty == true)
+            Text(
+              'Reason: ${hint.rejectReason}',
+              style: AppTextStyles.caption
+                  .copyWith(fontSize: 11, color: Colors.redAccent),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TxidDisabledCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.info_outline_rounded,
+              size: 16, color: AppColors.mutedOliveText),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'Transaction ID submission is not available in this version. '
+              'Staff will verify your payment manually.',
+              style: AppTextStyles.body.copyWith(
+                fontSize: 12,
+                color: AppColors.mutedOliveText,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckStatusButton extends StatelessWidget {
+  const _CheckStatusButton({
+    required this.checking,
+    required this.onCheck,
+  });
+  final bool checking;
+  final VoidCallback onCheck;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SecondaryButton(
+      icon: checking
+          ? Icons.hourglass_top_rounded
+          : Icons.refresh_rounded,
+      label: checking ? 'Checking...' : 'Check Membership Status',
+      onTap: checking ? null : onCheck,
+    );
+  }
+}
+
+class _SuccessCard extends StatelessWidget {
+  const _SuccessCard({required this.planName, required this.onDone});
+  final String planName;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(
+            color: AppColors.brandGold.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        children: <Widget>[
+          const Icon(Icons.check_circle_rounded,
+              color: AppColors.brandGold, size: 52),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Membership Activated',
+            style:
+                AppTextStyles.sectionTitle.copyWith(fontSize: 18),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            '$planName is now active.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body.copyWith(fontSize: 13),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _GoldButton(label: 'Done', onTap: onDone),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared button widgets
+// ---------------------------------------------------------------------------
+
+class _GoldButton extends StatelessWidget {
+  const _GoldButton({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? 0.46 : 1,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.brandGold,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.warmBackground,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? 0.46 : 1,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground,
+            border: Border.all(
+              color: AppColors.brandGold.withValues(alpha: 0.46),
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(icon, size: 15, color: AppColors.brandGold),
+              const SizedBox(width: AppSpacing.xxs),
+              Text(
+                label,
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconButton extends StatelessWidget {
+  const _IconButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: AppColors.brandGold.withValues(alpha: 0.12),
+          border: Border.all(
+              color: AppColors.brandGold.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Icon(icon, size: 15, color: AppColors.brandGold),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// QR PNG save (Documents directory)
+// ---------------------------------------------------------------------------
+
+Future<bool> _writeQrPng(GlobalKey key) async {
+  final BuildContext? ctx = key.currentContext;
+  if (ctx == null) return false;
+  final RenderObject? ro = ctx.findRenderObject();
+  if (ro is! RenderRepaintBoundary) return false;
+
+  final ui.Image image = await ro.toImage(pixelRatio: 3);
+  final ByteData? bytes =
+      await image.toByteData(format: ui.ImageByteFormat.png);
+  final Uint8List? png = bytes?.buffer.asUint8List();
+  if (png == null || png.isEmpty) return false;
+
+  final Directory dir = await getApplicationDocumentsDirectory();
+  final String path =
+      '${dir.path}/manual_payment_qr_${DateTime.now().millisecondsSinceEpoch}.png';
+  await File(path).writeAsBytes(png, flush: true);
+  return true;
+}

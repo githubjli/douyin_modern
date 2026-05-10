@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -25,11 +26,14 @@ class ManualPaymentPage extends StatefulWidget {
     required this.paymentInfo,
     required this.repository,
     this.qrCodeSaver,
+    this.displayCurrency,
   });
 
   final ManualPaymentInfo paymentInfo;
   final ManualMembershipRepository repository;
   final QrCodeSaver? qrCodeSaver;
+  // Overrides info.currency in display (e.g. plan's settlement token symbol).
+  final String? displayCurrency;
 
   @override
   State<ManualPaymentPage> createState() => _ManualPaymentPageState();
@@ -40,6 +44,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
   final TextEditingController _txController = TextEditingController();
 
   bool _savingQr = false;
+  bool _savingQrToAlbum = false;
   bool _submittingTx = false;
   bool _checkingStatus = false;
   bool _txSubmitDisabled = false; // server said endpoint is closed
@@ -146,6 +151,30 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
     }
   }
 
+  Future<void> _saveQrToAlbum() async {
+    if (_savingQrToAlbum) return;
+    setState(() => _savingQrToAlbum = true);
+    try {
+      final Uint8List? png = await _captureQrPng(_qrKey);
+      if (png == null || png.isEmpty) {
+        if (!mounted) return;
+        _showMessage('Unable to save. Please try again.');
+        return;
+      }
+      await Gal.putImageBytes(
+        png,
+        name: 'payment_qr_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      if (!mounted) return;
+      _showMessage('QR saved to Photos');
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Unable to save to Photos. Please try again.');
+    } finally {
+      if (mounted) setState(() => _savingQrToAlbum = false);
+    }
+  }
+
   Future<void> _submitTxid() async {
     if (_submittingTx) return;
     final String txid = _txController.text.trim();
@@ -209,7 +238,10 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
             children: <Widget>[
               _Header(onBack: () => Navigator.of(context).maybePop()),
               const SizedBox(height: AppSpacing.md),
-              _PlanSummaryCard(info: info),
+              _PlanSummaryCard(
+                info: info,
+                displayCurrency: widget.displayCurrency,
+              ),
               const SizedBox(height: AppSpacing.md),
               if (activated)
                 _SuccessCard(
@@ -222,6 +254,8 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
                   address: info.payToAddress,
                   saving: _savingQr,
                   onSave: _saveQrCode,
+                  savingAlbum: _savingQrToAlbum,
+                  onSaveAlbum: _saveQrToAlbum,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _AddressCard(
@@ -230,7 +264,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _NoticeCard(
-                  currency: info.currency,
+                  currency: widget.displayCurrency ?? info.currency,
                   notice: info.notice,
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -306,8 +340,9 @@ class _Header extends StatelessWidget {
 }
 
 class _PlanSummaryCard extends StatelessWidget {
-  const _PlanSummaryCard({required this.info});
+  const _PlanSummaryCard({required this.info, this.displayCurrency});
   final ManualPaymentInfo info;
+  final String? displayCurrency;
 
   @override
   Widget build(BuildContext context) {
@@ -367,7 +402,7 @@ class _PlanSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
-                info.currency,
+                displayCurrency ?? info.currency,
                 style: AppTextStyles.caption.copyWith(
                   color: AppColors.brandGold,
                   fontSize: 12,
@@ -398,12 +433,16 @@ class _QrSection extends StatelessWidget {
     required this.address,
     required this.saving,
     required this.onSave,
+    required this.savingAlbum,
+    required this.onSaveAlbum,
   });
 
   final GlobalKey qrKey;
   final String address;
   final bool saving;
   final VoidCallback onSave;
+  final bool savingAlbum;
+  final VoidCallback onSaveAlbum;
 
   @override
   Widget build(BuildContext context) {
@@ -448,15 +487,25 @@ class _QrSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.center,
-            child: _SecondaryButton(
-              icon: saving
-                  ? Icons.hourglass_top_rounded
-                  : Icons.file_download_outlined,
-              label: saving ? 'Sharing...' : 'Share QR Code',
-              onTap: saving ? null : onSave,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              _SecondaryButton(
+                icon: saving
+                    ? Icons.hourglass_top_rounded
+                    : Icons.share_outlined,
+                label: saving ? 'Sharing...' : 'Share QR',
+                onTap: saving ? null : onSave,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _SecondaryButton(
+                icon: savingAlbum
+                    ? Icons.hourglass_top_rounded
+                    : Icons.download_rounded,
+                label: savingAlbum ? 'Saving...' : 'Save to Album',
+                onTap: savingAlbum ? null : onSaveAlbum,
+              ),
+            ],
           ),
         ],
       ),
@@ -910,19 +959,22 @@ class _IconButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// QR PNG save (Documents directory)
+// QR PNG helpers
 // ---------------------------------------------------------------------------
 
-Future<bool> _writeQrPng(GlobalKey key) async {
+Future<Uint8List?> _captureQrPng(GlobalKey key) async {
   final BuildContext? ctx = key.currentContext;
-  if (ctx == null) return false;
+  if (ctx == null) return null;
   final RenderObject? ro = ctx.findRenderObject();
-  if (ro is! RenderRepaintBoundary) return false;
-
+  if (ro is! RenderRepaintBoundary) return null;
   final ui.Image image = await ro.toImage(pixelRatio: 3);
   final ByteData? bytes =
       await image.toByteData(format: ui.ImageByteFormat.png);
-  final Uint8List? png = bytes?.buffer.asUint8List();
+  return bytes?.buffer.asUint8List();
+}
+
+Future<bool> _writeQrPng(GlobalKey key) async {
+  final Uint8List? png = await _captureQrPng(key);
   if (png == null || png.isEmpty) return false;
 
   final Directory tmp = await getTemporaryDirectory();

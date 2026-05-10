@@ -239,6 +239,7 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
           builder: (_) => ManualPaymentPage(
             paymentInfo: info,
             repository: _manualRepository,
+            displayCurrency: plan.settlementTokenSymbol,
           ),
         ),
       );

@@ -86,6 +86,29 @@ class RemoteMembershipRepository implements MembershipRepository {
   MembershipStatus? _mapStatus(Map<String, dynamic> data) {
     if (data.isEmpty) return null;
 
+    // New API shape: { "is_active": bool, "current_membership": { ... } | null }
+    if (data.containsKey('is_active')) {
+      final bool isActive = data['is_active'] == true;
+      final dynamic current = data['current_membership'];
+      if (!isActive || current is! Map<String, dynamic>) {
+        return MembershipStatus(
+          planTitle: 'Membership',
+          status: 'inactive',
+          isActive: false,
+        );
+      }
+      return MembershipStatus(
+        planTitle: _nonEmptyStr(current['plan_name']) ??
+            _nonEmptyStr(current['plan_code']) ??
+            'Membership',
+        status: 'active',
+        isActive: true,
+        startsAt: _nonEmptyStr(current['starts_at']),
+        endsAt: _nonEmptyStr(current['ends_at']),
+      );
+    }
+
+    // Legacy API shape: flat object with status / plan fields
     final String planTitle = _statusPlanTitle(data);
     final String status = _nonEmptyStr(data['status']) ?? 'inactive';
     return MembershipStatus(
@@ -116,7 +139,6 @@ class RemoteMembershipRepository implements MembershipRepository {
       if (normalized == 'true') return true;
       if (normalized == 'false') return false;
     }
-
     final String normalizedStatus = status.toLowerCase().trim();
     return normalizedStatus == 'active' ||
         normalizedStatus == 'trialing' ||

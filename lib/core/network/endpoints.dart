@@ -38,4 +38,13 @@ class Endpoints {
 
   static String membershipOrderVerifyNow(String orderNo) =>
       '/api/membership/orders/${Uri.encodeComponent(orderNo)}/verify-now/';
+
+  // Manual (staff-reviewed) payment endpoints
+  static String manualPaymentInfo(String planCode) =>
+      '/api/membership/manual/payment-info/?plan_code=${Uri.encodeComponent(planCode)}';
+
+  static const String manualTxHints = '/api/membership/manual/tx-hints/';
+
+  static String manualTxHintVerifyNow(int id) =>
+      '/api/membership/manual/tx-hints/$id/verify-now/';
 }

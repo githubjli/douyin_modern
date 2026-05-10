@@ -13,12 +13,14 @@ import 'package:meow_media/features/home/data/remote_home_repository.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/membership/application/membership_providers.dart';
 import 'package:meow_media/features/membership/application/membership_state.dart';
+import 'package:meow_media/features/membership/data/mock_manual_membership_repository.dart';
+import 'package:meow_media/features/membership/domain/manual_payment_info.dart';
 import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
 import 'package:meow_media/features/membership/domain/membership_repository.dart';
 import 'package:meow_media/features/membership/domain/membership_status.dart';
+import 'package:meow_media/features/membership/manual_payment_page.dart';
 import 'package:meow_media/features/membership/membership_page.dart';
-import 'package:meow_media/features/membership/membership_payment_page.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
@@ -58,6 +60,7 @@ void main() {
     MembershipRepository mockRepository = const _MembershipRepositoryFake(
       plans: mockPlans,
     ),
+    MockManualMembershipRepository? manualRepository,
     bool useRemote = true,
     bool isActive = true,
     Future<List<HomeVideoItem>>? vipVideosFuture,
@@ -89,6 +92,8 @@ void main() {
             body: MembershipPage(
               repository: repository,
               mockRepository: mockRepository,
+              manualRepository: manualRepository ??
+                  MockManualMembershipRepository(),
               useRemote: useRemote,
               isActive: isActive,
               vipVideosFuture: vipVideosFuture ??
@@ -139,6 +144,8 @@ void main() {
     await tester.ensureVisible(buyNow);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Buy Now').hitTestable().first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
   }
 
@@ -170,14 +177,8 @@ void main() {
     await tester.ensureVisible(action);
     await tester.pumpAndSettle();
     await tester.tap(action.hitTestable().first);
-    await tester.pumpAndSettle();
-  }
-
-  Future<void> tapSheetAction(WidgetTester tester, String label) async {
-    final Finder action = find.text(label).first;
-    await tester.ensureVisible(action);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(label).hitTestable().first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
   }
 
@@ -301,11 +302,24 @@ void main() {
     await tapFirstBuyNow(tester);
 
     expect(signInPressed, isTrue);
-    expect(repository.createOrderCalls, 0);
   });
 
-  testWidgets('signed-in Buy Now shows confirmation without creating order',
+  testWidgets('Buy Now calls getPaymentInfo and opens manual payment page',
       (WidgetTester tester) async {
+    const ManualPaymentInfo paymentInfo = ManualPaymentInfo(
+      planCode: 'monthly',
+      planName: 'Monthly',
+      expectedAmountLbc: '12.5',
+      currency: 'LBC',
+      payToAddress: 'lbc-address-100',
+      requiredConfirmations: 0,
+    );
+    final MockManualMembershipRepository manualRepo =
+        MockManualMembershipRepository(
+      paymentInfoByPlan: const <String, ManualPaymentInfo>{
+        'monthly': paymentInfo,
+      },
+    );
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
       plans: const <MembershipPlan>[
@@ -316,78 +330,39 @@ void main() {
           perks: 'Monthly perks',
         ),
       ],
-      order: const MembershipOrder(
-        orderNo: 'order-100',
-        status: 'pending',
-        planCode: 'monthly',
-        planTitle: 'Monthly',
-        expectedAmountLbc: '12.5',
-        currency: 'LBC',
-        payToAddress: 'lbc-address-100',
-        expiresAt: '2026-06-01T00:00:00Z',
-      ),
     );
 
-    await pumpMembershipPage(tester, repository: repository);
-    await dragUntilTextVisible(tester, 'Membership Plans');
-
-    await tapFirstBuyNow(tester);
-
-    expect(repository.createOrderCalls, 0);
-    expect(find.text('Confirm subscription'), findsOneWidget);
-    expect(find.text('Monthly'), findsWidgets);
-    expect(find.text('USD 9.99 / month'), findsWidgets);
-    expect(find.text('Monthly perks'), findsWidgets);
-    expect(find.text('Cancel'), findsOneWidget);
-    expect(find.text('Confirm and create order'), findsOneWidget);
-    expect(find.text('Complete payment'), findsNothing);
-    expect(find.text('lbc-address-100'), findsNothing);
-  });
-
-  testWidgets('confirm creates order and opens payment page',
-      (WidgetTester tester) async {
-    final _OrderTrackingMembershipRepository repository =
-        _OrderTrackingMembershipRepository(
-      plans: const <MembershipPlan>[
-        MembershipPlan(
-          code: 'monthly',
-          title: 'Monthly',
-          price: 'USD 9.99 / month',
-          perks: 'Monthly perks',
-        ),
-      ],
-      order: const MembershipOrder(
-        orderNo: 'order-100',
-        status: 'pending',
-        planCode: 'monthly',
-        planTitle: 'Monthly',
-        expectedAmountLbc: '12.5',
-        currency: 'LBC',
-        payToAddress: 'lbc-address-100',
-        expiresAt: '2026-06-01T00:00:00Z',
-      ),
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      manualRepository: manualRepo,
     );
-
-    await pumpMembershipPage(tester, repository: repository);
     await dragUntilTextVisible(tester, 'Membership Plans');
-
     await tapFirstBuyNow(tester);
-    expect(repository.createOrderCalls, 0);
 
-    await tapSheetAction(tester, 'Confirm and create order');
-
-    expect(repository.createOrderCalls, 1);
-    expect(repository.createdPlanCodes, <String>['monthly']);
-    expect(find.text('Confirm subscription'), findsNothing);
-    expect(find.byType(MembershipPaymentPage), findsOneWidget);
-    expect(find.text('Membership Purchase'), findsOneWidget);
+    expect(manualRepo.getPaymentInfoCalls, 1);
+    expect(find.byType(ManualPaymentPage), findsOneWidget);
+    expect(find.text('Manual Payment'), findsOneWidget);
     expect(find.text('Receiving Address'), findsOneWidget);
     expect(find.byTooltip('Copy address'), findsOneWidget);
     expect(find.text('lbc-address-100'), findsOneWidget);
   });
 
-  testWidgets('quarterly selected plan opens payment page with 90 day duration',
+  testWidgets('quarterly Buy Now passes correct plan code to getPaymentInfo',
       (WidgetTester tester) async {
+    final MockManualMembershipRepository manualRepo =
+        MockManualMembershipRepository(
+      paymentInfoByPlan: const <String, ManualPaymentInfo>{
+        'quarterly': ManualPaymentInfo(
+          planCode: 'quarterly',
+          planName: 'Quarterly Membership',
+          expectedAmountLbc: '80.00000000',
+          currency: 'THB-LTT',
+          payToAddress: 'quarterly-pay-address',
+          requiredConfirmations: 0,
+        ),
+      },
+    );
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
       plans: const <MembershipPlan>[
@@ -416,60 +391,26 @@ void main() {
           settlementTokenSymbol: 'THB-LTT',
         ),
       ],
-      order: const MembershipOrder(
-        orderNo: 'order-quarterly',
-        status: 'pending',
-        planCode: 'quarterly',
-        planTitle: 'Quarterly Membership',
-        expectedAmountLbc: '80.00000000',
-        payToAddress: 'quarterly-pay-address',
-      ),
     );
 
-    await pumpMembershipPage(tester, repository: repository);
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      manualRepository: manualRepo,
+    );
     await tapPlanAction(
       tester,
       planTitle: 'Quarterly Membership',
       actionLabel: 'Buy Now',
     );
-    await tapSheetAction(tester, 'Confirm and create order');
 
-    expect(repository.createdPlanCodes, <String>['quarterly']);
-    expect(find.byType(MembershipPaymentPage), findsOneWidget);
+    expect(manualRepo.lastSubmittedPlanCode, isNull);
+    expect(manualRepo.getPaymentInfoCalls, 1);
+    expect(find.byType(ManualPaymentPage), findsOneWidget);
     expect(find.text('Quarterly Membership'), findsOneWidget);
-    expect(find.text('80.00'), findsOneWidget);
+    expect(find.text('80'), findsOneWidget);
     expect(find.text('THB-LTT'), findsWidgets);
-    expect(find.text('Duration: 90 days'), findsOneWidget);
-    expect(find.text('Duration: 30 days'), findsNothing);
-    expect(find.text('Duration: 365 days'), findsNothing);
     expect(find.text('quarterly-pay-address'), findsOneWidget);
-  });
-
-  testWidgets('cancel confirmation does not create order',
-      (WidgetTester tester) async {
-    final _OrderTrackingMembershipRepository repository =
-        _OrderTrackingMembershipRepository(
-      plans: const <MembershipPlan>[
-        MembershipPlan(
-          code: 'monthly',
-          title: 'Monthly',
-          price: 'USD 9.99 / month',
-          perks: 'Monthly perks',
-        ),
-      ],
-    );
-
-    await pumpMembershipPage(tester, repository: repository);
-    await dragUntilTextVisible(tester, 'Membership Plans');
-
-    await tapFirstBuyNow(tester);
-    expect(find.text('Confirm subscription'), findsOneWidget);
-
-    await tapSheetAction(tester, 'Cancel');
-
-    expect(repository.createOrderCalls, 0);
-    expect(find.text('Confirm subscription'), findsNothing);
-    expect(find.text('Complete payment'), findsNothing);
   });
 
   testWidgets('missing plan code shows error without creating order',
@@ -492,14 +433,13 @@ void main() {
       actionLabel: 'Buy Now',
     );
 
-    expect(repository.createOrderCalls, 0);
     expect(
       find.text('Plan is unavailable. Please try again later.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('create order failure shows error without activating membership',
+  testWidgets('payment info failure shows error without opening payment page',
       (WidgetTester tester) async {
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
@@ -511,32 +451,48 @@ void main() {
           perks: 'Monthly perks',
         ),
       ],
-      createOrderError: Exception('offline'),
     );
 
-    await pumpMembershipPage(tester, repository: repository);
+    // Override getPaymentInfo to throw by using an empty paymentInfoByPlan
+    // and relying on the default mock which still calls the factory — instead
+    // supply a repository that throws on getPaymentInfo.
+    final _ThrowingManualRepository throwingRepo = _ThrowingManualRepository();
+
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      manualRepository: throwingRepo,
+    );
 
     expect(find.text('Not subscribed'), findsOneWidget);
     await dragUntilTextVisible(tester, 'Membership Plans');
     await tapFirstBuyNow(tester);
 
-    expect(repository.createOrderCalls, 0);
-    expect(find.text('Confirm subscription'), findsOneWidget);
-
-    await tapSheetAction(tester, 'Confirm and create order');
-
-    expect(repository.createOrderCalls, 1);
+    expect(throwingRepo.getPaymentInfoCalls, 1);
     expect(
-      find.text('Unable to create order. Please try again later.'),
+      find.text('Unable to load payment info. Please try again later.'),
       findsOneWidget,
     );
-    expect(find.text('Complete payment'), findsNothing);
+    expect(find.byType(ManualPaymentPage), findsNothing);
     expect(find.text('Not subscribed'), findsOneWidget);
     expect(find.text('Member'), findsNothing);
   });
 
-  testWidgets('payment page copy actions show confirmation messages',
+  testWidgets('manual payment page copy address shows confirmation message',
       (WidgetTester tester) async {
+    final MockManualMembershipRepository manualRepo =
+        MockManualMembershipRepository(
+      paymentInfoByPlan: const <String, ManualPaymentInfo>{
+        'monthly': ManualPaymentInfo(
+          planCode: 'monthly',
+          planName: 'Monthly',
+          expectedAmountLbc: '4.25',
+          currency: 'LBC',
+          payToAddress: 'copy-address',
+          requiredConfirmations: 0,
+        ),
+      },
+    );
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
       plans: const <MembershipPlan>[
@@ -547,19 +503,15 @@ void main() {
           perks: 'Monthly perks',
         ),
       ],
-      order: const MembershipOrder(
-        orderNo: 'order-copy',
-        status: 'pending',
-        expectedAmountLbc: '4.25',
-        currency: 'LBC',
-        payToAddress: 'copy-address',
-      ),
     );
 
-    await pumpMembershipPage(tester, repository: repository);
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      manualRepository: manualRepo,
+    );
     await dragUntilTextVisible(tester, 'Membership Plans');
     await tapFirstBuyNow(tester);
-    await tapSheetAction(tester, 'Confirm and create order');
 
     final Finder copyAddress = find.byTooltip('Copy address');
     await tester.ensureVisible(copyAddress);
@@ -569,8 +521,21 @@ void main() {
     expect(find.text('Address copied'), findsOneWidget);
   });
 
-  testWidgets('paid order status does not locally activate membership',
+  testWidgets('back from manual payment page returns to membership page',
       (WidgetTester tester) async {
+    final MockManualMembershipRepository manualRepo =
+        MockManualMembershipRepository(
+      paymentInfoByPlan: const <String, ManualPaymentInfo>{
+        'monthly': ManualPaymentInfo(
+          planCode: 'monthly',
+          planName: 'Monthly',
+          expectedAmountLbc: '5',
+          currency: 'LBC',
+          payToAddress: 'paid-address',
+          requiredConfirmations: 0,
+        ),
+      },
+    );
     final _OrderTrackingMembershipRepository repository =
         _OrderTrackingMembershipRepository(
       plans: const <MembershipPlan>[
@@ -581,31 +546,25 @@ void main() {
           perks: 'Monthly perks',
         ),
       ],
-      order: const MembershipOrder(
-        orderNo: 'order-paid',
-        status: 'overpaid',
-        planCode: 'monthly',
-        planTitle: 'Monthly',
-        expectedAmountLbc: '5',
-        currency: 'LBC',
-        payToAddress: 'paid-address',
-      ),
     );
 
-    await pumpMembershipPage(tester, repository: repository);
+    await pumpMembershipPage(
+      tester,
+      repository: repository,
+      manualRepository: manualRepo,
+    );
 
     expect(find.text('Not subscribed'), findsOneWidget);
     await dragUntilTextVisible(tester, 'Membership Plans');
     await tapFirstBuyNow(tester);
-    await tapSheetAction(tester, 'Confirm and create order');
 
-    expect(find.byType(MembershipPaymentPage), findsOneWidget);
-    expect(find.text('Membership Purchase'), findsOneWidget);
+    expect(find.byType(ManualPaymentPage), findsOneWidget);
+    expect(find.text('Manual Payment'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Back').first);
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded).first);
     await tester.pumpAndSettle();
 
-    expect(find.byType(MembershipPaymentPage), findsNothing);
+    expect(find.byType(ManualPaymentPage), findsNothing);
     expect(find.text('Not subscribed'), findsOneWidget);
     expect(find.text('Member'), findsNothing);
   });
@@ -1310,20 +1269,9 @@ class _TrackingMembershipRepository implements MembershipRepository {
 }
 
 class _OrderTrackingMembershipRepository implements MembershipRepository {
-  _OrderTrackingMembershipRepository({
-    required this.plans,
-    this.order = const MembershipOrder(
-      orderNo: 'order-default',
-      status: 'pending',
-    ),
-    this.createOrderError,
-  });
+  _OrderTrackingMembershipRepository({required this.plans});
 
   final List<MembershipPlan> plans;
-  final MembershipOrder order;
-  final Object? createOrderError;
-  int createOrderCalls = 0;
-  final List<String> createdPlanCodes = <String>[];
 
   @override
   Future<List<MembershipPlan>> getPlans() async => plans;
@@ -1332,12 +1280,8 @@ class _OrderTrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async => null;
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) async {
-    createOrderCalls += 1;
-    createdPlanCodes.add(planCode);
-    final Object? error = createOrderError;
-    if (error != null) throw error;
-    return order;
+  Future<MembershipOrder> createOrder({required String planCode}) {
+    throw UnimplementedError();
   }
 
   @override
@@ -1356,6 +1300,14 @@ class _OrderTrackingMembershipRepository implements MembershipRepository {
   @override
   Future<MembershipOrder> verifyNow(String orderNo) {
     throw UnimplementedError();
+  }
+}
+
+class _ThrowingManualRepository extends MockManualMembershipRepository {
+  @override
+  Future<ManualPaymentInfo> getPaymentInfo({required String planCode}) async {
+    getPaymentInfoCalls += 1;
+    throw Exception('offline');
   }
 }
 

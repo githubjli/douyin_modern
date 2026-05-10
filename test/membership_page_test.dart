@@ -110,10 +110,12 @@ void main() {
         ),
       ),
     );
+    // Always advance past the 300ms mock delay in _loadPendingReviews so no
+    // timer is left pending when the test ends.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     if (settle) {
       await tester.pumpAndSettle();
-    } else {
-      await tester.pump();
     }
     return effectiveContainer;
   }

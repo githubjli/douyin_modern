@@ -105,7 +105,7 @@ class RemoteManualMembershipRepository implements ManualMembershipRepository {
     final dynamic current = data['current_membership'];
 
     if (!isActive || current is! Map<String, dynamic>) {
-      return MembershipStatus(
+      return const MembershipStatus(
         planTitle: 'Membership',
         status: 'inactive',
         isActive: false,

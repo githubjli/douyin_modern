@@ -63,9 +63,16 @@ class RemoteManualMembershipRepository implements ManualMembershipRepository {
             detail.toLowerCase().contains('does not accept')) {
           throw ManualTxSubmitDisabledException(detail);
         }
-        return ManualTxHint.fromJson(data);
+        try {
+          return ManualTxHint.fromJson(data);
+        } on FormatException {
+          // POST succeeded (2xx) but response is missing id/status fields.
+          // Treat as pending so the UI reflects the successful submission.
+          return _syntheticPendingHint(data: data, planCode: planCode, txid: txid);
+        }
       }
-      throw const FormatException('Invalid tx hint response');
+      // Non-map 2xx response — still treat as submitted.
+      return _syntheticPendingHint(planCode: planCode, txid: txid);
     } on ManualTxSubmitDisabledException {
       rethrow;
     } on ApiError catch (e) {
@@ -147,6 +154,32 @@ class RemoteManualMembershipRepository implements ManualMembershipRepository {
       startsAt: _str(current['starts_at']),
       endsAt: _str(current['ends_at']),
     );
+  }
+
+  ManualTxHint _syntheticPendingHint({
+    Map<String, dynamic>? data,
+    required String planCode,
+    required String txid,
+  }) {
+    return ManualTxHint(
+      id: (data != null ? (_intFromMap(data, 'id') ?? _intFromMap(data, 'manual_payment_id')) : null) ?? 0,
+      planCode: (data != null ? _str(data['plan_code']) : null) ?? planCode,
+      planName: (data != null ? (_str(data['plan_name']) ?? _str(data['plan_title'])) : null) ?? planCode,
+      txid: txid,
+      status: ManualTxHintStatus.pending,
+      confirmations: 0,
+      expectedAmountLbc: '',
+      payToAddress: '',
+      createdAt: '',
+    );
+  }
+
+  int? _intFromMap(Map<String, dynamic> map, String key) {
+    final dynamic v = map[key];
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v.trim());
+    return null;
   }
 
   String? _str(dynamic v) {

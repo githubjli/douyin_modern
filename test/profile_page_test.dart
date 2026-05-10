@@ -175,6 +175,9 @@ void main() {
     );
     await pumpProfilePage(tester, authRepository: authRepository);
 
+    // Logout is below the fold in the new layout — ensure it is scrolled into view.
+    await tester.ensureVisible(find.text('Logout'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Logout'));
     await tester.pumpAndSettle();
 
@@ -193,7 +196,8 @@ void main() {
     expect(find.text('Profile User'), findsOneWidget);
 
     authRepository.currentSessionError = Exception('offline');
-    await tester.tap(find.text('Refresh profile'));
+    // Refresh is now an icon button — find by key.
+    await tester.tap(find.byKey(const ValueKey<String>('profile-refresh-button')));
     await tester.pumpAndSettle();
 
     expect(find.text('Profile User'), findsOneWidget);

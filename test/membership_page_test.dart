@@ -819,7 +819,7 @@ void main() {
     expect(find.text('Member'), findsOneWidget);
     expect(find.text('Basic Monthly'), findsWidgets);
     expect(find.text('Valid until June 1, 2026'), findsWidgets);
-    expect(find.text('Manage'), findsWidgets);
+    expect(find.text('Renew'), findsWidgets);
 
     await dragUntilTextVisible(tester, 'USD 9.99 / month');
 

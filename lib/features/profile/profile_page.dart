@@ -604,11 +604,27 @@ class _SignedInProfileBody extends StatelessWidget {
               label: 'Wallet & Billing',
               onTap: () => _showComingSoon(context),
             ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Security ───────────────────────────────────────────────────
+        _SectionCard(
+          label: 'Security',
+          items: <_MenuItem>[
             _MenuItem(
               icon: Icons.lock_outline_rounded,
               label: 'Change Password',
               onTap: () => _showComingSoon(context),
             ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // ── Sign out ───────────────────────────────────────────────────
+        _SectionCard(
+          label: '',
+          items: <_MenuItem>[
             _MenuItem(
               icon: Icons.logout_rounded,
               label: 'Logout',

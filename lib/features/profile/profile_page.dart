@@ -97,6 +97,32 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  void _openEditProfile() {
+    final UserProfile? current = _profile;
+    if (current == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.warmBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusLg),
+        ),
+      ),
+      builder: (_) => _EditProfileSheet(
+        profile: current,
+        profileRepository: _profileRepository,
+        onSaved: (UserProfile updated) {
+          if (mounted) {
+            setState(() {
+              _profile = updated;
+            });
+          }
+        },
+      ),
+    );
+  }
+
   Future<void> _login() async {
     setState(() {
       _loggingIn = true;
@@ -249,6 +275,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               profile: _profile,
               onLogout: _logout,
               onRefresh: _refreshProfile,
+              onEdit: _openEditProfile,
             ),
           ],
         ],
@@ -523,11 +550,13 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.profile,
     required this.onLogout,
     required this.onRefresh,
+    required this.onEdit,
   });
 
   final UserProfile? profile;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -537,7 +566,7 @@ class _SignedInProfileBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         // ── Avatar + name ──────────────────────────────────────────────
-        _ProfileHeader(profile: profile, onRefresh: onRefresh),
+        _ProfileHeader(profile: profile, onRefresh: onRefresh, onEdit: onEdit),
         const SizedBox(height: AppSpacing.md),
 
         // ── Meow Points card ───────────────────────────────────────────
@@ -651,16 +680,25 @@ class _SignedInProfileBody extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.profile, required this.onRefresh});
+  const _ProfileHeader({
+    required this.profile,
+    required this.onRefresh,
+    required this.onEdit,
+  });
 
   final UserProfile? profile;
   final Future<void> Function() onRefresh;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final String name = profile?.displayName ?? 'User';
     final String? email = profile?.email;
+    final String? bio = profile?.bio.trim().isEmpty == true ? null : profile?.bio.trim();
     final String initials = _initials(name);
+    final String? avatarUrl = profile?.avatarUrl.trim().isEmpty == true
+        ? null
+        : profile?.avatarUrl.trim();
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -671,23 +709,50 @@ class _ProfileHeader extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          // Avatar circle
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.brandGold.withAlpha(30),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.brandGold, width: 1.5),
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: AppTextStyles.sectionTitle.copyWith(
-                  color: AppColors.brandGold,
-                  fontSize: 20,
+          // Avatar — network image or initials fallback
+          GestureDetector(
+            onTap: onEdit,
+            child: Stack(
+              children: <Widget>[
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.brandGold.withAlpha(30),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.brandGold, width: 1.5),
+                  ),
+                  child: avatarUrl != null
+                      ? ClipOval(
+                          child: Image.network(
+                            avatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _InitialsAvatar(
+                              initials: initials,
+                            ),
+                          ),
+                        )
+                      : _InitialsAvatar(initials: initials),
                 ),
-              ),
+                // Camera badge
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brandGold,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      size: 10,
+                      color: AppColors.warmBackground,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -705,16 +770,40 @@ class _ProfileHeader extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (bio != null) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    bio,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.mutedOliveText,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          // Refresh button
-          IconButton(
-            key: const ValueKey<String>('profile-refresh-button'),
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-            color: AppColors.mutedOliveText,
-            tooltip: 'Refresh profile',
-            onPressed: onRefresh,
+          // Edit + Refresh buttons
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              IconButton(
+                key: const ValueKey<String>('profile-refresh-button'),
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                color: AppColors.mutedOliveText,
+                tooltip: 'Refresh profile',
+                onPressed: onRefresh,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                color: AppColors.mutedOliveText,
+                tooltip: 'Edit profile',
+                onPressed: onEdit,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
           ),
         ],
       ),
@@ -727,6 +816,25 @@ class _ProfileHeader extends StatelessWidget {
       return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
     }
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+}
+
+class _InitialsAvatar extends StatelessWidget {
+  const _InitialsAvatar({required this.initials});
+
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        initials,
+        style: AppTextStyles.sectionTitle.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 20,
+        ),
+      ),
+    );
   }
 }
 
@@ -897,6 +1005,155 @@ class _MenuRow extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edit profile bottom sheet
+// ---------------------------------------------------------------------------
+
+class _EditProfileSheet extends StatefulWidget {
+  const _EditProfileSheet({
+    required this.profile,
+    required this.profileRepository,
+    required this.onSaved,
+  });
+
+  final UserProfile profile;
+  final ProfileRepository profileRepository;
+  final ValueChanged<UserProfile> onSaved;
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _bioController;
+  late final TextEditingController _avatarController;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController =
+        TextEditingController(text: widget.profile.displayName);
+    _bioController =
+        TextEditingController(text: widget.profile.bio);
+    _avatarController =
+        TextEditingController(text: widget.profile.avatarUrl);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _bioController.dispose();
+    _avatarController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final String name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Display name cannot be empty.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final String? avatarUrl = _avatarController.text.trim().isEmpty
+          ? null
+          : _avatarController.text.trim();
+      final UserProfile updated = await widget.profileRepository.updateProfile(
+        displayName: name,
+        bio: _bioController.text.trim(),
+        avatarUrl: avatarUrl,
+      );
+      if (!mounted) return;
+      widget.onSaved(updated);
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _saving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md + bottomInset,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          // Handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.softBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const Text('Edit Profile', style: AppTextStyles.sectionTitle),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _nameController,
+            cursorColor: AppColors.brandGold,
+            textCapitalization: TextCapitalization.words,
+            style: AppTextStyles.body,
+            decoration: _inputDecoration('Display name'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _bioController,
+            cursorColor: AppColors.brandGold,
+            maxLines: 3,
+            minLines: 1,
+            style: AppTextStyles.body,
+            decoration: _inputDecoration('Bio (optional)'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _avatarController,
+            cursorColor: AppColors.brandGold,
+            keyboardType: TextInputType.url,
+            style: AppTextStyles.body,
+            decoration: _inputDecoration('Avatar URL (optional)'),
+          ),
+          if (_error != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _error!,
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.redAccent,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          ElevatedButton(
+            onPressed: _saving ? null : _save,
+            child: Text(_saving ? 'Saving...' : 'Save'),
+          ),
+        ],
       ),
     );
   }

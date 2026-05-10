@@ -258,12 +258,13 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     return AuthSession(
       isSignedIn: true,
       userId: email,
-      displayName: displayName,
+      displayName: 'Registered User',
     );
   }
 }
@@ -315,7 +316,8 @@ class _NeverCompletingAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) {
     throw UnimplementedError();
   }
@@ -361,7 +363,8 @@ class _TokenOnlyLoginAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     _currentSession = signedInSession;
     return getCurrentSession();

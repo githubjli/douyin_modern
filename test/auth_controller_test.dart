@@ -376,12 +376,13 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     return AuthSession(
       isSignedIn: true,
       userId: email,
-      displayName: displayName,
+      displayName: 'Registered User',
     );
   }
 }

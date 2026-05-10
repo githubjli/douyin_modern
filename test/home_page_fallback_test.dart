@@ -618,7 +618,8 @@ class _AuthRepositoryFake implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) {
     return getCurrentSession();
   }
@@ -660,7 +661,8 @@ class _MutableAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) {
     isSignedIn = true;
     return getCurrentSession();

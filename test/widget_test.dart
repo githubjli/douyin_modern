@@ -186,7 +186,8 @@ class _SignedOutAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) {
     throw UnimplementedError();
   }

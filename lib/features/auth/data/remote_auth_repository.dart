@@ -34,18 +34,21 @@ class RemoteAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) async {
-    final response = await _apiClient.post<Map<String, dynamic>>(
+    // Backend returns 201 with user object but no tokens.
+    await _apiClient.post<dynamic>(
       Endpoints.authRegister,
       data: <String, dynamic>{
         'email': email,
         'password': password,
-        'display_name': displayName,
+        if (firstName != null && firstName.isNotEmpty) 'first_name': firstName,
+        if (lastName != null && lastName.isNotEmpty) 'last_name': lastName,
       },
     );
-
-    return _sessionFromAuthResponse(response.data ?? <String, dynamic>{});
+    // Auto-login to obtain access/refresh tokens.
+    return login(email: email, password: password);
   }
 
   @override

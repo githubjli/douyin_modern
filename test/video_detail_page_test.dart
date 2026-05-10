@@ -605,7 +605,8 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) {
     throw UnimplementedError();
   }
@@ -630,7 +631,8 @@ class _NeverCompletingAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) {
     throw UnimplementedError();
   }

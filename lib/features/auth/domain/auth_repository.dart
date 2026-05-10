@@ -9,7 +9,8 @@ abstract class AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   });
 
   Future<AuthSession> refreshSession();

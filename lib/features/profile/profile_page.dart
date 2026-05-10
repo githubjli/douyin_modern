@@ -32,9 +32,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
 
   bool _loadingProfile = false;
   bool _loggingIn = false;
+  bool _registering = false;
   String? _error;
   UserProfile? _profile;
 
@@ -53,6 +56,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     super.dispose();
   }
 
@@ -113,6 +118,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  Future<void> _register() async {
+    setState(() {
+      _registering = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).register(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+            firstName: _firstNameController.text.trim(),
+            lastName: _lastNameController.text.trim(),
+          );
+      final AuthState authState = ref.read(authControllerProvider);
+      if (authState.isSignedIn) {
+        _passwordController.clear();
+        _firstNameController.clear();
+        _lastNameController.clear();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _registering = false);
+      }
+    }
+  }
+
   Future<void> _logout() async {
     await ref.read(authControllerProvider.notifier).logout();
     if (!mounted) return;
@@ -121,6 +151,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _error = null;
       _emailController.clear();
       _passwordController.clear();
+      _firstNameController.clear();
+      _lastNameController.clear();
     });
   }
 
@@ -132,6 +164,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         _error = null;
         _emailController.clear();
         _passwordController.clear();
+        _firstNameController.clear();
+        _lastNameController.clear();
         _loadingProfile = false;
       });
       return;
@@ -177,10 +211,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   child: _GuestProfileCard(
                     emailController: _emailController,
                     passwordController: _passwordController,
+                    firstNameController: _firstNameController,
+                    lastNameController: _lastNameController,
                     loggingIn: _loggingIn,
+                    registering: _registering,
                     error: _error ?? authState.message,
                     onLogin: _login,
-                    onSignUp: _showSignUpPlaceholder,
+                    onRegister: _register,
                   ),
                 ),
               ),
@@ -217,12 +254,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
     );
   }
-
-  void _showSignUpPlaceholder() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign Up coming soon.')),
-    );
-  }
 }
 
 bool _hasSignedInSession(AuthState authState) {
@@ -241,22 +272,30 @@ String _friendlyAuthError(String message) {
   return message;
 }
 
+enum _AuthMode { login, register }
+
 class _GuestProfileCard extends StatefulWidget {
   const _GuestProfileCard({
     required this.emailController,
     required this.passwordController,
+    required this.firstNameController,
+    required this.lastNameController,
     required this.loggingIn,
+    required this.registering,
     required this.error,
     required this.onLogin,
-    required this.onSignUp,
+    required this.onRegister,
   });
 
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final TextEditingController firstNameController;
+  final TextEditingController lastNameController;
   final bool loggingIn;
+  final bool registering;
   final String? error;
   final Future<void> Function() onLogin;
-  final VoidCallback onSignUp;
+  final Future<void> Function() onRegister;
 
   @override
   State<_GuestProfileCard> createState() => _GuestProfileCardState();
@@ -264,9 +303,20 @@ class _GuestProfileCard extends StatefulWidget {
 
 class _GuestProfileCardState extends State<_GuestProfileCard> {
   bool _obscurePassword = true;
+  _AuthMode _mode = _AuthMode.login;
+
+  bool get _busy => widget.loggingIn || widget.registering;
+
+  void _toggleMode() {
+    setState(() {
+      _mode = _mode == _AuthMode.login ? _AuthMode.register : _AuthMode.login;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bool isRegister = _mode == _AuthMode.register;
+
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
       child: Column(
@@ -287,7 +337,7 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
           const Text('Meow Media', style: AppTextStyles.sectionTitle),
           const SizedBox(height: AppSpacing.xxs),
           Text(
-            'Sign in to continue',
+            isRegister ? 'Create your account' : 'Sign in to continue',
             style: AppTextStyles.body.copyWith(
               color: AppColors.mutedOliveText,
             ),
@@ -303,12 +353,38 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                if (isRegister) ...<Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          controller: widget.firstNameController,
+                          cursorColor: AppColors.brandGold,
+                          textCapitalization: TextCapitalization.words,
+                          style: AppTextStyles.body,
+                          decoration: _inputDecoration('First name'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: TextField(
+                          controller: widget.lastNameController,
+                          cursorColor: AppColors.brandGold,
+                          textCapitalization: TextCapitalization.words,
+                          style: AppTextStyles.body,
+                          decoration: _inputDecoration('Last name'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
                 TextField(
                   controller: widget.emailController,
                   cursorColor: AppColors.brandGold,
                   keyboardType: TextInputType.emailAddress,
                   style: AppTextStyles.body,
-                  decoration: _loginInputDecoration('Email'),
+                  decoration: _inputDecoration('Email'),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
@@ -316,7 +392,7 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                   cursorColor: AppColors.brandGold,
                   obscureText: _obscurePassword,
                   style: AppTextStyles.body,
-                  decoration: _loginInputDecoration(
+                  decoration: _inputDecoration(
                     'Password',
                     suffixIcon: IconButton(
                       key: const ValueKey<String>(
@@ -345,9 +421,13 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                 ],
                 const SizedBox(height: AppSpacing.md),
                 ElevatedButton(
-                  onPressed: widget.loggingIn ? null : widget.onLogin,
+                  onPressed: _busy
+                      ? null
+                      : (isRegister ? widget.onRegister : widget.onLogin),
                   child: Text(
-                    widget.loggingIn ? 'Signing in...' : 'Sign In',
+                    isRegister
+                        ? (widget.registering ? 'Creating account...' : 'Sign Up')
+                        : (widget.loggingIn ? 'Signing in...' : 'Sign In'),
                   ),
                 ),
               ],
@@ -355,15 +435,19 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
           ),
           const SizedBox(height: AppSpacing.sm),
           TextButton(
-            onPressed: widget.onSignUp,
+            onPressed: _busy ? null : _toggleMode,
             child: RichText(
-              text: const TextSpan(
+              text: TextSpan(
                 style: AppTextStyles.caption,
                 children: <TextSpan>[
-                  TextSpan(text: 'Don’t have an account? '),
                   TextSpan(
-                    text: 'Sign Up',
-                    style: TextStyle(
+                    text: isRegister
+                        ? 'Already have an account? '
+                        : "Don't have an account? ",
+                  ),
+                  TextSpan(
+                    text: isRegister ? 'Sign In' : 'Sign Up',
+                    style: const TextStyle(
                       color: AppColors.brandGold,
                       fontWeight: FontWeight.w700,
                     ),
@@ -378,7 +462,7 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
   }
 }
 
-InputDecoration _loginInputDecoration(String label, {Widget? suffixIcon}) {
+InputDecoration _inputDecoration(String label, {Widget? suffixIcon}) {
   return InputDecoration(
     labelText: label,
     filled: true,

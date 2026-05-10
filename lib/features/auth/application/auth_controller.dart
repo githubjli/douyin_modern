@@ -57,7 +57,8 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> register({
     required String email,
     required String password,
-    required String displayName,
+    String? firstName,
+    String? lastName,
   }) async {
     final int operation = _beginOperation();
     final AuthSession? previous = _signedInSession;
@@ -66,7 +67,8 @@ class AuthController extends StateNotifier<AuthState> {
       final AuthSession session = await _repository.register(
         email: email,
         password: password,
-        displayName: displayName,
+        firstName: firstName,
+        lastName: lastName,
       );
       if (!_isCurrentOperation(operation)) return;
       state = session.isSignedIn

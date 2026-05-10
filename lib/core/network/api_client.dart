@@ -210,8 +210,25 @@ class ApiClient {
 
     if (data is Map<String, dynamic>) {
       if (data['code'] is String) code = data['code'] as String;
-      if (data['message'] is String) message = data['message'] as String;
-      if (data['detail'] is String) message = data['detail'] as String;
+      if (data['message'] is String) {
+        message = data['message'] as String;
+      } else if (data['detail'] is String) {
+        message = data['detail'] as String;
+      } else {
+        // Field-level validation errors: {"email": ["msg"], "password": ["msg"]}
+        final StringBuffer sb = StringBuffer();
+        for (final MapEntry<String, dynamic> entry in data.entries) {
+          final dynamic v = entry.value;
+          if (v is List && v.isNotEmpty) {
+            if (sb.isNotEmpty) sb.write(' ');
+            sb.write(v.first.toString());
+          } else if (v is String && v.isNotEmpty) {
+            if (sb.isNotEmpty) sb.write(' ');
+            sb.write(v);
+          }
+        }
+        if (sb.isNotEmpty) message = sb.toString();
+      }
     } else if (error.message != null && error.message!.isNotEmpty) {
       message = error.message!;
     }

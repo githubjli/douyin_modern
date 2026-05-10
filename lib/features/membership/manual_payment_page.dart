@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
@@ -136,7 +137,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
       final bool saved =
           await (widget.qrCodeSaver ?? _writeQrPng)(_qrKey);
       if (!mounted) return;
-      _showMessage(saved ? 'QR saved' : 'Unable to save QR. Please try again.');
+      if (!saved) _showMessage('Unable to share QR. Please try again.');
     } catch (_) {
       if (!mounted) return;
       _showMessage('Unable to save QR. Please try again.');
@@ -453,7 +454,7 @@ class _QrSection extends StatelessWidget {
               icon: saving
                   ? Icons.hourglass_top_rounded
                   : Icons.file_download_outlined,
-              label: saving ? 'Saving...' : 'Download QR Code',
+              label: saving ? 'Sharing...' : 'Share QR Code',
               onTap: saving ? null : onSave,
             ),
           ),
@@ -924,9 +925,16 @@ Future<bool> _writeQrPng(GlobalKey key) async {
   final Uint8List? png = bytes?.buffer.asUint8List();
   if (png == null || png.isEmpty) return false;
 
-  final Directory dir = await getApplicationDocumentsDirectory();
+  final Directory tmp = await getTemporaryDirectory();
   final String path =
-      '${dir.path}/manual_payment_qr_${DateTime.now().millisecondsSinceEpoch}.png';
+      '${tmp.path}/payment_qr_${DateTime.now().millisecondsSinceEpoch}.png';
   await File(path).writeAsBytes(png, flush: true);
+
+  await SharePlus.instance.share(
+    ShareParams(
+      files: <XFile>[XFile(path, mimeType: 'image/png')],
+      subject: 'Payment QR Code',
+    ),
+  );
   return true;
 }

@@ -240,15 +240,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               title: 'Loading',
               subtitle: 'Checking your session...',
             )
-          else if (isSignedIn)
+          else if (isSignedIn) ...<Widget>[
+            if (_error != null) ...<Widget>[
+              _WarmCard(title: 'Notice', subtitle: _error!),
+              const SizedBox(height: AppSpacing.sm),
+            ],
             _SignedInProfileBody(
               profile: _profile,
               onLogout: _logout,
               onRefresh: _refreshProfile,
             ),
-          if (_error != null && (isChecking || isSignedIn)) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            _WarmCard(title: 'Notice', subtitle: _error!),
           ],
         ],
       ),
@@ -709,6 +710,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
           // Refresh button
           IconButton(
+            key: const ValueKey<String>('profile-refresh-button'),
             icon: const Icon(Icons.refresh_rounded, size: 20),
             color: AppColors.mutedOliveText,
             tooltip: 'Refresh profile',

@@ -47,5 +47,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required to stream live video.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required for live audio streaming.</string>
 </dict>
 </plist>

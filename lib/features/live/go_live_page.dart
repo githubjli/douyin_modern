@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:ant_media_flutter/ant_media_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
@@ -13,8 +15,9 @@ import 'domain/live_session.dart';
 
 enum _Phase { idle, preparing, ready, live, ending, ended }
 
-// Set to false before production release.
-const bool _kSkipAntMediaCheck = true;
+// true  → use ?skip_ant_media=true on /start/ (no real WebRTC needed)
+// false → use Ant Media SDK; onPublishStarted triggers /start/
+const bool _kSkipAntMediaCheck = false;
 
 class GoLivePage extends StatefulWidget {
   const GoLivePage({super.key, required this.apiClient});
@@ -40,10 +43,24 @@ class _GoLivePageState extends State<GoLivePage> {
   int _startRetries = 0;
   static const int _maxStartRetries = 5;
 
+  // Ant Media / WebRTC
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  bool _cameraReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _localRenderer.initialize();
+  }
+
   @override
   void dispose() {
     _chatController.dispose();
     _stopPolling();
+    _localRenderer.dispose();
+    if (!_kSkipAntMediaCheck) {
+      AntMediaFlutter.anthelper?.close();
+    }
     super.dispose();
   }
 
@@ -94,8 +111,76 @@ class _GoLivePageState extends State<GoLivePage> {
     }
   }
 
-  // Production: called from Ant Media SDK onPublishStarted callback.
-  // V1: triggered by "Go Live" button tap (no real WebRTC stream).
+  // Called by Go Live button. Branches on _kSkipAntMediaCheck.
+  Future<void> _goLive() async {
+    if (_kSkipAntMediaCheck) {
+      await _startLive();
+    } else {
+      _initAndPublish();
+    }
+  }
+
+  // Initialise Ant Media SDK and start publishing.
+  // /start/ is called from the onPublishStarted (CallStateNew) callback.
+  void _initAndPublish() {
+    final LiveSession? session = _session;
+    if (session == null) return;
+    setState(() {
+      _phase = _Phase.preparing;
+      _error = null;
+    });
+
+    AntMediaFlutter.requestPermissions();
+
+    // connect(ip, streamId, roomId, token, type, userScreen,
+    //         onStateChange, onLocalStream, onAddRemoteStream,
+    //         onDataChannel, onDataChannelMessage,
+    //         onupdateConferencePerson, onRemoveRemoteStream,
+    //         iceServers, callbacks)
+    AntMediaFlutter.connect(
+      session.websocketUrl,  // ip / websocket URL
+      session.streamId,      // streamId (= stream_key)
+      '',                    // roomId
+      '',                    // token
+      AntMediaType.Publish,
+      false,                 // userScreen — false = camera
+      (HelperState state) {
+        if (!mounted) return;
+        switch (state) {
+          case HelperState.CallStateNew:
+            unawaited(_startLive());
+          case HelperState.ConnectionError:
+          case HelperState.ConnectionClosed:
+            if (_phase != _Phase.live && _phase != _Phase.ending) {
+              setState(() {
+                _error = 'Stream connection failed. Please try again.';
+                _phase = _Phase.ready;
+                _cameraReady = false;
+              });
+            }
+          default:
+            break;
+        }
+      },
+      (MediaStream stream) {
+        if (mounted) {
+          setState(() {
+            _localRenderer.srcObject = stream;
+            _cameraReady = true;
+          });
+        }
+      },
+      (MediaStream stream) {},
+      (RTCDataChannel channel) {},
+      (RTCDataChannel dc, RTCDataChannelMessage data, bool isReceived) {},
+      (dynamic streams) {},
+      (MediaStream stream) {},
+      <Map<String, String>>[],
+      (String command, Map<dynamic, dynamic> mapData) {},
+    );
+  }
+
+  // Called either directly (bypass) or from SDK onPublishStarted callback.
   Future<void> _startLive() async {
     final String? id = _session?.id;
     if (id == null || id.isEmpty) return;
@@ -188,7 +273,13 @@ class _GoLivePageState extends State<GoLivePage> {
     final String? id = _session?.id;
     if (id == null) return;
     _stopPolling();
-    setState(() => _phase = _Phase.ending);
+    if (!_kSkipAntMediaCheck) {
+      AntMediaFlutter.anthelper?.close();
+    }
+    setState(() {
+      _phase = _Phase.ending;
+      _cameraReady = false;
+    });
     try {
       await widget.apiClient.post<dynamic>(
         Endpoints.liveEnd(id),
@@ -333,6 +424,7 @@ class _GoLivePageState extends State<GoLivePage> {
           sendingMessage: _sendingMessage,
           durationSeconds: _durationSeconds,
           ending: _phase == _Phase.ending,
+          localRenderer: _cameraReady ? _localRenderer : null,
           onSend: _sendMessage,
           onEnd: _endLive,
           formatDuration: _formatDuration,
@@ -341,7 +433,8 @@ class _GoLivePageState extends State<GoLivePage> {
           phase: _phase,
           error: _error,
           session: _session,
-          onStart: _phase == _Phase.idle ? _quickStart : _startLive,
+          localRenderer: _cameraReady ? _localRenderer : null,
+          onStart: _phase == _Phase.idle ? _quickStart : _goLive,
           onBack: () => Navigator.of(context).maybePop(),
         ),
     };
@@ -357,6 +450,7 @@ class _PrepareView extends StatelessWidget {
     required this.session,
     required this.onStart,
     required this.onBack,
+    this.localRenderer,
   });
 
   final _Phase phase;
@@ -364,6 +458,7 @@ class _PrepareView extends StatelessWidget {
   final LiveSession? session;
   final VoidCallback onStart;
   final VoidCallback onBack;
+  final RTCVideoRenderer? localRenderer;
 
   @override
   Widget build(BuildContext context) {
@@ -376,33 +471,28 @@ class _PrepareView extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          // Camera placeholder
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[Color(0xFF0D0D0D), Color(0xFF1C1C14)],
-              ),
-            ),
-            child: const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(
-                    Icons.videocam_outlined,
-                    color: Color(0xFF333333),
-                    size: 80,
+          // Camera preview or placeholder
+          localRenderer != null
+              ? RTCVideoView(localRenderer!, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+              : Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[Color(0xFF0D0D0D), Color(0xFF1C1C14)],
+                    ),
                   ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Camera Preview',
-                    style: TextStyle(color: Color(0xFF444444), fontSize: 14),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(Icons.videocam_outlined, color: Color(0xFF333333), size: 80),
+                        SizedBox(height: 12),
+                        Text('Camera Preview', style: TextStyle(color: Color(0xFF444444), fontSize: 14)),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-          ),
+                ),
 
           // Top bar
           SafeArea(
@@ -575,12 +665,14 @@ class _LiveView extends StatefulWidget {
     required this.onSend,
     required this.onEnd,
     required this.formatDuration,
+    this.localRenderer,
   });
 
   final LiveSession? session;
   final List<LiveChatMessage> messages;
   final TextEditingController chatController;
   final bool sendingMessage;
+  final RTCVideoRenderer? localRenderer;
   final int durationSeconds;
   final bool ending;
   final VoidCallback onSend;
@@ -634,6 +726,9 @@ class _LiveViewState extends State<_LiveView> {
                 colors: <Color>[Color(0xFF0D0D0D), Color(0xFF1C1C14)],
               ),
             ),
+            child: widget.localRenderer != null
+                ? RTCVideoView(widget.localRenderer!, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+                : null,
           ),
 
           // Top gradient

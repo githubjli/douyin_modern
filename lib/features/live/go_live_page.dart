@@ -46,6 +46,7 @@ class _GoLivePageState extends State<GoLivePage> {
   // Ant Media / WebRTC
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   bool _cameraReady = false;
+  bool _publishStarted = false;
 
   @override
   void initState() {
@@ -121,7 +122,7 @@ class _GoLivePageState extends State<GoLivePage> {
   }
 
   // Initialise Ant Media SDK and start publishing.
-  // /start/ is called from the onPublishStarted (CallStateNew) callback.
+  // /start/ is called once the SDK fires the publish_started notification.
   void _initAndPublish() {
     final LiveSession? session = _session;
     if (session == null) return;
@@ -130,6 +131,7 @@ class _GoLivePageState extends State<GoLivePage> {
       _error = null;
     });
 
+    _publishStarted = false;
     AntMediaFlutter.requestPermissions();
 
     // connect(ip, streamId, roomId, token, type, userScreen,
@@ -147,11 +149,12 @@ class _GoLivePageState extends State<GoLivePage> {
       (HelperState state) {
         if (!mounted) return;
         switch (state) {
-          case HelperState.CallStateNew:
-            unawaited(_startLive());
           case HelperState.ConnectionError:
           case HelperState.ConnectionClosed:
-            if (_phase != _Phase.live && _phase != _Phase.ending) {
+            // Only treat as failure if publishing never started
+            if (!_publishStarted &&
+                _phase != _Phase.live &&
+                _phase != _Phase.ending) {
               setState(() {
                 _error = 'Stream connection failed. Please try again.';
                 _phase = _Phase.ready;
@@ -176,7 +179,21 @@ class _GoLivePageState extends State<GoLivePage> {
       (dynamic streams) {},
       (MediaStream stream) {},
       <Map<String, String>>[],
-      (String command, Map<dynamic, dynamic> mapData) {},
+      (String command, Map<dynamic, dynamic> mapData) {
+        if (command == 'notification' &&
+            mapData['definition'] == 'publish_started') {
+          // Stream is live on Ant Media — notify backend once
+          if (!_publishStarted) {
+            _publishStarted = true;
+            unawaited(_startLive());
+          }
+        } else if (command == 'error' &&
+            mapData['definition'] == 'streamIdInUse') {
+          // SDK reconnected after publish_started; the stream is already
+          // being broadcast. Close the helper to break the reconnect loop.
+          AntMediaFlutter.anthelper?.close();
+        }
+      },
     );
   }
 

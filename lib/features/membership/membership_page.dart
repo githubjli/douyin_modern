@@ -1068,6 +1068,46 @@ const List<_VipPick> _vipPicks = <_VipPick>[
     subtitle: 'Watch before everyone',
     colors: <Color>[Color(0xFF5A3928), Color(0xFF24201F)],
   ),
+  _VipPick(
+    title: 'Hidden Gems',
+    subtitle: 'Curated member picks',
+    colors: <Color>[Color(0xFF3D4F2E), Color(0xFF1E2820)],
+  ),
+  _VipPick(
+    title: 'Behind the Scenes',
+    subtitle: 'Exclusive creator content',
+    colors: <Color>[Color(0xFF2E3F5A), Color(0xFF1A2028)],
+  ),
+  _VipPick(
+    title: 'Director\'s Cut',
+    subtitle: 'Extended episodes',
+    colors: <Color>[Color(0xFF4F2E3D), Color(0xFF281E24)],
+  ),
+  _VipPick(
+    title: 'Night Stories',
+    subtitle: 'Premium late-night dramas',
+    colors: <Color>[Color(0xFF2E2E5A), Color(0xFF1A1A28)],
+  ),
+  _VipPick(
+    title: 'Shorts Collection',
+    subtitle: 'VIP short films',
+    colors: <Color>[Color(0xFF5A3F2E), Color(0xFF28201A)],
+  ),
+  _VipPick(
+    title: 'Top Creators',
+    subtitle: 'Follow exclusive creators',
+    colors: <Color>[Color(0xFF3F5A2E), Color(0xFF202818)],
+  ),
+  _VipPick(
+    title: 'Live Replays',
+    subtitle: 'Missed a live? Watch now',
+    colors: <Color>[Color(0xFF5A4F2E), Color(0xFF282418)],
+  ),
+  _VipPick(
+    title: 'Monthly Specials',
+    subtitle: 'New drops every month',
+    colors: <Color>[Color(0xFF4F3F5A), Color(0xFF241E28)],
+  ),
 ];
 
 List<MembershipPlan> _displayPlans(List<MembershipPlan> remotePlans) {

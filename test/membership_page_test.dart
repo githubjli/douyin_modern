@@ -947,7 +947,7 @@ void main() {
 
     expect(videoRepository.calls, hasLength(1));
     expect(videoRepository.calls.single.accessType, 'membership');
-    expect(videoRepository.calls.single.pageSize, 4);
+    expect(videoRepository.calls.single.pageSize, 12);
     expect(videoRepository.calls.single.authenticated, isTrue);
     expect(find.text('Members Only Cut'), findsOneWidget);
   });
@@ -983,7 +983,7 @@ void main() {
     expect(videoRepository.calls.first.accessType, 'membership');
     expect(videoRepository.calls.first.authenticated, isTrue);
     expect(videoRepository.calls.last.accessType, isNull);
-    expect(videoRepository.calls.last.pageSize, 12);
+    expect(videoRepository.calls.last.pageSize, 24);
     expect(videoRepository.calls.last.authenticated, isTrue);
     expect(find.text('Fallback Members Cut'), findsOneWidget);
   });

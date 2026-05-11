@@ -100,20 +100,20 @@ final membershipVipVideosProvider =
     try {
       final HomeVideoPage page = await videoRepo.getVideoPage(
         accessType: 'membership',
-        pageSize: 4,
+        pageSize: 12,
         authenticated: true,
       );
       final List<HomeVideoItem> filtered = _membershipVideos(page.items);
-      if (filtered.isNotEmpty) return filtered.take(4).toList();
+      if (filtered.isNotEmpty) return filtered.take(12).toList();
     } catch (_) {
       // Fall through to unfiltered fetch.
     }
     try {
       final HomeVideoPage page = await videoRepo.getVideoPage(
-        pageSize: 12,
+        pageSize: 24,
         authenticated: true,
       );
-      return _membershipVideos(page.items).take(4).toList();
+      return _membershipVideos(page.items).take(12).toList();
     } catch (_) {
       return const <HomeVideoItem>[];
     }

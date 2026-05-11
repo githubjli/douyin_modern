@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,10 +9,13 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_error.dart';
+import '../../core/network/endpoints.dart';
 import '../../shared/brand_page_header.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../membership/membership_orders_page.dart';
+import '../meow_points/domain/meow_point_wallet.dart';
+import '../meow_points/meow_points_page.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -29,6 +34,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late final ProfileRepository _profileRepository;
+  late final ApiClient _apiClient;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -40,13 +46,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _registering = false;
   String? _error;
   UserProfile? _profile;
+  MeowPointWallet? _wallet;
 
   @override
   void initState() {
     super.initState();
-    final ApiClient apiClient = ApiClient();
+    _apiClient = ApiClient();
     _profileRepository = widget._profileRepository ??
-        RemoteProfileRepository(apiClient: apiClient);
+        RemoteProfileRepository(apiClient: _apiClient);
     Future<void>.microtask(() {
       ref.read(authControllerProvider.notifier).bootstrap();
     });
@@ -73,6 +80,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(() {
         _profile = profile;
       });
+      unawaited(_loadWallet());
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {
@@ -87,6 +95,50 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (mounted) {
         setState(() => _loadingProfile = false);
       }
+    }
+  }
+
+  Future<void> _loadWallet() async {
+    try {
+      final response = await _apiClient.get<dynamic>(
+        Endpoints.meowPointsWallet,
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (data is Map<String, dynamic> && mounted) {
+        setState(() {
+          _wallet = MeowPointWallet.fromJson(data);
+        });
+      }
+    } catch (_) {
+      // silent — wallet is non-critical
+    }
+  }
+
+  Future<void> _claimDailyReward() async {
+    try {
+      final response = await _apiClient.post<dynamic>(
+        Endpoints.meowPointsDailyReward,
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (!mounted) return;
+      final bool granted =
+          data is Map<String, dynamic> ? data['granted'] == true : false;
+      final int amount = data is Map<String, dynamic>
+          ? (data['points_amount'] as num?)?.toInt() ?? 0
+          : 0;
+      if (granted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('+$amount Meow Points — daily reward!'),
+            backgroundColor: AppColors.cardBackground,
+          ),
+        );
+        unawaited(_loadWallet());
+      }
+    } catch (_) {
+      // silent — don't interrupt login flow
     }
   }
 
@@ -126,6 +178,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final AuthState authState = ref.read(authControllerProvider);
       if (authState.isSignedIn) {
         _passwordController.clear();
+        unawaited(_claimDailyReward());
       }
     } finally {
       if (mounted) {
@@ -151,6 +204,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         _passwordController.clear();
         _firstNameController.clear();
         _lastNameController.clear();
+        unawaited(_claimDailyReward());
       }
     } finally {
       if (mounted) {
@@ -164,6 +218,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (!mounted) return;
     setState(() {
       _profile = null;
+      _wallet = null;
       _error = null;
       _emailController.clear();
       _passwordController.clear();
@@ -177,6 +232,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (authState.status == AuthStatus.signedOut) {
       setState(() {
         _profile = null;
+        _wallet = null;
         _error = null;
         _emailController.clear();
         _passwordController.clear();
@@ -263,9 +319,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ],
             _SignedInProfileBody(
               profile: _profile,
+              wallet: _wallet,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,
+              onWalletDetails: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => MeowPointsPage(
+                    apiClient: _apiClient,
+                    initialWallet: _wallet,
+                  ),
+                ),
+              ),
             ),
           ],
         ],
@@ -538,15 +603,19 @@ class _InlineAuthMessage extends StatelessWidget {
 class _SignedInProfileBody extends StatelessWidget {
   const _SignedInProfileBody({
     required this.profile,
+    required this.wallet,
     required this.onLogout,
     required this.onRefresh,
     required this.onEdit,
+    required this.onWalletDetails,
   });
 
   final UserProfile? profile;
+  final MeowPointWallet? wallet;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
+  final VoidCallback onWalletDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -560,7 +629,7 @@ class _SignedInProfileBody extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
 
         // ── Meow Points card ───────────────────────────────────────────
-        const _PointsCard(points: null), // TODO: wire up backend
+        _PointsCard(wallet: wallet, onDetails: onWalletDetails),
         const SizedBox(height: AppSpacing.md),
 
         // ── Creator tools (only when isCreator) ────────────────────────
@@ -850,9 +919,10 @@ class _RoleBadge extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PointsCard extends StatelessWidget {
-  const _PointsCard({required this.points});
+  const _PointsCard({required this.wallet, required this.onDetails});
 
-  final int? points;
+  final MeowPointWallet? wallet;
+  final VoidCallback onDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -888,7 +958,7 @@ class _PointsCard extends StatelessWidget {
               children: <Widget>[
                 const Text('Meow Points', style: AppTextStyles.body),
                 Text(
-                  points != null ? '$points pts' : '— pts',
+                  wallet != null ? '${wallet!.balance} pts' : '— pts',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.mutedOliveText,
                   ),
@@ -897,9 +967,7 @@ class _PointsCard extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Coming soon.')),
-            ),
+            onPressed: onDetails,
             child: const Text('Details'),
           ),
         ],

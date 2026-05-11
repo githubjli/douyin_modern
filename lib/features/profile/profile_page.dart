@@ -688,18 +688,8 @@ class _SignedInProfileBody extends StatelessWidget {
               ),
               _MenuItem(
                 icon: Icons.sensors_rounded,
-                label: 'Start Live',
+                label: 'Go Live',
                 onTap: onGoLive,
-              ),
-              _MenuItem(
-                icon: Icons.redeem_outlined,
-                label: 'Live Products',
-                onTap: () => _soon(context),
-              ),
-              _MenuItem(
-                icon: Icons.payment_outlined,
-                label: 'Payment Methods',
-                onTap: () => _soon(context),
               ),
             ],
           ),
@@ -711,12 +701,12 @@ class _SignedInProfileBody extends StatelessWidget {
             items: <_MenuItem>[
               _MenuItem(
                 icon: Icons.menu_book_outlined,
-                label: 'My Drama Series',
+                label: 'My Drama',
                 onTap: () => _soon(context),
               ),
               _MenuItem(
                 icon: Icons.add_box_outlined,
-                label: 'Create Drama Series',
+                label: 'Create Drama',
                 onTap: () => _soon(context),
               ),
             ],

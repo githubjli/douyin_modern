@@ -625,6 +625,10 @@ class _SignedInProfileBody extends StatelessWidget {
   final VoidCallback onWalletDetails;
   final VoidCallback onGoLive;
 
+  void _soon(BuildContext context) => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Coming soon.')),
+      );
+
   @override
   Widget build(BuildContext context) {
     final bool isCreator = profile?.isCreator == true;
@@ -640,44 +644,94 @@ class _SignedInProfileBody extends StatelessWidget {
         _PointsCard(wallet: wallet, onDetails: onWalletDetails),
         const SizedBox(height: AppSpacing.md),
 
-        // ── Creator tools (only when isCreator) ────────────────────────
+        // ── Creator Studio (only for creators) ────────────────────────
         if (isCreator) ...<Widget>[
-          _SectionCard(
-            label: 'Creator Studio',
+          // Section group label
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xs, bottom: AppSpacing.xs),
+            child: Text(
+              'CREATOR STUDIO',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.mutedOliveText,
+                letterSpacing: 0.8,
+                fontSize: 11,
+              ),
+            ),
+          ),
+
+          // Video Creator
+          _StudioSubCard(
+            label: 'Video Creator',
             items: <_MenuItem>[
               _MenuItem(
                 icon: Icons.play_circle_outline_rounded,
                 label: 'My Videos',
-                onTap: () => _showComingSoon(context),
+                onTap: () => _soon(context),
               ),
               _MenuItem(
                 icon: Icons.upload_outlined,
                 label: 'Upload Video',
-                onTap: () => _showComingSoon(context),
+                onTap: () => _soon(context),
               ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Live Creator
+          _StudioSubCard(
+            label: 'Live Creator',
+            items: <_MenuItem>[
               _MenuItem(
                 icon: Icons.live_tv_outlined,
-                label: 'Go Live',
+                label: 'My Live Streams',
+                onTap: () => _soon(context),
+              ),
+              _MenuItem(
+                icon: Icons.sensors_rounded,
+                label: 'Start Live',
                 onTap: onGoLive,
               ),
               _MenuItem(
+                icon: Icons.redeem_outlined,
+                label: 'Live Products',
+                onTap: () => _soon(context),
+              ),
+              _MenuItem(
+                icon: Icons.payment_outlined,
+                label: 'Payment Methods',
+                onTap: () => _soon(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Drama Creator
+          _StudioSubCard(
+            label: 'Drama Creator',
+            items: <_MenuItem>[
+              _MenuItem(
                 icon: Icons.menu_book_outlined,
-                label: 'Drama Creator',
-                onTap: () => _showComingSoon(context),
+                label: 'My Drama Series',
+                onTap: () => _soon(context),
+              ),
+              _MenuItem(
+                icon: Icons.add_box_outlined,
+                label: 'Create Drama Series',
+                onTap: () => _soon(context),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
         ],
 
-        // ── My content ─────────────────────────────────────────────────
+        // ── My Content ─────────────────────────────────────────────────
         _SectionCard(
           label: 'My Content',
           items: <_MenuItem>[
             _MenuItem(
               icon: Icons.video_library_outlined,
               label: 'My Library',
-              onTap: () => _showComingSoon(context),
+              onTap: () => _soon(context),
             ),
             _MenuItem(
               icon: Icons.workspace_premium_outlined,
@@ -699,7 +753,7 @@ class _SignedInProfileBody extends StatelessWidget {
             _MenuItem(
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet & Billing',
-              onTap: () => _showComingSoon(context),
+              onTap: () => _soon(context),
             ),
           ],
         ),
@@ -712,7 +766,7 @@ class _SignedInProfileBody extends StatelessWidget {
             _MenuItem(
               icon: Icons.lock_outline_rounded,
               label: 'Change Password',
-              onTap: () => _showComingSoon(context),
+              onTap: () => _soon(context),
             ),
           ],
         ),
@@ -724,7 +778,7 @@ class _SignedInProfileBody extends StatelessWidget {
           items: <_MenuItem>[
             _MenuItem(
               icon: Icons.logout_rounded,
-              label: 'Logout',
+              label: 'Sign Out',
               destructive: true,
               onTap: onLogout,
             ),
@@ -732,12 +786,6 @@ class _SignedInProfileBody extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
       ],
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming soon.')),
     );
   }
 }
@@ -978,6 +1026,57 @@ class _PointsCard extends StatelessWidget {
             onPressed: onDetails,
             child: const Text('Details'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Creator Studio sub-card (with category label pill)
+// ---------------------------------------------------------------------------
+
+class _StudioSubCard extends StatelessWidget {
+  const _StudioSubCard({required this.label, required this.items});
+
+  final String label;
+  final List<_MenuItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.brandGold,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          for (int i = 0; i < items.length; i++) ...<Widget>[
+            _MenuRow(item: items[i]),
+            if (i < items.length - 1)
+              const Divider(
+                height: 1,
+                thickness: 1,
+                color: AppColors.softBorder,
+                indent: AppSpacing.md + 28,
+              ),
+          ],
         ],
       ),
     );

@@ -7,18 +7,21 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import 'application/payment_page_notifier.dart';
 import 'domain/membership_order.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
 
 typedef QrCodeSaver = Future<bool> Function(GlobalKey qrKey);
 
-class MembershipPaymentPage extends StatefulWidget {
+/// Outer widget — injects page-scoped [paymentPageProvider] via [ProviderScope].
+class MembershipPaymentPage extends StatelessWidget {
   const MembershipPaymentPage({
     super.key,
     required this.order,
@@ -33,29 +36,50 @@ class MembershipPaymentPage extends StatefulWidget {
   final QrCodeSaver? qrCodeSaver;
 
   @override
-  State<MembershipPaymentPage> createState() => _MembershipPaymentPageState();
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: <Override>[
+        paymentPageProvider.overrideWith(
+          (ref) => PaymentPageNotifier(
+            initialOrder: order,
+            repository: repository,
+          ),
+        ),
+      ],
+      child: _PaymentBody(
+        selectedPlan: selectedPlan,
+        qrCodeSaver: qrCodeSaver,
+      ),
+    );
+  }
 }
 
-class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
+/// Inner widget — owns [Timer] lifecycle; all mutable state lives in [paymentPageProvider].
+class _PaymentBody extends ConsumerStatefulWidget {
+  const _PaymentBody({required this.selectedPlan, this.qrCodeSaver});
+
+  final MembershipPlan selectedPlan;
+  final QrCodeSaver? qrCodeSaver;
+
+  @override
+  ConsumerState<_PaymentBody> createState() => _PaymentBodyState();
+}
+
+class _PaymentBodyState extends ConsumerState<_PaymentBody> {
   final GlobalKey _qrKey = GlobalKey();
   final TextEditingController _txHashController = TextEditingController();
-  bool _savingQr = false;
-  bool _submittingTx = false;
-  bool _verifyingNow = false;
-  bool _txSubmitted = false;
-
-  late MembershipOrder _currentOrder;
   Timer? _countdownTimer;
   Timer? _pollTimer;
-  Duration _remaining = Duration.zero;
 
   static const Duration _pollInterval = Duration(seconds: 5);
 
   @override
   void initState() {
     super.initState();
-    _currentOrder = widget.order;
-    _startCountdown();
+    // Defer to post-frame: Riverpod forbids modifying providers during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startCountdown();
+    });
   }
 
   @override
@@ -66,14 +90,11 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     super.dispose();
   }
 
-  MembershipOrder get order => _currentOrder;
-
-  MembershipPlan get selectedPlan => widget.selectedPlan;
-
   // ---------- countdown ----------
 
   void _startCountdown() {
-    final String? expiresAt = _currentOrder.expiresAt;
+    final String? expiresAt =
+        ref.read(paymentPageProvider).currentOrder.expiresAt;
     if (expiresAt == null) return;
     final DateTime? expiry = DateTime.tryParse(expiresAt);
     if (expiry == null) return;
@@ -81,9 +102,9 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
     void tick() {
       if (!mounted) return;
       final Duration remaining = expiry.difference(DateTime.now());
-      setState(() {
-        _remaining = remaining.isNegative ? Duration.zero : remaining;
-      });
+      ref
+          .read(paymentPageProvider.notifier)
+          .tick(remaining.isNegative ? Duration.zero : remaining);
       if (remaining.isNegative) {
         _countdownTimer?.cancel();
         _pollTimer?.cancel();
@@ -108,135 +129,109 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
 
   Future<void> _pollOrder() async {
     if (!mounted) return;
-    try {
-      final MembershipOrder updated =
-          await widget.repository.getOrder(_currentOrder.orderNo);
-      if (!mounted) return;
-      setState(() {
-        _currentOrder = updated;
-      });
-      if (updated.isSuccessLike) {
-        _stopPolling();
-        _countdownTimer?.cancel();
-      }
-    } catch (_) {
-      // silent — keep polling
+    final bool done =
+        await ref.read(paymentPageProvider.notifier).pollOrder();
+    if (done) {
+      _stopPolling();
+      _countdownTimer?.cancel();
     }
   }
 
-  // ---------- verify now ----------
+  // ---------- actions ----------
 
   Future<void> _verifyNow() async {
-    if (_verifyingNow) return;
-    setState(() {
-      _verifyingNow = true;
-    });
-    try {
-      final MembershipOrder updated =
-          await widget.repository.verifyNow(_currentOrder.orderNo);
-      if (!mounted) return;
-      setState(() {
-        _currentOrder = updated;
-        _verifyingNow = false;
-      });
-      if (updated.isSuccessLike) {
-        _stopPolling();
-        _countdownTimer?.cancel();
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _verifyingNow = false;
-      });
-      _showMessage('Verification failed. Please try again.');
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final bool success =
+        await ref.read(paymentPageProvider.notifier).verifyNow();
+    if (!mounted) return;
+    if (success) {
+      _stopPolling();
+      _countdownTimer?.cancel();
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Verification failed. Please try again.')),
+      );
     }
   }
 
   Future<void> _copyAddress() async {
-    final String? address = _trimmed(order.payToAddress);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final String? address =
+        _trimmed(ref.read(paymentPageProvider).currentOrder.payToAddress);
     if (address == null) {
-      _showMessage('Payment address unavailable');
+      messenger
+          .showSnackBar(const SnackBar(content: Text('Payment address unavailable')));
       return;
     }
     await Clipboard.setData(ClipboardData(text: address));
     if (!mounted) return;
-    _showMessage('Address copied');
+    messenger.showSnackBar(const SnackBar(content: Text('Address copied')));
   }
 
   Future<void> _saveQrCode() async {
-    if (_savingQr || _paymentQrPayload(order) == null) return;
+    final PaymentPageState pageState = ref.read(paymentPageProvider);
+    if (pageState.savingQr ||
+        _paymentQrPayload(pageState.currentOrder) == null) return;
 
-    setState(() {
-      _savingQr = true;
-    });
-
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    ref.read(paymentPageProvider.notifier).setSavingQr(value: true);
     try {
-      final bool saved = await (widget.qrCodeSaver ?? _writeQrPng)(_qrKey);
+      final bool saved =
+          await (widget.qrCodeSaver ?? _writeQrPng)(_qrKey);
       if (!mounted) return;
-      _showMessage(
-        saved ? 'QR saved' : 'Unable to save QR. Please try again.',
-      );
+      messenger.showSnackBar(SnackBar(
+        content: Text(saved ? 'QR saved' : 'Unable to save QR. Please try again.'),
+      ));
     } catch (_) {
       if (!mounted) return;
-      _showMessage('Unable to save QR. Please try again.');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to save QR. Please try again.')),
+      );
     } finally {
-      if (mounted) {
-        setState(() {
-          _savingQr = false;
-        });
-      }
+      if (mounted) ref.read(paymentPageProvider.notifier).setSavingQr(value: false);
     }
   }
 
   Future<void> _submitTransactionHash() async {
-    if (_submittingTx) return;
-
     final String txHash = _txHashController.text.trim();
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     if (txHash.isEmpty) {
-      _showMessage('Please enter transaction hash.');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter transaction hash.')),
+      );
       return;
     }
-
-    setState(() {
-      _submittingTx = true;
-    });
-
-    try {
-      final MembershipOrder updated = await widget.repository.submitTxHint(
-        orderNo: order.orderNo,
-        txid: txHash,
-      );
-      if (!mounted) return;
-      setState(() {
-        _currentOrder = updated;
-        _submittingTx = false;
-        _txSubmitted = true;
-      });
-      _showMessage('Transaction hash submitted. Awaiting confirmation.');
+    final PaymentPageState pageState = ref.read(paymentPageProvider);
+    final bool success =
+        await ref.read(paymentPageProvider.notifier).submitTxHint(
+          orderNo: pageState.currentOrder.orderNo,
+          txid: txHash,
+        );
+    if (!mounted) return;
+    if (success) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Transaction hash submitted. Awaiting confirmation.'),
+      ));
       _startPolling();
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _submittingTx = false;
-      });
-      _showMessage('Unable to submit transaction hash. Please try again.');
+    } else {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Unable to submit transaction hash. Please try again.'),
+      ));
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool paid = _currentOrder.isSuccessLike;
+    final PaymentPageState pageState = ref.watch(paymentPageProvider);
+    final MembershipOrder order = pageState.currentOrder;
+    final MembershipPlan selectedPlan = widget.selectedPlan;
+    final bool paid = pageState.isPaid;
     final String? qrPayload = _paymentQrPayload(order);
-    final String tokenSymbol = _selectedPlanTokenSymbol(selectedPlan, order);
-    final bool expired =
-        _currentOrder.isExpired || (_remaining == Duration.zero &&
-            _currentOrder.expiresAt != null &&
+    final String tokenSymbol =
+        _selectedPlanTokenSymbol(selectedPlan, order);
+    final bool expired = order.isExpired ||
+        (pageState.remaining == Duration.zero &&
+            order.expiresAt != null &&
             !paid);
 
     return Scaffold(
@@ -262,18 +257,17 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
               if (paid)
                 _PaymentSuccessCard(planTitle: selectedPlan.title)
               else ...<Widget>[
-                if (_currentOrder.expiresAt != null)
+                if (order.expiresAt != null)
                   _CountdownBanner(
-                    remaining: _remaining,
+                    remaining: pageState.remaining,
                     expired: expired,
                   ),
-                if (_currentOrder.expiresAt != null)
-                  const SizedBox(height: AppSpacing.sm),
+                if (order.expiresAt != null) const SizedBox(height: AppSpacing.sm),
                 _QrPaymentSection(
                   qrKey: _qrKey,
                   qrPayload: qrPayload,
-                  canSave: qrPayload != null && !_savingQr,
-                  saving: _savingQr,
+                  canSave: qrPayload != null && !pageState.savingQr,
+                  saving: pageState.savingQr,
                   onSave: _saveQrCode,
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -286,13 +280,13 @@ class _MembershipPaymentPageState extends State<MembershipPaymentPage> {
                 const SizedBox(height: AppSpacing.md),
                 _TransactionHashSection(
                   controller: _txHashController,
-                  submitting: _submittingTx,
+                  submitting: pageState.submittingTx,
                   onSubmit: _submitTransactionHash,
                 ),
-                if (_txSubmitted) ...<Widget>[
+                if (pageState.txSubmitted) ...<Widget>[
                   const SizedBox(height: AppSpacing.sm),
                   _VerifyNowSection(
-                    verifying: _verifyingNow,
+                    verifying: pageState.verifyingNow,
                     onVerify: _verifyNow,
                   ),
                 ],

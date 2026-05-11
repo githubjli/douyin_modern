@@ -326,10 +326,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               onEdit: _openEditProfile,
               onWalletDetails: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
-                  builder: (_) => MeowPointsPage(
-                    apiClient: _apiClient,
-                    initialWallet: _wallet,
-                  ),
+                  builder: (_) => const MeowPointsPage(),
                 ),
               ),
               onGoLive: () => Navigator.of(context).push<void>(

@@ -8,6 +8,10 @@ class Endpoints {
 
   static const String accountProfile = '/api/account/profile';
 
+  static const String meowPointsWallet = '/api/meow-points/wallet/';
+  static const String meowPointsDailyReward =
+      '/api/meow-points/daily-login-reward/';
+
   static const String publicVideos = '/api/public/videos/';
 
   static String publicVideoDetail(int id) => '/api/public/videos/$id/';

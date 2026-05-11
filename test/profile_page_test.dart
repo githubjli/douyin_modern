@@ -125,7 +125,7 @@ void main() {
 
     expect(find.text('Profile User'), findsOneWidget);
     expect(find.text('profile@example.com'), findsOneWidget);
-    expect(find.text('Logout'), findsOneWidget);
+    expect(find.text('Sign Out'), findsOneWidget);
     expect(find.text('Sign in to continue'), findsNothing);
   });
 
@@ -145,7 +145,7 @@ void main() {
     expect(authRepository.loginCalled, isTrue);
     expect(authRepository.loginEmail, 'meow@example.com');
     expect(find.text('Profile User'), findsOneWidget);
-    expect(find.text('Logout'), findsOneWidget);
+    expect(find.text('Sign Out'), findsOneWidget);
   });
 
   testWidgets('token-only login flow shows signed-in profile instead of login',
@@ -176,9 +176,9 @@ void main() {
     await pumpProfilePage(tester, authRepository: authRepository);
 
     // Logout is below the fold in the new layout — ensure it is scrolled into view.
-    await tester.ensureVisible(find.text('Logout'));
+    await tester.ensureVisible(find.text('Sign Out'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Logout'));
+    await tester.tap(find.text('Sign Out'));
     await tester.pumpAndSettle();
 
     expect(authRepository.logoutCalled, isTrue);

@@ -10,11 +10,11 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
-import '../../core/network/api_error_classifier.dart';
 import '../../core/network/endpoints.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../home/domain/home_models.dart';
+import 'application/video_detail_notifier.dart';
 
 const TextStyle _videoDetailSectionHeadingStyle = TextStyle(
   fontSize: 12,
@@ -53,46 +53,6 @@ const TextStyle _videoDetailFollowStyle = TextStyle(
 );
 
 // ---------------------------------------------------------------------------
-// Interaction state (owned by _VideoDetailPageState, not HomeVideoItem)
-// ---------------------------------------------------------------------------
-
-class _InteractionState {
-  const _InteractionState({
-    this.likeCount = 0,
-    this.isLiked = false,
-    this.commentCount = 0,
-    this.creatorId,
-    this.subscriberCount,
-    this.isFollowing = false,
-  });
-
-  final int likeCount;
-  final bool isLiked;
-  final int commentCount;
-  final int? creatorId;
-  final int? subscriberCount;
-  final bool isFollowing;
-
-  _InteractionState copyWith({
-    int? likeCount,
-    bool? isLiked,
-    int? commentCount,
-    int? creatorId,
-    int? subscriberCount,
-    bool? isFollowing,
-  }) {
-    return _InteractionState(
-      likeCount: likeCount ?? this.likeCount,
-      isLiked: isLiked ?? this.isLiked,
-      commentCount: commentCount ?? this.commentCount,
-      creatorId: creatorId ?? this.creatorId,
-      subscriberCount: subscriberCount ?? this.subscriberCount,
-      isFollowing: isFollowing ?? this.isFollowing,
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Comment model
 // ---------------------------------------------------------------------------
 
@@ -114,6 +74,9 @@ class _Comment {
 // Main page widget
 // ---------------------------------------------------------------------------
 
+/// Outer widget — creates [VideoDetailNotifier] once and injects it via
+/// [ProviderScope] using [overrideWithValue] so the notifier survives
+/// widget rebuilds with updated props (e.g. a different [apiClient]).
 class VideoDetailPage extends ConsumerStatefulWidget {
   const VideoDetailPage({
     super.key,
@@ -137,29 +100,17 @@ class VideoDetailPage extends ConsumerStatefulWidget {
 }
 
 class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
+  late VideoDetailNotifier _notifier;
   late ApiClient _apiClient;
-  late HomeVideoItem _video;
-  _InteractionState _interaction = const _InteractionState();
-  VideoPlayerController? _videoController;
-  String? _controllerVideoUrl;
-  bool _loadingDetail = false;
-  bool _initializingVideo = false;
-  bool _videoInitializationFailed = false;
-  bool _videoPlaying = false;
 
   @override
   void initState() {
     super.initState();
     _apiClient = widget.apiClient ?? ApiClient();
-    _video = widget.video;
-    Future<void>.microtask(() {
-      if (!mounted) return;
-      ref.read(authControllerProvider.notifier).bootstrap();
-    });
-    unawaited(_syncVideoController());
-    if (widget.loadRemoteDetail) {
-      _loadDetail();
-    }
+    _notifier = VideoDetailNotifier(
+      initialVideo: widget.video,
+      apiClient: _apiClient,
+    );
   }
 
   @override
@@ -167,179 +118,102 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.apiClient != widget.apiClient) {
       _apiClient = widget.apiClient ?? ApiClient();
+      _notifier.setApiClient(_apiClient);
       if (widget.loadRemoteDetail) {
-        _loadDetail();
-      }
-    }
-  }
-
-  Future<void> _loadDetail() async {
-    setState(() {
-      _loadingDetail = true;
-    });
-
-    try {
-      final response = await _apiClient.get<dynamic>(
-        _detailPath(widget.video.id),
-        authenticated: true,
-      );
-      final Map<String, dynamic>? data =
-          response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : null;
-      final HomeVideoItem detail = _mapDetail(response.data, _video);
-      final _InteractionState interaction = data != null
-          ? _mapInteraction(data, _interaction)
-          : _interaction;
-      if (!mounted) return;
-      setState(() {
-        _video = detail;
-        _interaction = interaction;
-        _loadingDetail = false;
-      });
-      unawaited(_syncVideoController());
-    } catch (error) {
-      if (!mounted) return;
-      if (isAuthDeniedError(error)) {
-        setState(() {
-          _video = _lockedForAuthDenied(_video);
-          _loadingDetail = false;
-        });
-        unawaited(_syncVideoController());
-        return;
-      }
-      if (isTransientError(error)) {
-        setState(() {
-          _loadingDetail = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_notifier.loadDetail());
         });
       }
     }
   }
 
-  HomeVideoItem _lockedForAuthDenied(HomeVideoItem video) {
-    final String? accessType = video.accessType ?? widget.video.accessType;
-    final bool isMembershipVideo =
-        accessType?.trim().toLowerCase() == 'membership';
-    if (!isMembershipVideo) return video;
-    return HomeVideoItem(
-      id: video.id,
-      title: video.title,
-      subtitle: video.subtitle,
-      thumbnailUrl: video.thumbnailUrl,
-      videoUrl: video.videoUrl,
-      description: video.description,
-      ownerName: video.ownerName,
-      viewCount: video.viewCount,
-      category: video.category,
-      categoryName: video.categoryName,
-      createdAt: video.createdAt,
-      accessType: accessType,
-      previewSeconds: video.previewSeconds,
-      canWatch: false,
-      isLocked: true,
-      lockReason: video.lockReason ?? 'auth_required',
+  @override
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      overrides: <Override>[
+        videoDetailProvider.overrideWith((_) => _notifier),
+      ],
+      child: _VideoDetailBody(
+        recommendations: widget.recommendations,
+        apiClient: _apiClient,
+        loadRemoteDetail: widget.loadRemoteDetail,
+        onSignInPressed: widget.onSignInPressed,
+        onSubscribePressed: widget.onSubscribePressed,
+      ),
     );
   }
+}
 
-  // ── Like ──────────────────────────────────────────────────────────────────
+/// Inner widget — owns [VideoPlayerController] lifecycle; all other state
+/// lives in [videoDetailProvider].
+class _VideoDetailBody extends ConsumerStatefulWidget {
+  const _VideoDetailBody({
+    required this.recommendations,
+    required this.apiClient,
+    required this.loadRemoteDetail,
+    this.onSignInPressed,
+    this.onSubscribePressed,
+  });
 
-  Future<void> _toggleLike() async {
-    final int? videoId = int.tryParse(_video.id);
-    if (videoId == null) return;
+  final List<HomeVideoItem> recommendations;
+  final ApiClient apiClient;
+  final bool loadRemoteDetail;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
 
-    final bool wasLiked = _interaction.isLiked;
-    // Optimistic update
-    setState(() {
-      _interaction = _interaction.copyWith(
-        isLiked: !wasLiked,
-        likeCount: _interaction.likeCount + (wasLiked ? -1 : 1),
-      );
+  @override
+  ConsumerState<_VideoDetailBody> createState() => _VideoDetailBodyState();
+}
+
+class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
+  VideoPlayerController? _videoController;
+  String? _controllerVideoUrl;
+  bool _initializingVideo = false;
+  bool _videoInitializationFailed = false;
+  bool _videoPlaying = false;
+  late final ProviderSubscription<String?> _videoUrlSub;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(() {
+      if (!mounted) return;
+      ref.read(authControllerProvider.notifier).bootstrap();
     });
-
-    try {
-      final response = await _apiClient.post<dynamic>(
-        Endpoints.videoLike(videoId),
-        authenticated: true,
-      );
-      final dynamic data = response.data;
-      if (data is Map<String, dynamic> && mounted) {
-        setState(() {
-          _interaction = _interaction.copyWith(
-            isLiked: _bool(data['is_liked']) ?? !wasLiked,
-            likeCount: _int(data['like_count']) ?? _interaction.likeCount,
-          );
-        });
-      }
-    } catch (_) {
-      // Roll back
-      if (mounted) {
-        setState(() {
-          _interaction = _interaction.copyWith(
-            isLiked: wasLiked,
-            likeCount: _interaction.likeCount + (wasLiked ? 1 : -1),
-          );
-        });
-      }
+    // Watch video URL changes and re-sync controller accordingly.
+    _videoUrlSub = ref.listenManual<String?>(
+      videoDetailProvider.select((s) => s.video.videoUrl),
+      (_, __) {
+        if (mounted) unawaited(_syncVideoController());
+      },
+    );
+    unawaited(_syncVideoController());
+    if (widget.loadRemoteDetail) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(ref.read(videoDetailProvider.notifier).loadDetail());
+        }
+      });
     }
   }
 
-  // ── Follow ────────────────────────────────────────────────────────────────
-
-  Future<void> _toggleFollow() async {
-    final int? creatorId = _interaction.creatorId;
-    if (creatorId == null) return;
-
-    final bool wasFollowing = _interaction.isFollowing;
-    setState(() {
-      _interaction = _interaction.copyWith(
-        isFollowing: !wasFollowing,
-        subscriberCount: (_interaction.subscriberCount ?? 0) +
-            (wasFollowing ? -1 : 1),
-      );
-    });
-
-    try {
-      final dynamic data;
-      if (wasFollowing) {
-        await _apiClient.delete<dynamic>(
-          Endpoints.creatorFollow(creatorId),
-          authenticated: true,
-        );
-        data = null;
-      } else {
-        final response = await _apiClient.post<dynamic>(
-          Endpoints.creatorFollow(creatorId),
-          authenticated: true,
-        );
-        data = response.data;
-      }
-      if (data is Map<String, dynamic> && mounted) {
-        setState(() {
-          _interaction = _interaction.copyWith(
-            isFollowing: _bool(data['is_following']) ??
-                _bool(data['viewer_is_following']) ??
-                !wasFollowing,
-            subscriberCount: _int(data['subscriber_count']) ??
-                _int(data['follower_count']) ??
-                _interaction.subscriberCount,
-          );
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _interaction = _interaction.copyWith(
-            isFollowing: wasFollowing,
-            subscriberCount: (_interaction.subscriberCount ?? 1) +
-                (wasFollowing ? 1 : -1),
-          );
-        });
-      }
+  @override
+  void dispose() {
+    _videoUrlSub.close();
+    final VideoPlayerController? controller = _videoController;
+    _videoController = null;
+    if (controller != null) {
+      controller.removeListener(_handleVideoControllerChanged);
+      unawaited(controller.dispose());
     }
+    super.dispose();
   }
 
   // ── Comments ──────────────────────────────────────────────────────────────
 
   void _openComments() {
-    final int? videoId = int.tryParse(_video.id);
+    final HomeVideoItem video = ref.read(videoDetailProvider).video;
+    final int? videoId = int.tryParse(video.id);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -351,15 +225,11 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
       ),
       builder: (_) => _CommentSheet(
         videoId: videoId,
-        apiClient: _apiClient,
+        apiClient: widget.apiClient,
         isSignedIn: _hasSignedInSession(ref.read(authControllerProvider)),
         onCommentPosted: () {
           if (mounted) {
-            setState(() {
-              _interaction = _interaction.copyWith(
-                commentCount: _interaction.commentCount + 1,
-              );
-            });
+            ref.read(videoDetailProvider.notifier).incrementCommentCount();
           }
         },
       ),
@@ -369,18 +239,18 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
   // ── Share ─────────────────────────────────────────────────────────────────
 
   void _shareVideo() {
-    final String title = _video.title;
-    final String? videoUrl = _video.videoUrl;
-    final String text = videoUrl != null && videoUrl.isNotEmpty
-        ? '$title\n$videoUrl'
-        : title;
+    final HomeVideoItem video = ref.read(videoDetailProvider).video;
+    final String text = video.videoUrl != null && video.videoUrl!.isNotEmpty
+        ? '${video.title}\n${video.videoUrl}'
+        : video.title;
     SharePlus.instance.share(ShareParams(text: text));
   }
 
   // ── Video controller ──────────────────────────────────────────────────────
 
   Future<void> _syncVideoController() async {
-    final String? playableUrl = _playableVideoUrl(_video);
+    final HomeVideoItem video = ref.read(videoDetailProvider).video;
+    final String? playableUrl = _playableVideoUrl(video);
     if (playableUrl == null) {
       await _disposeVideoController();
       if (!mounted) return;
@@ -462,7 +332,8 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
   }
 
   Future<void> _togglePlayback() async {
-    if (!_canPreviewPlayback(_video)) return;
+    final HomeVideoItem video = ref.read(videoDetailProvider).video;
+    if (!_canPreviewPlayback(video)) return;
 
     if (_videoController == null ||
         _videoController?.value.isInitialized != true) {
@@ -491,22 +362,14 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
   }
 
   @override
-  void dispose() {
-    final VideoPlayerController? controller = _videoController;
-    _videoController = null;
-    if (controller != null) {
-      controller.removeListener(_handleVideoControllerChanged);
-      unawaited(controller.dispose());
-    }
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final VideoDetailState detailState = ref.watch(videoDetailProvider);
+    final HomeVideoItem video = detailState.video;
+    final VideoInteractionState interaction = detailState.interaction;
     final AuthState authState = ref.watch(authControllerProvider);
     final bool isSignedIn = _hasSignedInSession(authState);
     final List<HomeVideoItem> recommendations = _recommendations(
-      current: _video,
+      current: video,
       candidates: widget.recommendations,
     );
 
@@ -517,7 +380,7 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
           padding: const EdgeInsets.all(AppSpacing.md),
           children: <Widget>[
             _VideoMediaHeader(
-              video: _video,
+              video: video,
               isSignedIn: isSignedIn,
               controller: _videoController,
               initializingVideo: _initializingVideo,
@@ -528,19 +391,21 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
               onSubscribePressed: widget.onSubscribePressed,
             ),
             const SizedBox(height: AppSpacing.sm),
-            _VideoInfoSection(video: _video, loading: _loadingDetail),
+            _VideoInfoSection(video: video, loading: detailState.loadingDetail),
             const SizedBox(height: AppSpacing.xs),
             _AuthorFollowRow(
-              video: _video,
-              interaction: _interaction,
+              video: video,
+              interaction: interaction,
               isSignedIn: isSignedIn,
-              onFollow: _toggleFollow,
+              onFollow: () =>
+                  unawaited(ref.read(videoDetailProvider.notifier).toggleFollow()),
             ),
             const SizedBox(height: AppSpacing.xs),
             _VideoActionRow(
-              interaction: _interaction,
+              interaction: interaction,
               isSignedIn: isSignedIn,
-              onLike: _toggleLike,
+              onLike: () =>
+                  unawaited(ref.read(videoDetailProvider.notifier).toggleLike()),
               onComment: _openComments,
               onShare: _shareVideo,
             ),
@@ -576,79 +441,6 @@ bool _hasSignedInSession(AuthState authState) {
       authState.status == AuthStatus.refreshing;
 }
 
-String _detailPath(String id) {
-  final int? numericId = int.tryParse(id);
-  if (numericId != null) return Endpoints.publicVideoDetail(numericId);
-  return '${Endpoints.publicVideos}${Uri.encodeComponent(id)}/';
-}
-
-HomeVideoItem _mapDetail(dynamic data, HomeVideoItem fallback) {
-  if (data is! Map<String, dynamic>) {
-    throw const FormatException('Invalid video detail response');
-  }
-  final String title = _str(data['title']) ?? fallback.title;
-  final String owner = _videoOwnerName(data) ?? fallback.ownerName ?? '';
-  final int? views = _int(data['view_count']) ?? fallback.viewCount;
-  return HomeVideoItem(
-    id: _str(data['id']) ?? fallback.id,
-    title: title,
-    subtitle: owner.isEmpty
-        ? fallback.subtitle
-        : '$owner · ${views ?? 0} views',
-    thumbnailUrl: _str(data['thumbnail_url']) ?? fallback.thumbnailUrl,
-    videoUrl: _str(data['video_url']) ??
-        _str(data['playback_url']) ??
-        _str(data['file_url']) ??
-        fallback.videoUrl,
-    description: _str(data['description']) ??
-        _str(data['summary']) ??
-        fallback.description,
-    ownerName: owner.isEmpty ? fallback.ownerName : owner,
-    viewCount: views,
-    category: _str(data['category']) ?? fallback.category,
-    categoryName: _str(data['category_name']) ?? fallback.categoryName,
-    createdAt: _str(data['created_at']) ?? fallback.createdAt,
-    accessType: _str(data['access_type']) ?? fallback.accessType,
-    previewSeconds: _int(data['preview_seconds']) ?? fallback.previewSeconds,
-    canWatch: _bool(data['can_watch']) ?? fallback.canWatch,
-    isLocked: _bool(data['is_locked']) ?? fallback.isLocked,
-    lockReason: _str(data['lock_reason']) ?? fallback.lockReason,
-  );
-}
-
-_InteractionState _mapInteraction(
-  Map<String, dynamic> data,
-  _InteractionState current,
-) {
-  final dynamic creator = data['creator'];
-  final int? creatorId = creator is Map<String, dynamic>
-      ? _int(creator['id'])
-      : current.creatorId;
-  final int? subscriberCount = creator is Map<String, dynamic>
-      ? (_int(creator['subscriber_count']) ?? _int(data['owner_subscriber_count']))
-      : _int(data['owner_subscriber_count']) ?? current.subscriberCount;
-  final bool isFollowing = creator is Map<String, dynamic>
-      ? (_bool(creator['is_following']) ??
-          _bool(data['is_following_owner']) ??
-          current.isFollowing)
-      : (_bool(data['is_following_owner']) ?? current.isFollowing);
-
-  return _InteractionState(
-    likeCount: _int(data['like_count']) ?? current.likeCount,
-    isLiked: _bool(data['is_liked']) ?? current.isLiked,
-    commentCount: _int(data['comment_count']) ?? current.commentCount,
-    creatorId: creatorId ?? current.creatorId,
-    subscriberCount: subscriberCount,
-    isFollowing: isFollowing,
-  );
-}
-
-String? _videoOwnerName(Map<String, dynamic> data) {
-  return _str(data['owner_name']) ??
-      _nestedStr(data['owner'], 'username') ??
-      _nestedStr(data['owner'], 'email') ??
-      _nestedStr(data['creator'], 'name');
-}
 
 String? _nestedStr(dynamic value, String key) {
   if (value is Map<String, dynamic>) return _str(value[key]);
@@ -661,15 +453,6 @@ String? _str(dynamic value) {
   return null;
 }
 
-bool? _bool(dynamic value) {
-  if (value is bool) return value;
-  if (value is String) {
-    final String normalized = value.toLowerCase().trim();
-    if (normalized == 'true') return true;
-    if (normalized == 'false') return false;
-  }
-  return null;
-}
 
 int? _int(dynamic value) {
   if (value is int) return value;
@@ -1119,7 +902,7 @@ class _AuthorFollowRow extends StatelessWidget {
   });
 
   final HomeVideoItem video;
-  final _InteractionState interaction;
+  final VideoInteractionState interaction;
   final bool isSignedIn;
   final VoidCallback onFollow;
 
@@ -1222,7 +1005,7 @@ class _VideoActionRow extends StatelessWidget {
     required this.onShare,
   });
 
-  final _InteractionState interaction;
+  final VideoInteractionState interaction;
   final bool isSignedIn;
   final VoidCallback onLike;
   final VoidCallback onComment;

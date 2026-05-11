@@ -33,6 +33,8 @@ class _GoLivePageState extends State<GoLivePage> {
   Timer? _durationTimer;
   int _durationSeconds = 0;
   int _lastChatId = 0;
+  int _startRetries = 0;
+  static const int _maxStartRetries = 5;
 
   @override
   void dispose() {
@@ -51,14 +53,28 @@ class _GoLivePageState extends State<GoLivePage> {
     try {
       final response = await widget.apiClient.post<dynamic>(
         Endpoints.liveQuickStart,
+        data: <String, dynamic>{},
         authenticated: true,
       );
       final dynamic data = response.data;
       if (data is Map<String, dynamic> && mounted) {
+        // Guard: publish_config.ok must be true
+        final dynamic pub = data['publish_config'];
+        if (pub is Map<String, dynamic> && pub['ok'] != true) {
+          final String msg = pub['message']?.toString() ??
+              'Publish config unavailable. Please try again.';
+          throw Exception(msg);
+        }
+
         final LiveSession session = LiveSession.fromJson(data);
+
         if (session.id.isEmpty) {
           throw Exception('Missing live.id from quick-start response');
         }
+        if (session.websocketUrl.isEmpty || session.streamId.isEmpty) {
+          throw Exception('Missing Ant Media publish config');
+        }
+
         setState(() {
           _session = session;
           _phase = _Phase.ready;
@@ -67,34 +83,60 @@ class _GoLivePageState extends State<GoLivePage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Failed to create live session. Please try again.';
+          _error = e.toString().replaceFirst('Exception: ', '');
           _phase = _Phase.idle;
         });
       }
     }
   }
 
-  // In production this is called from WebRTC onPublishStarted callback.
-  // V1: triggered by user tap after quick-start succeeds.
+  // Production: called from Ant Media SDK onPublishStarted callback.
+  // V1: triggered by "Go Live" button tap (no real WebRTC stream).
   Future<void> _startLive() async {
     final String? id = _session?.id;
-    if (id == null) return;
+    if (id == null || id.isEmpty) return;
     setState(() {
       _phase = _Phase.preparing;
       _error = null;
     });
     try {
-      await widget.apiClient.post<dynamic>(
+      final response = await widget.apiClient.post<dynamic>(
         Endpoints.liveStart(id),
         authenticated: true,
       );
-      if (mounted) {
-        setState(() {
-          _phase = _Phase.live;
-          _durationSeconds = 0;
-        });
-        _startPolling();
+      if (!mounted) return;
+      final dynamic data = response.data;
+
+      // Backend may respond with "waiting_for_signal" if Ant Media hasn't
+      // received the stream yet. Retry up to _maxStartRetries times.
+      if (data is Map<String, dynamic> &&
+          data['next_action'] == 'retry_status') {
+        if (_startRetries < _maxStartRetries) {
+          _startRetries++;
+          setState(() {
+            _error =
+                'Waiting for stream signal... (retry $_startRetries/$_maxStartRetries)';
+            _phase = _Phase.ready;
+          });
+          await Future<void>.delayed(const Duration(seconds: 3));
+          if (mounted) unawaited(_startLive());
+        } else {
+          _startRetries = 0;
+          setState(() {
+            _error =
+                'Stream signal not received. Make sure your stream is publishing.';
+            _phase = _Phase.ready;
+          });
+        }
+        return;
       }
+
+      _startRetries = 0;
+      setState(() {
+        _phase = _Phase.live;
+        _durationSeconds = 0;
+      });
+      _startPolling();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -151,10 +193,19 @@ class _GoLivePageState extends State<GoLivePage> {
       );
       final dynamic data = response.data;
       if (data is Map<String, dynamic> && mounted) {
-        final LiveSession updated = LiveSession.fromJson(data);
+        // Status response is flat — merge into existing session to preserve
+        // stream_id / websocket_url from quick-start
+        final LiveSession current = _session!;
+        final LiveSession updated = current.copyWith(
+          effectiveStatus: data['effective_status']?.toString(),
+          status: data['status']?.toString(),
+          viewerCount: (data['viewer_count'] as num?)?.toInt(),
+          canStart: data['can_start'] == true,
+          canEnd: data['can_end'] == true,
+        );
         setState(() {
           _session = updated;
-          if (!updated.isLive && _phase == _Phase.live) {
+          if (updated.isEnded && _phase == _Phase.live) {
             _phase = _Phase.ended;
             _stopPolling();
           }
@@ -282,9 +333,6 @@ class _PrepareView extends StatelessWidget {
     final bool loading = phase == _Phase.preparing;
     final LiveSession? s = session;
     final bool hasSession = s != null;
-    final String? streamKey = s?.streamKey.isNotEmpty == true
-        ? s!.streamKey
-        : s?.publishConfig['stream_key']?.toString();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -367,29 +415,31 @@ class _PrepareView extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            _InfoRow(
-                              label: 'ID',
-                              value: s.id,
-                            ),
+                            _InfoRow(label: 'Live ID', value: s.id),
                             if (s.title.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
                               _InfoRow(label: 'Title', value: s.title),
                             ],
-                            if (streamKey != null && streamKey.isNotEmpty) ...<Widget>[
+                            if (s.effectiveStatus.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 4),
+                              _InfoRow(label: 'Status', value: s.effectiveStatus),
+                            ],
+                            if (s.streamId.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
                               _InfoRow(
-                                label: 'Stream Key',
+                                label: 'Stream ID',
                                 value:
-                                    '${streamKey.substring(0, streamKey.length.clamp(0, 8))}••••',
+                                    '${s.streamId.substring(0, s.streamId.length.clamp(0, 12))}••••',
                               ),
                             ],
-                            if (s.publishConfig['websocket_url'] != null) ...<Widget>[
+                            if (s.websocketUrl.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
                               _InfoRow(
-                                label: 'Mode',
-                                value: s.publishConfig['publish_mode']
-                                        ?.toString() ??
-                                    'webrtc',
+                                label: 'WebSocket',
+                                value: s.websocketUrl
+                                    .replaceFirst('wss://', '')
+                                    .split('/')
+                                    .first,
                               ),
                             ],
                             const SizedBox(height: 8),

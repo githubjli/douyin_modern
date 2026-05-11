@@ -48,6 +48,11 @@ class _GoLivePageState extends State<GoLivePage> {
   bool _cameraReady = false;
   bool _publishStarted = false;
   bool _freshRestartInProgress = false;
+  // Incremented each time _initAndPublish() is called. Callbacks capture
+  // the generation at registration time and bail out if it no longer matches,
+  // preventing stale AntHelper instances (the SDK keeps a reconnect loop even
+  // after close()) from interfering with a newer session.
+  int _antGeneration = 0;
 
   @override
   void initState() {
@@ -134,6 +139,8 @@ class _GoLivePageState extends State<GoLivePage> {
 
     _publishStarted = false;
     _freshRestartInProgress = false;
+    final int gen = ++_antGeneration; // this session's generation token
+
     AntMediaFlutter.requestPermissions();
 
     // connect(ip, streamId, roomId, token, type, userScreen,
@@ -149,7 +156,7 @@ class _GoLivePageState extends State<GoLivePage> {
       AntMediaType.Publish,
       false,                 // userScreen — false = camera
       (HelperState state) {
-        if (!mounted) return;
+        if (!mounted || gen != _antGeneration) return;
         switch (state) {
           case HelperState.ConnectionError:
           case HelperState.ConnectionClosed:
@@ -168,12 +175,11 @@ class _GoLivePageState extends State<GoLivePage> {
         }
       },
       (MediaStream stream) {
-        if (mounted) {
-          setState(() {
-            _localRenderer.srcObject = stream;
-            _cameraReady = true;
-          });
-        }
+        if (!mounted || gen != _antGeneration) return;
+        setState(() {
+          _localRenderer.srcObject = stream;
+          _cameraReady = true;
+        });
       },
       (MediaStream stream) {},
       (RTCDataChannel channel) {},
@@ -182,6 +188,7 @@ class _GoLivePageState extends State<GoLivePage> {
       (MediaStream stream) {},
       <Map<String, String>>[],
       (String command, Map<dynamic, dynamic> mapData) {
+        if (gen != _antGeneration) return; // stale helper — ignore
         if (command == 'notification' &&
             mapData['definition'] == 'publish_started') {
           // Stream is live on Ant Media — notify backend once
@@ -192,15 +199,15 @@ class _GoLivePageState extends State<GoLivePage> {
         } else if (command == 'error' &&
             mapData['definition'] == 'streamIdInUse') {
           if (_publishStarted) {
-            // SDK reconnected after publish_started — stream already live.
-            // Close to break the reconnect loop; nothing else to do.
+            // SDK reconnected after a successful publish — stream already live.
+            // Increment generation so any further callbacks from this helper
+            // are ignored, then close it to stop the reconnect loop.
+            _antGeneration++;
             AntMediaFlutter.anthelper?.close();
-          } else {
+          } else if (!_freshRestartInProgress) {
             // Previous session still occupying this streamId on Ant Media.
-            // End the old session and get a fresh one.
-            if (!_freshRestartInProgress) {
-              unawaited(_freshRestart());
-            }
+            // End the old session server-side and get a fresh one.
+            unawaited(_freshRestart());
           }
         }
       },

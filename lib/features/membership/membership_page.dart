@@ -18,13 +18,13 @@ import 'data/remote_membership_repository.dart';
 import 'data/remote_manual_membership_repository.dart';
 import 'domain/manual_membership_repository.dart';
 import 'domain/manual_payment_info.dart';
-import 'domain/manual_tx_hint.dart';
 import 'domain/membership_plan.dart';
 import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
 import 'manual_payment_page.dart';
 
-class MembershipPage extends ConsumerStatefulWidget {
+/// Outer widget — injects page-scoped providers via [ProviderScope].
+class MembershipPage extends StatelessWidget {
   const MembershipPage({
     super.key,
     this.repository,
@@ -48,32 +48,68 @@ class MembershipPage extends ConsumerStatefulWidget {
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
+  MembershipRepository _resolveRepo() {
+    if (!useRemote) return mockRepository;
+    return repository ?? RemoteMembershipRepository(apiClient: ApiClient());
+  }
+
+  ManualMembershipRepository _resolveManualRepo() {
+    return manualRepository ??
+        RemoteManualMembershipRepository(apiClient: ApiClient());
+  }
+
+  RemoteHomeRepository _resolveVideoRepo() {
+    return videoRepository ?? RemoteHomeRepository(apiClient: ApiClient());
+  }
+
   @override
-  ConsumerState<MembershipPage> createState() => _MembershipPageState();
+  Widget build(BuildContext context) {
+    final Future<List<HomeVideoItem>>? vipFuture = vipVideosFuture;
+    return ProviderScope(
+      overrides: <Override>[
+        membershipPageRepoProvider.overrideWithValue(_resolveRepo()),
+        membershipPageMockRepoProvider.overrideWithValue(mockRepository),
+        membershipPageManualRepoProvider.overrideWithValue(_resolveManualRepo()),
+        membershipPageVideoRepoProvider.overrideWithValue(_resolveVideoRepo()),
+        membershipPageUseRemoteProvider.overrideWithValue(useRemote),
+        if (vipFuture != null)
+          membershipPageVipFutureProvider.overrideWithValue(vipFuture),
+      ],
+      child: _MembershipBody(
+        isActive: isActive,
+        onSignInPressed: onSignInPressed,
+        onSubscribePressed: onSubscribePressed,
+      ),
+    );
+  }
 }
 
-class _MembershipPageState extends ConsumerState<MembershipPage> {
-  late MembershipRepository _repository;
-  late ManualMembershipRepository _manualRepository;
-  late RemoteHomeRepository _videoRepository;
-  late Future<List<MembershipPlan>> _plansFuture;
-  late Future<List<HomeVideoItem>> _vipVideosFuture;
-  bool _refreshing = false;
-  String? _loadingPaymentInfoPlanCode;
-  Set<String> _pendingReviewPlanCodes = <String>{};
+class _MembershipBody extends ConsumerStatefulWidget {
+  const _MembershipBody({
+    required this.isActive,
+    this.onSignInPressed,
+    this.onSubscribePressed,
+  });
+
+  final bool isActive;
+  final VoidCallback? onSignInPressed;
+  final VoidCallback? onSubscribePressed;
+
+  @override
+  ConsumerState<_MembershipBody> createState() => _MembershipBodyState();
+}
+
+class _MembershipBodyState extends ConsumerState<_MembershipBody> {
   late final ProviderSubscription<AuthState> _authSubscription;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _configureRepositories();
     _authSubscription = ref.listenManual<AuthState>(
       authControllerProvider,
       _handleAuthStateChanged,
     );
-    _refreshPageData(notify: false);
-    _loadPendingReviews();
     Future<void>.microtask(() {
       ref.read(authControllerProvider.notifier).bootstrap();
     });
@@ -86,20 +122,36 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
     super.dispose();
   }
 
-  Future<void> _loadPendingReviews() async {
-    try {
-      final List<ManualTxHint> hints = await _manualRepository.getTxHints();
-      final Set<String> pending = hints
-          .where((ManualTxHint h) =>
-              h.status != ManualTxHintStatus.verified &&
-              h.status != ManualTxHintStatus.rejected &&
-              h.status != ManualTxHintStatus.unknown)
-          .map((ManualTxHint h) => h.planCode)
-          .toSet();
-      if (!mounted) return;
-      setState(() => _pendingReviewPlanCodes = pending);
-    } catch (_) {
-      // silent — pending badge is best-effort
+  @override
+  void didUpdateWidget(covariant _MembershipBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      ref.invalidate(membershipPlansProvider);
+      ref.invalidate(membershipVipVideosProvider);
+      ref.invalidate(membershipPendingCodesProvider);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _refreshMembershipForActiveTab();
+      });
+    }
+  }
+
+  void _handleAuthStateChanged(AuthState? _, AuthState next) {
+    if (next.isSignedOut) {
+      ref.read(membershipControllerProvider.notifier).reset();
+      return;
+    }
+    final bool shouldRefresh = next.session?.isSignedIn == true &&
+        (next.status == AuthStatus.signedIn || next.status == AuthStatus.error);
+    if (shouldRefresh) {
+      ref.read(membershipControllerProvider.notifier).refresh();
+    }
+  }
+
+  void _refreshMembershipForActiveTab() {
+    final AuthState authState = ref.read(authControllerProvider);
+    if (authState.session?.isSignedIn == true) {
+      ref.read(membershipControllerProvider.notifier).refresh();
     }
   }
 
@@ -113,160 +165,36 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
     );
   }
 
-  @override
-  void didUpdateWidget(covariant MembershipPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.repository != widget.repository ||
-        oldWidget.mockRepository != widget.mockRepository ||
-        oldWidget.useRemote != widget.useRemote ||
-        oldWidget.vipVideosFuture != widget.vipVideosFuture ||
-        oldWidget.videoRepository != widget.videoRepository) {
-      _configureRepositories();
-      _refreshPageData();
-      return;
-    }
-
-    if (!oldWidget.isActive && widget.isActive) {
-      _refreshPageData();
-      _loadPendingReviews();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _refreshMembershipForActiveTab();
-      });
-    }
-  }
-
-  void _configureRepositories() {
-    _repository = _defaultRepository();
-    _manualRepository = _defaultManualRepository();
-    _videoRepository = _defaultVideoRepository();
-  }
-
-  void _refreshPageData({bool notify = true}) {
-    if (_refreshing) return;
-    _refreshing = true;
-
-    final Future<List<MembershipPlan>> plansFuture = _loadPlans();
-    final Future<List<HomeVideoItem>> vipVideosFuture =
-        widget.vipVideosFuture ?? _loadVipVideos();
-
-    void applyFutures() {
-      _plansFuture = plansFuture;
-      _vipVideosFuture = vipVideosFuture;
-    }
-
-    if (notify) {
-      setState(applyFutures);
-    } else {
-      applyFutures();
-    }
-
-    Future.wait<dynamic>(<Future<dynamic>>[
-      plansFuture,
-      vipVideosFuture,
-    ]).whenComplete(() {
-      _refreshing = false;
-    });
-  }
-
-  MembershipRepository _defaultRepository() {
-    if (!widget.useRemote) return widget.mockRepository;
-    return widget.repository ??
-        RemoteMembershipRepository(apiClient: ApiClient());
-  }
-
-  ManualMembershipRepository _defaultManualRepository() {
-    return widget.manualRepository ??
-        RemoteManualMembershipRepository(apiClient: ApiClient());
-  }
-
-  RemoteHomeRepository _defaultVideoRepository() {
-    return widget.videoRepository ??
-        RemoteHomeRepository(apiClient: ApiClient());
-  }
-
-  void _handleAuthStateChanged(AuthState? _, AuthState next) {
-    if (next.isSignedOut) {
-      ref.read(membershipControllerProvider.notifier).reset();
-      return;
-    }
-    final bool shouldRefreshMembership = next.session?.isSignedIn == true &&
-        (next.status == AuthStatus.signedIn || next.status == AuthStatus.error);
-    if (shouldRefreshMembership) {
-      ref.read(membershipControllerProvider.notifier).refresh();
-    }
-  }
-
-  void _refreshMembershipForActiveTab() {
-    final AuthState authState = ref.read(authControllerProvider);
-    if (authState.session?.isSignedIn == true) {
-      ref.read(membershipControllerProvider.notifier).refresh();
-    }
-  }
-
-  Future<List<MembershipPlan>> _loadPlans() async {
-    try {
-      final List<MembershipPlan> plans = await _repository.getPlans();
-      if (plans.isNotEmpty) return plans;
-    } catch (_) {
-      // Fall through to the bundled mock plans so Membership stays usable.
-    }
-    return widget.mockRepository.getPlans();
-  }
-
-  Future<List<HomeVideoItem>> _loadVipVideos() async {
-    if (!widget.useRemote) return const <HomeVideoItem>[];
-    try {
-      final HomeVideoPage page = await _videoRepository.getVideoPage(
-        accessType: 'membership',
-        pageSize: 4,
-        authenticated: true,
-      );
-      final List<HomeVideoItem> membershipVideos = _membershipVideos(page.items);
-      if (membershipVideos.isNotEmpty) return membershipVideos.take(4).toList();
-    } catch (_) {
-      // Fall through to an unfiltered fetch; older backends may ignore access_type.
-    }
-
-    try {
-      final HomeVideoPage page = await _videoRepository.getVideoPage(
-        pageSize: 12,
-        authenticated: true,
-      );
-      return _membershipVideos(page.items).take(4).toList();
-    } catch (_) {
-      return const <HomeVideoItem>[];
-    }
-  }
-
   Future<void> _handleBuyNowPressed(MembershipPlan plan) async {
     final String? planCode = plan.code?.trim();
     if (planCode == null || planCode.isEmpty) {
       _showMessage('Plan is unavailable. Please try again later.');
       return;
     }
-    if (_loadingPaymentInfoPlanCode != null) return;
+    if (ref.read(membershipLoadingPlanCodeProvider) != null) return;
 
-    setState(() => _loadingPaymentInfoPlanCode = planCode);
+    ref.read(membershipLoadingPlanCodeProvider.notifier).state = planCode;
+    final ManualMembershipRepository manualRepo =
+        ref.read(membershipPageManualRepoProvider);
 
     try {
       final ManualPaymentInfo info =
-          await _manualRepository.getPaymentInfo(planCode: planCode);
+          await manualRepo.getPaymentInfo(planCode: planCode);
       if (!mounted) return;
-      setState(() => _loadingPaymentInfoPlanCode = null);
+      ref.read(membershipLoadingPlanCodeProvider.notifier).state = null;
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => ManualPaymentPage(
             paymentInfo: info,
-            repository: _manualRepository,
+            repository: manualRepo,
             displayCurrency: plan.settlementTokenSymbol,
           ),
         ),
       );
-      if (mounted) _loadPendingReviews();
+      if (mounted) ref.invalidate(membershipPendingCodesProvider);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loadingPaymentInfoPlanCode = null);
+      ref.read(membershipLoadingPlanCodeProvider.notifier).state = null;
       _showMessage('Unable to load payment info. Please try again later.');
     }
   }
@@ -309,19 +237,15 @@ class _MembershipPageState extends ConsumerState<MembershipPage> {
             ),
             const SizedBox(height: AppSpacing.md),
             _PlanSection(
-              plansFuture: _plansFuture,
               status: status,
               canCreateOrders: canCreateOrders,
               authBusy: authBusy,
-              loadingPaymentInfoPlanCode: _loadingPaymentInfoPlanCode,
-              pendingReviewPlanCodes: _pendingReviewPlanCodes,
               onSignInPressed: widget.onSignInPressed,
               onBuyNowPressed: _handleBuyNowPressed,
               onPendingReviewPressed: _showPendingReviewMessage,
             ),
             const SizedBox(height: AppSpacing.md),
             _ExclusiveSection(
-              videosFuture: _vipVideosFuture,
               onSignInPressed: widget.onSignInPressed,
               onSubscribePressed: widget.onSubscribePressed,
             ),
@@ -533,80 +457,70 @@ class _VipHeroCard extends StatelessWidget {
   }
 }
 
-class _PlanSection extends StatelessWidget {
+class _PlanSection extends ConsumerWidget {
   const _PlanSection({
-    required this.plansFuture,
     required this.status,
     required this.canCreateOrders,
     required this.authBusy,
-    required this.loadingPaymentInfoPlanCode,
-    required this.pendingReviewPlanCodes,
     required this.onSignInPressed,
     required this.onBuyNowPressed,
     required this.onPendingReviewPressed,
   });
 
-  final Future<List<MembershipPlan>> plansFuture;
   final MembershipStatus? status;
   final bool canCreateOrders;
   final bool authBusy;
-  final String? loadingPaymentInfoPlanCode;
-  final Set<String> pendingReviewPlanCodes;
   final VoidCallback? onSignInPressed;
   final ValueChanged<MembershipPlan> onBuyNowPressed;
   final VoidCallback onPendingReviewPressed;
 
   VoidCallback? _planAction({
     required MembershipPlan plan,
-    required bool hasActiveMembership,
+    required String? loadingCode,
+    required Set<String> pendingCodes,
   }) {
     if (authBusy) return null;
     if (!canCreateOrders) return onSignInPressed;
     final String? code = plan.code?.trim();
-    if (code != null && pendingReviewPlanCodes.contains(code)) {
+    if (code != null && pendingCodes.contains(code)) {
       return onPendingReviewPressed;
     }
-    if (loadingPaymentInfoPlanCode != null) return null;
+    if (loadingCode != null) return null;
     return () => onBuyNowPressed(plan);
   }
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<MembershipPlan>>(
-      future: plansFuture,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<MembershipPlan>> planSnapshot,
-      ) {
-        final List<MembershipPlan> plans = _displayPlans(
-          planSnapshot.data ?? const <MembershipPlan>[],
-        );
-        final MembershipStatus? activeStatus =
-            status?.isActive == true ? status : null;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const _SectionTitle(title: 'Membership Plans'),
-            const SizedBox(height: AppSpacing.xs),
-            for (int index = 0; index < plans.length; index++) ...<Widget>[
-              _PlanCard(
-                plan: plans[index],
-                isCurrent: activeStatus?.planTitle == plans[index].title,
-                isBusy: loadingPaymentInfoPlanCode != null &&
-                    loadingPaymentInfoPlanCode == plans[index].code,
-                isPending: pendingReviewPlanCodes
-                    .contains(plans[index].code ?? ''),
-                hasActiveMembership: activeStatus != null,
-                onPressed: _planAction(
-                  plan: plans[index],
-                  hasActiveMembership: activeStatus != null,
-                ),
-              ),
-              if (index != plans.length - 1) const SizedBox(height: 10),
-            ],
-          ],
-        );
-      },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final List<MembershipPlan> plans = _displayPlans(
+      ref.watch(membershipPlansProvider).valueOrNull ?? const <MembershipPlan>[],
+    );
+    final String? loadingCode = ref.watch(membershipLoadingPlanCodeProvider);
+    final Set<String> pendingCodes =
+        ref.watch(membershipPendingCodesProvider).valueOrNull ?? const <String>{};
+    final MembershipStatus? activeStatus =
+        status?.isActive == true ? status : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const _SectionTitle(title: 'Membership Plans'),
+        const SizedBox(height: AppSpacing.xs),
+        for (int index = 0; index < plans.length; index++) ...<Widget>[
+          _PlanCard(
+            plan: plans[index],
+            isCurrent: activeStatus?.planTitle == plans[index].title,
+            isBusy: loadingCode != null && loadingCode == plans[index].code,
+            isPending: pendingCodes.contains(plans[index].code ?? ''),
+            hasActiveMembership: activeStatus != null,
+            onPressed: _planAction(
+              plan: plans[index],
+              loadingCode: loadingCode,
+              pendingCodes: pendingCodes,
+            ),
+          ),
+          if (index != plans.length - 1) const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 }
@@ -723,56 +637,49 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
-class _ExclusiveSection extends StatelessWidget {
+class _ExclusiveSection extends ConsumerWidget {
   const _ExclusiveSection({
-    required this.videosFuture,
     required this.onSignInPressed,
     required this.onSubscribePressed,
   });
 
-  final Future<List<HomeVideoItem>> videosFuture;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<HomeVideoItem>>(
-      future: videosFuture,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<HomeVideoItem>> snapshot,
-      ) {
-        final List<HomeVideoItem> videos = snapshot.data ?? const <HomeVideoItem>[];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const _SectionTitle(title: 'Exclusive for Members'),
-            const SizedBox(height: AppSpacing.xs),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: videos.isEmpty ? _vipPicks.length : videos.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: AppSpacing.sm,
-                crossAxisSpacing: AppSpacing.sm,
-                childAspectRatio: 16 / 9,
-              ),
-              itemBuilder: (BuildContext context, int index) {
-                if (videos.isEmpty) {
-                  return _ExclusiveFallbackCard(pick: _vipPicks[index]);
-                }
-                return _ExclusiveVideoCard(
-                  video: videos[index],
-                  recommendations: videos,
-                  onSignInPressed: onSignInPressed,
-                  onSubscribePressed: onSubscribePressed,
-                );
-              },
-            ),
-          ],
-        );
-      },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final List<HomeVideoItem> videos =
+        ref.watch(membershipVipVideosProvider).valueOrNull ??
+            const <HomeVideoItem>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const _SectionTitle(title: 'Exclusive for Members'),
+        const SizedBox(height: AppSpacing.xs),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: videos.isEmpty ? _vipPicks.length : videos.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: AppSpacing.sm,
+            crossAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 16 / 9,
+          ),
+          itemBuilder: (BuildContext context, int index) {
+            if (videos.isEmpty) {
+              return _ExclusiveFallbackCard(pick: _vipPicks[index]);
+            }
+            return _ExclusiveVideoCard(
+              video: videos[index],
+              recommendations: videos,
+              onSignInPressed: onSignInPressed,
+              onSubscribePressed: onSubscribePressed,
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -1091,9 +998,6 @@ const List<Color> _defaultVipGradientColors = <Color>[
   Color(0xFF24201F),
 ];
 
-List<HomeVideoItem> _membershipVideos(List<HomeVideoItem> videos) {
-  return videos.where((HomeVideoItem video) => video.isMembershipVideo).toList();
-}
 
 String _membershipVideoSubtitle(HomeVideoItem video) {
   final String owner = video.ownerName?.trim().isNotEmpty == true

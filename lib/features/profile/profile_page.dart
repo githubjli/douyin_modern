@@ -15,6 +15,7 @@ import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../live/go_live_page.dart';
 import '../membership/membership_orders_page.dart';
+import '../meow_points/application/meow_points_providers.dart';
 import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
 import 'data/remote_profile_repository.dart';
@@ -47,7 +48,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _registering = false;
   String? _error;
   UserProfile? _profile;
-  MeowPointWallet? _wallet;
 
   @override
   void initState() {
@@ -81,7 +81,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(() {
         _profile = profile;
       });
-      unawaited(_loadWallet());
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {
@@ -96,23 +95,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (mounted) {
         setState(() => _loadingProfile = false);
       }
-    }
-  }
-
-  Future<void> _loadWallet() async {
-    try {
-      final response = await _apiClient.get<dynamic>(
-        Endpoints.meowPointsWallet,
-        authenticated: true,
-      );
-      final dynamic data = response.data;
-      if (data is Map<String, dynamic> && mounted) {
-        setState(() {
-          _wallet = MeowPointWallet.fromJson(data);
-        });
-      }
-    } catch (_) {
-      // silent — wallet is non-critical
     }
   }
 
@@ -136,7 +118,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             backgroundColor: AppColors.cardBackground,
           ),
         );
-        unawaited(_loadWallet());
+        ref.invalidate(meowPointsWalletProvider);
       }
     } catch (_) {
       // silent — don't interrupt login flow
@@ -219,7 +201,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (!mounted) return;
     setState(() {
       _profile = null;
-      _wallet = null;
       _error = null;
       _emailController.clear();
       _passwordController.clear();
@@ -233,7 +214,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (authState.status == AuthStatus.signedOut) {
       setState(() {
         _profile = null;
-        _wallet = null;
         _error = null;
         _emailController.clear();
         _passwordController.clear();
@@ -320,7 +300,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ],
             _SignedInProfileBody(
               profile: _profile,
-              wallet: _wallet,
+              wallet: ref.watch(meowPointsWalletProvider).valueOrNull,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,

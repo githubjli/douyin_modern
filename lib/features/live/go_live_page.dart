@@ -45,7 +45,9 @@ class _GoLivePageState extends State<GoLivePage> {
 
   // Ant Media / WebRTC
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  MediaStream? _localStream;
   bool _cameraReady = false;
+  bool _isFrontCamera = true;
   bool _publishStarted = false;
   bool _freshRestartInProgress = false;
   // Incremented each time _initAndPublish() is called. Callbacks capture
@@ -177,6 +179,7 @@ class _GoLivePageState extends State<GoLivePage> {
       (MediaStream stream) {
         if (!mounted || gen != _antGeneration) return;
         setState(() {
+          _localStream = stream;
           _localRenderer.srcObject = stream;
           _cameraReady = true;
         });
@@ -212,6 +215,13 @@ class _GoLivePageState extends State<GoLivePage> {
         }
       },
     );
+  }
+
+  Future<void> _switchCamera() async {
+    final List<MediaStreamTrack> tracks = _localStream?.getVideoTracks() ?? <MediaStreamTrack>[];
+    if (tracks.isEmpty) return;
+    await Helper.switchCamera(tracks.first);
+    if (mounted) setState(() => _isFrontCamera = !_isFrontCamera);
   }
 
   // Called when streamIdInUse is received before publish_started.
@@ -386,6 +396,7 @@ class _GoLivePageState extends State<GoLivePage> {
     setState(() {
       _phase = _Phase.ending;
       _cameraReady = false;
+      _localStream = null;
     });
     try {
       await widget.apiClient.post<dynamic>(
@@ -532,8 +543,11 @@ class _GoLivePageState extends State<GoLivePage> {
           durationSeconds: _durationSeconds,
           ending: _phase == _Phase.ending,
           localRenderer: _cameraReady ? _localRenderer : null,
+          isFrontCamera: _isFrontCamera,
+          canSwitchCamera: _localStream != null,
           onSend: _sendMessage,
           onEnd: _endLive,
+          onSwitchCamera: _switchCamera,
           formatDuration: _formatDuration,
         ),
       _ => _PrepareView(
@@ -542,8 +556,11 @@ class _GoLivePageState extends State<GoLivePage> {
           session: _session,
           localRenderer: _cameraReady ? _localRenderer : null,
           publishStarted: _publishStarted,
+          isFrontCamera: _isFrontCamera,
+          canSwitchCamera: _localStream != null,
           onStart: _phase == _Phase.idle ? _quickStart : _goLive,
           onEnd: _endLive,
+          onSwitchCamera: _switchCamera,
           onBack: () => Navigator.of(context).maybePop(),
         ),
     };
@@ -560,7 +577,10 @@ class _PrepareView extends StatelessWidget {
     required this.onStart,
     required this.onEnd,
     required this.onBack,
+    required this.onSwitchCamera,
     required this.publishStarted,
+    required this.isFrontCamera,
+    required this.canSwitchCamera,
     this.localRenderer,
   });
 
@@ -568,9 +588,12 @@ class _PrepareView extends StatelessWidget {
   final String? error;
   final LiveSession? session;
   final bool publishStarted;
+  final bool isFrontCamera;
+  final bool canSwitchCamera;
   final VoidCallback onStart;
   final VoidCallback onEnd;
   final VoidCallback onBack;
+  final VoidCallback onSwitchCamera;
   final RTCVideoRenderer? localRenderer;
 
   @override
@@ -586,7 +609,11 @@ class _PrepareView extends StatelessWidget {
         children: <Widget>[
           // Camera preview or placeholder
           localRenderer != null
-              ? RTCVideoView(localRenderer!, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+              ? RTCVideoView(
+                  localRenderer!,
+                  mirror: isFrontCamera,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                )
               : Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -643,6 +670,9 @@ class _PrepareView extends StatelessWidget {
                       ),
                     ),
                   ],
+                  const Spacer(),
+                  if (canSwitchCamera)
+                    _CircleButton(icon: Icons.flip_camera_ios_rounded, onTap: onSwitchCamera),
                 ],
               ),
             ),
@@ -863,8 +893,11 @@ class _LiveView extends StatefulWidget {
     required this.sendingMessage,
     required this.durationSeconds,
     required this.ending,
+    required this.isFrontCamera,
+    required this.canSwitchCamera,
     required this.onSend,
     required this.onEnd,
+    required this.onSwitchCamera,
     required this.formatDuration,
     this.localRenderer,
   });
@@ -874,10 +907,13 @@ class _LiveView extends StatefulWidget {
   final TextEditingController chatController;
   final bool sendingMessage;
   final RTCVideoRenderer? localRenderer;
+  final bool isFrontCamera;
+  final bool canSwitchCamera;
   final int durationSeconds;
   final bool ending;
   final VoidCallback onSend;
   final VoidCallback onEnd;
+  final VoidCallback onSwitchCamera;
   final String Function(int) formatDuration;
 
   @override
@@ -928,7 +964,11 @@ class _LiveViewState extends State<_LiveView> {
               ),
             ),
             child: widget.localRenderer != null
-                ? RTCVideoView(widget.localRenderer!, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+                ? RTCVideoView(
+                    widget.localRenderer!,
+                    mirror: widget.isFrontCamera,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
                 : null,
           ),
 
@@ -1028,6 +1068,15 @@ class _LiveViewState extends State<_LiveView> {
                         ],
                       ),
                       const SizedBox(width: AppSpacing.sm),
+                      // Flip camera
+                      if (widget.canSwitchCamera)
+                        Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.sm),
+                          child: _CircleButton(
+                            icon: Icons.flip_camera_ios_rounded,
+                            onTap: widget.onSwitchCamera,
+                          ),
+                        ),
                       // End button
                       GestureDetector(
                         onTap: () => setState(() => _showEndConfirm = true),

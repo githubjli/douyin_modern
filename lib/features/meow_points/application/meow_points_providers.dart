@@ -12,7 +12,7 @@ final meowPointsWalletProvider =
   );
   final dynamic data = response.data;
   if (data is! Map<String, dynamic>) {
-    throw FormatException('Unexpected wallet response format');
+    throw const FormatException('Unexpected wallet response format');
   }
   return MeowPointWallet.fromJson(data);
 });

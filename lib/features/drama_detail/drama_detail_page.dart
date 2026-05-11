@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
@@ -6,8 +7,9 @@ import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../home/domain/home_models.dart';
+import 'application/drama_detail_providers.dart';
 
-class DramaDetailPage extends StatefulWidget {
+class DramaDetailPage extends ConsumerStatefulWidget {
   const DramaDetailPage({
     super.key,
     required this.drama,
@@ -18,13 +20,11 @@ class DramaDetailPage extends StatefulWidget {
   final DramaDetailRepository? repository;
 
   @override
-  State<DramaDetailPage> createState() => _DramaDetailPageState();
+  ConsumerState<DramaDetailPage> createState() => _DramaDetailPageState();
 }
 
-class _DramaDetailPageState extends State<DramaDetailPage> {
-  late final DramaDetailRepository _repository;
-  late Future<DramaDetailData> _future;
-  int _tabIndex = 0;
+class _DramaDetailPageState extends ConsumerState<DramaDetailPage> {
+  late final Future<DramaDetailData> _future;
 
   static const List<String> _tabs = <String>[
     'Episodes',
@@ -36,13 +36,16 @@ class _DramaDetailPageState extends State<DramaDetailPage> {
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ??
-        RemoteDramaDetailRepository(apiClient: ApiClient());
-    _future = _repository.getDramaDetail(widget.drama);
+    final DramaDetailRepository repo =
+        widget.repository ?? ref.read(dramaDetailRepositoryProvider);
+    _future = repo.getDramaDetail(widget.drama);
   }
 
   @override
   Widget build(BuildContext context) {
+    final int tabIndex =
+        ref.watch(dramaTabIndexProvider(widget.drama.id));
+
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       appBar: AppBar(
@@ -69,8 +72,10 @@ class _DramaDetailPageState extends State<DramaDetailPage> {
                 const SizedBox(height: AppSpacing.md),
                 _DramaTabs(
                   tabs: _tabs,
-                  selectedIndex: _tabIndex,
-                  onSelected: (int index) => setState(() => _tabIndex = index),
+                  selectedIndex: tabIndex,
+                  onSelected: (int index) => ref
+                      .read(dramaTabIndexProvider(widget.drama.id).notifier)
+                      .state = index,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 if (snapshot.connectionState == ConnectionState.waiting &&
@@ -79,7 +84,7 @@ class _DramaDetailPageState extends State<DramaDetailPage> {
                 else
                   _DramaEpisodeBody(
                     data: data,
-                    tabIndex: _tabIndex,
+                    tabIndex: tabIndex,
                   ),
               ],
             ),

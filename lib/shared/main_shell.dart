@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/theme/app_colors.dart';
 import '../features/feed/feed_page.dart';
@@ -8,8 +9,9 @@ import '../features/home/home_page.dart';
 import '../features/home/domain/home_repository.dart';
 import '../features/membership/membership_page.dart';
 import '../features/profile/profile_page.dart';
+import 'shell_providers.dart';
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({
     super.key,
     this.enableFeedVideo = true,
@@ -26,86 +28,74 @@ class MainShell extends StatefulWidget {
   final HomeRepository? homeRepository;
 
   @override
-  State<MainShell> createState() => _MainShellState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final int index = ref.watch(selectedTabProvider);
 
-class _MainShellState extends State<MainShell> {
-  int _index = 0;
-
-  void _goToTab(int value) {
-    final NavigatorState navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
-    if (!mounted) return;
-    setState(() => _index = value);
-  }
-
-  void _goToProfile() => _goToTab(4);
-
-  void _goToMembership() => _goToTab(3);
-
-  Future<void> _onTapTab(int value) async {
-    if (value == 2) {
-      await showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: AppColors.cardBackground,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (BuildContext context) {
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                ListTile(
-                  leading: const Icon(Icons.live_tv, color: AppColors.deepGold),
-                  title: const Text('Go Live'),
-                  onTap: () => Navigator.pop(context),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.ondemand_video,
-                      color: AppColors.deepGold),
-                  title: const Text('Publish Video'),
-                  onTap: () => Navigator.pop(context),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.video_collection,
-                      color: AppColors.deepGold),
-                  title: const Text('Upload Short'),
-                  onTap: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-      return;
+    void goToTab(int value) {
+      final NavigatorState navigator = Navigator.of(context);
+      if (navigator.canPop()) navigator.pop();
+      ref.read(selectedTabProvider.notifier).state = value;
     }
 
-    setState(() => _index = value);
-  }
+    Future<void> onTapTab(int value) async {
+      if (value == 2) {
+        await showModalBottomSheet<void>(
+          context: context,
+          backgroundColor: AppColors.cardBackground,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (BuildContext context) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  ListTile(
+                    leading:
+                        const Icon(Icons.live_tv, color: AppColors.deepGold),
+                    title: const Text('Go Live'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.ondemand_video,
+                        color: AppColors.deepGold),
+                    title: const Text('Publish Video'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.video_collection,
+                        color: AppColors.deepGold),
+                    title: const Text('Upload Short'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+        return;
+      }
+      ref.read(selectedTabProvider.notifier).state = value;
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    final int displayIndex = _index >= 2 ? _index - 1 : _index;
+    final int displayIndex = index >= 2 ? index - 1 : index;
     final List<Widget> displayPages = <Widget>[
       HomePage(
-        useRemote: widget.enableRemoteHome,
-        remoteRepository: widget.homeRepository,
-        onSignInPressed: _goToProfile,
-        onSubscribePressed: _goToMembership,
+        useRemote: enableRemoteHome,
+        remoteRepository: homeRepository,
+        onSignInPressed: () => goToTab(4),
+        onSubscribePressed: () => goToTab(3),
       ),
       FeedPage(
-        enableVideo: widget.enableFeedVideo,
-        enableRemoteFeed: widget.enableRemoteFeed,
-        isActive: _index == 1,
+        enableVideo: enableFeedVideo,
+        enableRemoteFeed: enableRemoteFeed,
+        isActive: index == 1,
       ),
       MembershipPage(
-        useRemote: widget.enableRemoteMembership,
-        isActive: _index == 3,
-        onSignInPressed: _goToProfile,
-        onSubscribePressed: _goToMembership,
+        useRemote: enableRemoteMembership,
+        isActive: index == 3,
+        onSignInPressed: () => goToTab(4),
+        onSubscribePressed: () => goToTab(3),
       ),
       const ProfilePage(),
     ];
@@ -138,7 +128,7 @@ class _MainShellState extends State<MainShell> {
               child: SizedBox(
                 height: 55,
                 child: BottomNavigationBar(
-                  currentIndex: _index,
+                  currentIndex: index,
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
@@ -150,7 +140,7 @@ class _MainShellState extends State<MainShell> {
                   selectedLabelStyle: const TextStyle(height: 0.95),
                   unselectedLabelStyle: const TextStyle(height: 0.95),
                   showUnselectedLabels: true,
-                  onTap: _onTapTab,
+                  onTap: onTapTab,
                   items: const <BottomNavigationBarItem>[
                     BottomNavigationBarItem(
                       icon: Icon(Icons.home_outlined),

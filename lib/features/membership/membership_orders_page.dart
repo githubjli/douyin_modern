@@ -4,45 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../core/network/api_client.dart';
 import 'application/membership_providers.dart';
 import 'application/membership_state.dart';
-import 'data/remote_manual_membership_repository.dart';
-import 'domain/manual_membership_repository.dart';
 import 'domain/manual_tx_hint.dart';
 import 'domain/membership_status.dart';
 
-class MembershipOrdersPage extends ConsumerStatefulWidget {
-  const MembershipOrdersPage({super.key, this.manualRepository});
-
-  final ManualMembershipRepository? manualRepository;
+class MembershipOrdersPage extends ConsumerWidget {
+  const MembershipOrdersPage({super.key});
 
   @override
-  ConsumerState<MembershipOrdersPage> createState() =>
-      _MembershipOrdersPageState();
-}
-
-class _MembershipOrdersPageState extends ConsumerState<MembershipOrdersPage> {
-  late ManualMembershipRepository _repository;
-  late Future<List<ManualTxHint>> _hintsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _repository = widget.manualRepository ??
-        RemoteManualMembershipRepository(apiClient: ApiClient());
-    _hintsFuture = _repository.getTxHints();
-  }
-
-  void _refresh() {
-    setState(() {
-      _hintsFuture = _repository.getTxHints();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final MembershipState state = ref.watch(membershipControllerProvider);
+    final AsyncValue<List<ManualTxHint>> hints = ref.watch(txHintsProvider);
+
+    void refresh() => ref.invalidate(txHintsProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -62,7 +37,7 @@ class _MembershipOrdersPageState extends ConsumerState<MembershipOrdersPage> {
           IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded, color: AppColors.brandGold),
-            onPressed: _refresh,
+            onPressed: refresh,
           ),
         ],
       ),
@@ -72,7 +47,7 @@ class _MembershipOrdersPageState extends ConsumerState<MembershipOrdersPage> {
           children: <Widget>[
             _MembershipStatusCard(state: state),
             const SizedBox(height: AppSpacing.md),
-            _TxHintsSection(future: _hintsFuture, onRefresh: _refresh),
+            _TxHintsSection(hints: hints, onRefresh: refresh),
           ],
         ),
       ),
@@ -180,42 +155,38 @@ class _MembershipStatusCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _TxHintsSection extends StatelessWidget {
-  const _TxHintsSection({required this.future, required this.onRefresh});
+  const _TxHintsSection({required this.hints, required this.onRefresh});
 
-  final Future<List<ManualTxHint>> future;
+  final AsyncValue<List<ManualTxHint>> hints;
   final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<ManualTxHint>>(
-      future: future,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<ManualTxHint>> snapshot,
-      ) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Payment History',
-              style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            if (snapshot.connectionState == ConnectionState.waiting)
-              const _LoadingCard()
-            else if (snapshot.hasError)
-              _ErrorCard(onRetry: onRefresh)
-            else if (snapshot.data == null || snapshot.data!.isEmpty)
-              const _EmptyCard()
-            else
-              for (final ManualTxHint hint in snapshot.data!)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: _TxHintCard(hint: hint),
-                ),
-          ],
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Payment History',
+          style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        hints.when(
+          loading: () => const _LoadingCard(),
+          error: (_, __) => _ErrorCard(onRetry: onRefresh),
+          data: (List<ManualTxHint> items) {
+            if (items.isEmpty) return const _EmptyCard();
+            return Column(
+              children: <Widget>[
+                for (final ManualTxHint hint in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _TxHintCard(hint: hint),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }

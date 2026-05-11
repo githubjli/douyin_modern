@@ -1003,7 +1003,7 @@ String _selectedPlanTokenSymbol(
   return _trimmed(selectedPlan.settlementTokenSymbol) ??
       _trimmed(order.tokenSymbol) ??
       _trimmed(order.currency) ??
-      'LBC';
+      'THB-LTT';
 }
 
 String _durationLabel(MembershipPlan? plan) {

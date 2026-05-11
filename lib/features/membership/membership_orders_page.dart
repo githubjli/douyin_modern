@@ -249,7 +249,7 @@ class _TxHintCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xxs),
-          _HintRow(label: 'Amount', value: '${hint.expectedAmountLbc} LBC'),
+          _HintRow(label: 'Amount', value: '${hint.expectedAmountLbc} THB-LTT'),
           _HintRow(
             label: 'TX ID',
             value: hint.txid.length > 24

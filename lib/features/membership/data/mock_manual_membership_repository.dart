@@ -29,11 +29,11 @@ class MockManualMembershipRepository implements ManualMembershipRepository {
     planCode: 'monthly',
     planName: 'Basic Monthly',
     expectedAmountLbc: '30.00000000',
-    currency: 'LBC',
+    currency: 'THB-LTT',
     payToAddress: 'mock-lbc-address-bPrWVMvpgqjeViHJPKUQcK',
     requiredConfirmations: 0,
     notice:
-        'Send the exact LBC amount to the platform address, then wait for staff verification.',
+        'Send the exact THB-LTT amount to the platform address, then wait for staff verification.',
   );
 
   @override

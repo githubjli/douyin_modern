@@ -79,7 +79,7 @@ class ManualPaymentInfo {
       currency: _str(json['currency']) ??
           _str(json['token_symbol']) ??
           _nestedStr(json['settlement'], 'token_symbol') ??
-          'LBC',
+          'THB-LTT',
       payToAddress: payToAddress,
       requiredConfirmations: _int(json['required_confirmations']) ?? 0,
       notice: _str(json['notice']),

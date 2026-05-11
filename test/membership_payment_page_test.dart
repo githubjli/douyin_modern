@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/features/membership/domain/membership_order.dart';
 import 'package:meow_media/features/membership/domain/membership_plan.dart';
@@ -40,12 +41,14 @@ void main() {
     QrCodeSaver? qrCodeSaver,
   }) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: MembershipPaymentPage(
-          order: order,
-          selectedPlan: selectedPlan,
-          repository: repository ?? _PaymentMembershipRepository(),
-          qrCodeSaver: qrCodeSaver,
+      ProviderScope(
+        child: MaterialApp(
+          home: MembershipPaymentPage(
+            order: order,
+            selectedPlan: selectedPlan,
+            repository: repository ?? _PaymentMembershipRepository(),
+            qrCodeSaver: qrCodeSaver,
+          ),
         ),
       ),
     );

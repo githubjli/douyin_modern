@@ -268,10 +268,14 @@ class _GoLivePageState extends State<GoLivePage> {
   Future<void> _startLive() async {
     final String? id = _session?.id;
     if (id == null || id.isEmpty) return;
-    setState(() {
-      _phase = _Phase.preparing;
-      _error = null;
-    });
+    // Don't push phase to "preparing" if camera is already broadcasting —
+    // that would hide the live camera preview from the user.
+    if (!_publishStarted) {
+      setState(() {
+        _phase = _Phase.preparing;
+        _error = null;
+      });
+    }
     try {
       final String startUrl = _kSkipAntMediaCheck
           ? '${Endpoints.liveStart(id)}?skip_ant_media=true'
@@ -283,15 +287,16 @@ class _GoLivePageState extends State<GoLivePage> {
       if (!mounted) return;
       final dynamic data = response.data;
 
-      // Backend may respond with "waiting_for_signal" if Ant Media hasn't
-      // received the stream yet. Retry up to _maxStartRetries times.
-      if (data is Map<String, dynamic> &&
-          data['next_action'] == 'retry_status') {
-        if (_startRetries < _maxStartRetries) {
-          _startRetries++;
+      if (data is Map<String, dynamic> && data['next_action'] == 'retry_status') {
+        _startRetries++;
+        if (_publishStarted) {
+          // Camera is live on Ant Media — retry silently without error banner
+          setState(() => _error = 'Connecting to server... ($_startRetries)');
+          await Future<void>.delayed(const Duration(seconds: 3));
+          if (mounted) unawaited(_startLive());
+        } else if (_startRetries <= _maxStartRetries) {
           setState(() {
-            _error =
-                'Waiting for stream signal... (retry $_startRetries/$_maxStartRetries)';
+            _error = 'Waiting for stream... (retry $_startRetries/$_maxStartRetries)';
             _phase = _Phase.ready;
           });
           await Future<void>.delayed(const Duration(seconds: 3));
@@ -299,8 +304,7 @@ class _GoLivePageState extends State<GoLivePage> {
         } else {
           _startRetries = 0;
           setState(() {
-            _error =
-                'Stream signal not received. Make sure your stream is publishing.';
+            _error = 'Stream signal not received. Please try again.';
             _phase = _Phase.ready;
           });
         }
@@ -311,27 +315,41 @@ class _GoLivePageState extends State<GoLivePage> {
       setState(() {
         _phase = _Phase.live;
         _durationSeconds = 0;
+        _error = null;
       });
       _startPolling();
     } on DioException catch (e) {
       if (!mounted) return;
-      // 409 means Ant Media hasn't received the stream yet.
-      // Extract next_action from response body if available.
       final dynamic body = e.response?.data;
       final String? nextAction = body is Map<String, dynamic>
           ? body['next_action']?.toString()
           : null;
+      final int statusCode = e.response?.statusCode ?? 0;
 
-      if (e.response?.statusCode == 409 &&
-          nextAction == 'retry_status' &&
-          _startRetries < _maxStartRetries) {
+      if (statusCode == 409 || nextAction == 'retry_status') {
         _startRetries++;
-        setState(() {
-          _error =
-              'Waiting for stream signal... (retry $_startRetries/$_maxStartRetries)';
-          _phase = _Phase.ready;
-        });
-        await Future<void>.delayed(const Duration(seconds: 3));
+        if (_publishStarted) {
+          setState(() => _error = 'Connecting to server... ($_startRetries)');
+          await Future<void>.delayed(const Duration(seconds: 3));
+          if (mounted) unawaited(_startLive());
+        } else if (_startRetries <= _maxStartRetries) {
+          setState(() {
+            _error = 'Waiting for stream... (retry $_startRetries/$_maxStartRetries)';
+            _phase = _Phase.ready;
+          });
+          await Future<void>.delayed(const Duration(seconds: 3));
+          if (mounted) unawaited(_startLive());
+        } else {
+          _startRetries = 0;
+          setState(() {
+            _error = 'Failed to start live. Please try again.';
+            _phase = _Phase.ready;
+          });
+        }
+      } else if (_publishStarted) {
+        // Backend error but camera is broadcasting — keep retrying silently
+        setState(() => _error = 'Server error — retrying...');
+        await Future<void>.delayed(const Duration(seconds: 5));
         if (mounted) unawaited(_startLive());
       } else {
         _startRetries = 0;
@@ -344,7 +362,12 @@ class _GoLivePageState extends State<GoLivePage> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      if (_publishStarted) {
+        setState(() => _error = 'Server error — retrying...');
+        await Future<void>.delayed(const Duration(seconds: 5));
+        if (mounted) unawaited(_startLive());
+      } else {
         setState(() {
           _error = 'Failed to start live. Please try again.';
           _phase = _Phase.ready;
@@ -518,7 +541,9 @@ class _GoLivePageState extends State<GoLivePage> {
           error: _error,
           session: _session,
           localRenderer: _cameraReady ? _localRenderer : null,
+          publishStarted: _publishStarted,
           onStart: _phase == _Phase.idle ? _quickStart : _goLive,
+          onEnd: _endLive,
           onBack: () => Navigator.of(context).maybePop(),
         ),
     };
@@ -533,14 +558,18 @@ class _PrepareView extends StatelessWidget {
     required this.error,
     required this.session,
     required this.onStart,
+    required this.onEnd,
     required this.onBack,
+    required this.publishStarted,
     this.localRenderer,
   });
 
   final _Phase phase;
   final String? error;
   final LiveSession? session;
+  final bool publishStarted;
   final VoidCallback onStart;
+  final VoidCallback onEnd;
   final VoidCallback onBack;
   final RTCVideoRenderer? localRenderer;
 
@@ -548,7 +577,7 @@ class _PrepareView extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool loading = phase == _Phase.preparing;
     final LiveSession? s = session;
-    final bool hasSession = s != null;
+    final bool broadcasting = publishStarted && localRenderer != null;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -578,160 +607,248 @@ class _PrepareView extends StatelessWidget {
                   ),
                 ),
 
+          // Gradient overlay (only when broadcasting, so text is readable)
+          if (broadcasting)
+            Positioned(
+              bottom: 0, left: 0, right: 0, height: 200,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: <Color>[Color(0xE0000000), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+
           // Top bar
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: _CircleButton(
-                  icon: Icons.arrow_back_rounded,
-                  onTap: onBack,
-                ),
+              child: Row(
+                children: <Widget>[
+                  _CircleButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+                  if (broadcasting) ...<Widget>[
+                    const SizedBox(width: AppSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        '● BROADCASTING',
+                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
 
           // Bottom panel
           Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
+            left: 0, right: 0, bottom: 0,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (hasSession) ...<Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBackground.withValues(alpha: 0.9),
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusMd),
-                          border: Border.all(color: AppColors.softBorder),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'SESSION READY',
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.brandGold,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            _InfoRow(label: 'Live ID', value: s.id),
-                            if (s.title.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 4),
-                              _InfoRow(label: 'Title', value: s.title),
-                            ],
-                            if (s.effectiveStatus.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 4),
-                              _InfoRow(label: 'Status', value: s.effectiveStatus),
-                            ],
-                            if (s.streamId.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 4),
-                              _InfoRow(
-                                label: 'Stream ID',
-                                value:
-                                    '${s.streamId.substring(0, s.streamId.length.clamp(0, 12))}••••',
-                              ),
-                            ],
-                            if (s.websocketUrl.isNotEmpty) ...<Widget>[
-                              const SizedBox(height: 4),
-                              _InfoRow(
-                                label: 'WebSocket',
-                                value: s.websocketUrl
-                                    .replaceFirst('wss://', '')
-                                    .split('/')
-                                    .first,
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            Row(
-                              children: <Widget>[
-                                const Icon(
-                                  Icons.check_circle_outline_rounded,
-                                  color: Colors.greenAccent,
-                                  size: 14,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Publish config received — tap Go Live',
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: Colors.greenAccent,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                child: broadcasting
+                    ? _BroadcastingPanel(error: error, onEnd: onEnd)
+                    : _PreparePanel(
+                        phase: phase,
+                        error: error,
+                        session: s,
+                        loading: loading,
+                        onStart: onStart,
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-                    if (error != null) ...<Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withAlpha(30),
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusSm),
-                        ),
-                        child: Text(
-                          error!,
-                          style: const TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 13,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                    ],
-                    ElevatedButton(
-                      onPressed: loading ? null : onStart,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brandGold,
-                        foregroundColor: Colors.black,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusMd),
-                        ),
-                      ),
-                      child: loading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.black,
-                              ),
-                            )
-                          : Text(
-                              phase == _Phase.idle
-                                  ? 'Prepare Live'
-                                  : 'Go Live',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// Shown when camera is live on Ant Media but /start/ hasn't confirmed yet
+class _BroadcastingPanel extends StatelessWidget {
+  const _BroadcastingPanel({required this.error, required this.onEnd});
+  final String? error;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            children: <Widget>[
+              const SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandGold),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  error ?? 'Connecting to server...',
+                  style: TextStyle(
+                    color: error != null && error!.startsWith('Server')
+                        ? Colors.orangeAccent
+                        : Colors.white70,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        ElevatedButton(
+          onPressed: onEnd,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.redAccent,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+          ),
+          child: const Text('End Stream', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
+  }
+}
+
+// Shown in idle / ready states (before camera is live)
+class _PreparePanel extends StatelessWidget {
+  const _PreparePanel({
+    required this.phase,
+    required this.error,
+    required this.session,
+    required this.loading,
+    required this.onStart,
+  });
+  final _Phase phase;
+  final String? error;
+  final LiveSession? session;
+  final bool loading;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final LiveSession? s = session;
+    final bool hasSession = s != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (hasSession) ...<Widget>[
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              border: Border.all(color: AppColors.softBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'SESSION READY',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.brandGold,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _InfoRow(label: 'Live ID', value: s.id),
+                if (s.title.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  _InfoRow(label: 'Title', value: s.title),
+                ],
+                if (s.effectiveStatus.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  _InfoRow(label: 'Status', value: s.effectiveStatus),
+                ],
+                if (s.streamId.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  _InfoRow(
+                    label: 'Stream ID',
+                    value: '${s.streamId.substring(0, s.streamId.length.clamp(0, 12))}••••',
+                  ),
+                ],
+                if (s.websocketUrl.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  _InfoRow(
+                    label: 'WebSocket',
+                    value: s.websocketUrl.replaceFirst('wss://', '').split('/').first,
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.check_circle_outline_rounded, color: Colors.greenAccent, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Publish config received — tap Go Live',
+                      style: AppTextStyles.caption.copyWith(color: Colors.greenAccent, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (error != null) ...<Widget>[
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withAlpha(30),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Text(
+              error!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        ElevatedButton(
+          onPressed: loading ? null : onStart,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.brandGold,
+            foregroundColor: Colors.black,
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+          ),
+          child: loading
+              ? const SizedBox(
+                  width: 22, height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                )
+              : Text(
+                  phase == _Phase.idle ? 'Prepare Live' : 'Go Live',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+        ),
+      ],
     );
   }
 }

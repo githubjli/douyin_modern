@@ -422,6 +422,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
             else
               _VideoRecommendationGrid(
                 items: recommendations,
+                allCandidates: widget.recommendations,
                 onSignInPressed: widget.onSignInPressed,
                 onSubscribePressed: widget.onSubscribePressed,
               ),
@@ -865,9 +866,10 @@ class _VideoInfoSection extends StatelessWidget {
 }
 
 class _InfoBadge extends StatelessWidget {
-  const _InfoBadge({required this.label});
+  const _InfoBadge({required this.label, this.isVip = false});
 
   final String label;
+  final bool isVip;
 
   @override
   Widget build(BuildContext context) {
@@ -877,13 +879,18 @@ class _InfoBadge extends StatelessWidget {
         vertical: AppSpacing.xxs,
       ),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.softBorder),
+        color: isVip ? AppColors.brandGold : AppColors.cardBackground,
+        border: Border.all(
+          color: isVip ? AppColors.brandGold : AppColors.softBorder,
+        ),
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
       child: Text(
         label,
-        style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
+        style: AppTextStyles.caption.copyWith(
+          color: isVip ? Colors.black : AppColors.brandGold,
+          fontWeight: isVip ? FontWeight.bold : FontWeight.normal,
+        ),
       ),
     );
   }
@@ -1406,11 +1413,13 @@ _Comment? _mapComment(Map<String, dynamic> data) {
 class _VideoRecommendationGrid extends StatelessWidget {
   const _VideoRecommendationGrid({
     required this.items,
+    required this.allCandidates,
     required this.onSignInPressed,
     required this.onSubscribePressed,
   });
 
   final List<HomeVideoItem> items;
+  final List<HomeVideoItem> allCandidates;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
@@ -1434,7 +1443,7 @@ class _VideoRecommendationGrid extends StatelessWidget {
               MaterialPageRoute<void>(
                 builder: (_) => VideoDetailPage(
                   video: item,
-                  recommendations: items,
+                  recommendations: allCandidates,
                   onSignInPressed: onSignInPressed,
                   onSubscribePressed: onSubscribePressed,
                 ),
@@ -1460,10 +1469,13 @@ class _VideoRecommendationGrid extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Positioned(
+                Positioned(
                   top: AppSpacing.xs,
                   left: AppSpacing.xs,
-                  child: _InfoBadge(label: 'Video'),
+                  child: _InfoBadge(
+                    label: item.isMembershipVideo ? 'VIP' : 'Video',
+                    isVip: item.isMembershipVideo,
+                  ),
                 ),
                 Positioned(
                   left: AppSpacing.xs,

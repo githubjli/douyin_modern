@@ -1,116 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
+import '../../features/auth/application/auth_providers.dart';
+import 'application/meow_points_providers.dart';
 import 'domain/meow_point_wallet.dart';
 
-class MeowPointsPage extends StatefulWidget {
-  const MeowPointsPage({
-    super.key,
-    required this.apiClient,
-    this.initialWallet,
-  });
-
-  final ApiClient apiClient;
-  final MeowPointWallet? initialWallet;
+class MeowPointsPage extends ConsumerWidget {
+  const MeowPointsPage({super.key});
 
   @override
-  State<MeowPointsPage> createState() => _MeowPointsPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<MeowPointWallet> walletAsync =
+        ref.watch(meowPointsWalletProvider);
+    final bool claiming = ref.watch(claimingRewardProvider);
 
-class _MeowPointsPageState extends State<MeowPointsPage> {
-  MeowPointWallet? _wallet;
-  bool _loading = false;
-  String? _error;
-  bool _claimingReward = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _wallet = widget.initialWallet;
-    if (_wallet == null) {
-      _loadWallet();
-    }
-  }
-
-  Future<void> _loadWallet() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final response = await widget.apiClient.get<dynamic>(
-        Endpoints.meowPointsWallet,
-        authenticated: true,
-      );
-      final dynamic data = response.data;
-      if (data is Map<String, dynamic> && mounted) {
-        setState(() {
-          _wallet = MeowPointWallet.fromJson(data);
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Unable to load wallet.';
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _claimDailyReward() async {
-    if (_claimingReward) return;
-    setState(() => _claimingReward = true);
-    try {
-      final response = await widget.apiClient.post<dynamic>(
-        Endpoints.meowPointsDailyReward,
-        authenticated: true,
-      );
-      final dynamic data = response.data;
-      if (!mounted) return;
-      final bool granted = data is Map<String, dynamic>
-          ? data['granted'] == true
-          : false;
-      final int amount = data is Map<String, dynamic>
-          ? (data['points_amount'] as num?)?.toInt() ?? 0
-          : 0;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+    Future<void> claimDailyReward() async {
+      if (ref.read(claimingRewardProvider)) return;
+      // Capture messenger before await to avoid using context across async gaps.
+      final ScaffoldMessengerState messenger =
+          ScaffoldMessenger.of(context);
+      ref.read(claimingRewardProvider.notifier).state = true;
+      try {
+        final response = await ref.read(apiClientProvider).post<dynamic>(
+          Endpoints.meowPointsDailyReward,
+          authenticated: true,
+        );
+        final dynamic data = response.data;
+        final bool granted =
+            data is Map<String, dynamic> ? data['granted'] == true : false;
+        final int amount = data is Map<String, dynamic>
+            ? (data['points_amount'] as num?)?.toInt() ?? 0
+            : 0;
+        messenger.showSnackBar(SnackBar(
           content: Text(
             granted
                 ? '+$amount Meow Points — daily reward claimed!'
                 : 'Daily reward already claimed today.',
           ),
-        ),
-      );
-      // Refresh wallet to reflect new balance
-      if (granted) await _loadWallet();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ));
+        if (granted) ref.invalidate(meowPointsWalletProvider);
+      } catch (_) {
+        messenger.showSnackBar(
           const SnackBar(content: Text('Unable to claim reward.')),
         );
+      } finally {
+        ref.read(claimingRewardProvider.notifier).state = false;
       }
-    } finally {
-      if (mounted) setState(() => _claimingReward = false);
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final MeowPointWallet? w = _wallet;
+    final MeowPointWallet? wallet = walletAsync.valueOrNull;
+    final bool loading = walletAsync.isLoading;
+    final String? error = walletAsync.hasError ? 'Unable to load wallet.' : null;
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.brandGold,
-          onRefresh: _loadWallet,
+          onRefresh: () async => ref.invalidate(meowPointsWalletProvider),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(
@@ -122,7 +73,6 @@ class _MeowPointsPageState extends State<MeowPointsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                // Header
                 Row(
                   children: <Widget>[
                     GestureDetector(
@@ -158,27 +108,21 @@ class _MeowPointsPageState extends State<MeowPointsPage> {
                     IconButton(
                       icon: const Icon(Icons.refresh_rounded, size: 20),
                       color: AppColors.mutedOliveText,
-                      onPressed: _loadWallet,
+                      onPressed: () => ref.invalidate(meowPointsWalletProvider),
                       visualDensity: VisualDensity.compact,
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
-
-                // Balance hero card
-                _BalanceCard(wallet: w, loading: _loading, error: _error),
+                _BalanceCard(wallet: wallet, loading: loading, error: error),
                 const SizedBox(height: AppSpacing.md),
-
-                // Daily reward
                 _DailyRewardCard(
-                  claiming: _claimingReward,
-                  onClaim: _claimDailyReward,
+                  claiming: claiming,
+                  onClaim: claimDailyReward,
                 ),
                 const SizedBox(height: AppSpacing.md),
-
-                // Stats breakdown
-                if (w != null) ...<Widget>[
-                  _StatsCard(wallet: w),
+                if (wallet != null) ...<Widget>[
+                  _StatsCard(wallet: wallet),
                   const SizedBox(height: AppSpacing.md),
                 ],
               ],

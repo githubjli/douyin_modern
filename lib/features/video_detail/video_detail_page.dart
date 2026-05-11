@@ -875,22 +875,17 @@ class _InfoBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xxs,
+        horizontal: AppSpacing.xs,
+        vertical: 2,
       ),
       decoration: BoxDecoration(
-        color: isVip ? AppColors.brandGold : AppColors.cardBackground,
-        border: Border.all(
-          color: isVip ? AppColors.brandGold : AppColors.softBorder,
-        ),
+        color: AppColors.cardBackground.withValues(alpha: 0.75),
+        border: Border.all(color: AppColors.softBorder),
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
       child: Text(
         label,
-        style: AppTextStyles.caption.copyWith(
-          color: isVip ? Colors.black : AppColors.brandGold,
-          fontWeight: isVip ? FontWeight.bold : FontWeight.normal,
-        ),
+        style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
       ),
     );
   }

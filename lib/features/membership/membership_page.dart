@@ -962,20 +962,15 @@ class _VipStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.brandGold.withValues(alpha: 0.16),
-        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.52)),
-        borderRadius: BorderRadius.circular(999),
+        color: AppColors.cardBackground.withValues(alpha: 0.75),
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
       child: Text(
         label,
-        style: AppTextStyles.caption.copyWith(
-          color: AppColors.brandGold,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          height: 1.1,
-        ),
+        style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
       ),
     );
   }

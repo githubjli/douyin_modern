@@ -171,7 +171,9 @@ class _PaymentBodyState extends ConsumerState<_PaymentBody> {
   Future<void> _saveQrCode() async {
     final PaymentPageState pageState = ref.read(paymentPageProvider);
     if (pageState.savingQr ||
-        _paymentQrPayload(pageState.currentOrder) == null) return;
+        _paymentQrPayload(pageState.currentOrder) == null) {
+      return;
+    }
 
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     ref.read(paymentPageProvider.notifier).setSavingQr(value: true);

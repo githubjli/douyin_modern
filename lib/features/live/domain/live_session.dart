@@ -1,70 +1,99 @@
 class LiveSession {
   const LiveSession({
     required this.id,
+    required this.streamId,
+    required this.websocketUrl,
     required this.publishConfig,
     this.title = '',
     this.status = '',
+    this.effectiveStatus = '',
     this.streamKey = '',
     this.playbackUrl = '',
     this.viewerCount = 0,
-    this.isLive = false,
-    this.durationSeconds = 0,
+    this.canStart = false,
+    this.canEnd = false,
   });
 
+  // live.id — used for Django API: /api/live/{id}/start|end|status
   final String id;
-  final Map<String, dynamic> publishConfig; // inner config from publish_config.config
+
+  // publish_config.config.stream_id — used for Ant Media SDK: publish(streamId)
+  final String streamId;
+
+  // publish_config.config.websocket_url — Ant Media WebSocket endpoint
+  final String websocketUrl;
+
+  // Full Ant Media config map (websocket_url, stream_id, app_name, publish_mode)
+  final Map<String, dynamic> publishConfig;
+
   final String title;
-  final String status;
+  final String status;           // Django model status
+  final String effectiveStatus;  // Computed: idle|ready|waiting_for_signal|live|ended
   final String streamKey;
   final String playbackUrl;
   final int viewerCount;
-  final bool isLive;
-  final int durationSeconds;
+  final bool canStart;
+  final bool canEnd;
 
-  // Parses both quick-start responses (nested live + publish_config)
-  // and status responses (flat, with is_live / viewer_count).
+  bool get isLive => effectiveStatus == 'live';
+  bool get isWaitingForSignal => effectiveStatus == 'waiting_for_signal';
+  bool get isEnded => effectiveStatus == 'ended';
+
+  // Handles two shapes:
+  //   quick-start → { live: {...}, publish_config: { ok, config: {...} } }
+  //   status      → { id, status, effective_status, can_start, can_end, ... }
   factory LiveSession.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> live =
         json['live'] is Map<String, dynamic>
             ? json['live'] as Map<String, dynamic>
-            : json; // status endpoint returns flat structure
+            : json;
 
-    final Map<String, dynamic> publishConfigWrapper =
+    final Map<String, dynamic> pubWrapper =
         json['publish_config'] is Map<String, dynamic>
             ? json['publish_config'] as Map<String, dynamic>
             : <String, dynamic>{};
 
     final Map<String, dynamic> config =
-        publishConfigWrapper['config'] is Map<String, dynamic>
-            ? publishConfigWrapper['config'] as Map<String, dynamic>
+        pubWrapper['config'] is Map<String, dynamic>
+            ? pubWrapper['config'] as Map<String, dynamic>
             : <String, dynamic>{};
 
-    final String id = live['id']?.toString() ?? '';
-
     return LiveSession(
-      id: id,
+      id: live['id']?.toString() ?? '',
+      streamId: config['stream_id']?.toString() ?? '',
+      websocketUrl: config['websocket_url']?.toString() ?? '',
       publishConfig: config,
       title: live['title']?.toString() ?? '',
       status: live['status']?.toString() ?? '',
+      effectiveStatus: live['effective_status']?.toString() ?? '',
       streamKey: live['stream_key']?.toString() ?? '',
       playbackUrl: live['playback_url']?.toString() ?? '',
       viewerCount: (live['viewer_count'] as num?)?.toInt() ?? 0,
-      isLive: live['status'] == 'live' || live['is_live'] == true,
-      durationSeconds: (live['duration_seconds'] as num?)?.toInt() ?? 0,
+      canStart: live['can_start'] == true,
+      canEnd: live['can_end'] == true,
     );
   }
 
-  LiveSession copyWith({int? viewerCount, bool? isLive, int? durationSeconds}) {
+  LiveSession copyWith({
+    String? effectiveStatus,
+    String? status,
+    int? viewerCount,
+    bool? canStart,
+    bool? canEnd,
+  }) {
     return LiveSession(
       id: id,
+      streamId: streamId,
+      websocketUrl: websocketUrl,
       publishConfig: publishConfig,
       title: title,
-      status: status,
+      status: status ?? this.status,
+      effectiveStatus: effectiveStatus ?? this.effectiveStatus,
       streamKey: streamKey,
       playbackUrl: playbackUrl,
       viewerCount: viewerCount ?? this.viewerCount,
-      isLive: isLive ?? this.isLive,
-      durationSeconds: durationSeconds ?? this.durationSeconds,
+      canStart: canStart ?? this.canStart,
+      canEnd: canEnd ?? this.canEnd,
     );
   }
 }

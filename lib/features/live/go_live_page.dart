@@ -47,6 +47,7 @@ class _GoLivePageState extends State<GoLivePage> {
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   bool _cameraReady = false;
   bool _publishStarted = false;
+  bool _freshRestartInProgress = false;
 
   @override
   void initState() {
@@ -132,6 +133,7 @@ class _GoLivePageState extends State<GoLivePage> {
     });
 
     _publishStarted = false;
+    _freshRestartInProgress = false;
     AntMediaFlutter.requestPermissions();
 
     // connect(ip, streamId, roomId, token, type, userScreen,
@@ -189,15 +191,73 @@ class _GoLivePageState extends State<GoLivePage> {
           }
         } else if (command == 'error' &&
             mapData['definition'] == 'streamIdInUse') {
-          // SDK reconnected after publish_started; the stream is already
-          // being broadcast. Close the helper to break the reconnect loop.
-          AntMediaFlutter.anthelper?.close();
+          if (_publishStarted) {
+            // SDK reconnected after publish_started — stream already live.
+            // Close to break the reconnect loop; nothing else to do.
+            AntMediaFlutter.anthelper?.close();
+          } else {
+            // Previous session still occupying this streamId on Ant Media.
+            // End the old session and get a fresh one.
+            if (!_freshRestartInProgress) {
+              unawaited(_freshRestart());
+            }
+          }
         }
       },
     );
   }
 
-  // Called either directly (bypass) or from SDK onPublishStarted callback.
+  // Called when streamIdInUse is received before publish_started.
+  // Ends the stale Ant Media session and acquires a brand-new live session.
+  Future<void> _freshRestart() async {
+    _freshRestartInProgress = true;
+    AntMediaFlutter.anthelper?.close();
+    if (!mounted) return;
+    setState(() {
+      _phase = _Phase.preparing;
+      _cameraReady = false;
+      _error = 'Previous stream detected — starting fresh session…';
+    });
+    try {
+      final response = await widget.apiClient.post<dynamic>(
+        '${Endpoints.liveQuickStart}?fresh=true',
+        data: <String, dynamic>{},
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (!mounted) return;
+      if (data is Map<String, dynamic>) {
+        final dynamic pub = data['publish_config'];
+        if (pub is Map<String, dynamic> && pub['ok'] != true) {
+          throw Exception(
+              pub['message']?.toString() ?? 'Publish config unavailable.');
+        }
+        final LiveSession session = LiveSession.fromJson(data);
+        if (session.id.isEmpty ||
+            session.streamId.isEmpty ||
+            session.websocketUrl.isEmpty) {
+          throw Exception('Invalid fresh session response');
+        }
+        setState(() {
+          _session = session;
+          _phase = _Phase.ready;
+          _error = null;
+        });
+        _freshRestartInProgress = false;
+        _initAndPublish();
+      }
+    } catch (e) {
+      _freshRestartInProgress = false;
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+          _phase = _Phase.ready;
+        });
+      }
+    }
+  }
+
+  // Called either directly (bypass) or from SDK publish_started callback.
   Future<void> _startLive() async {
     final String? id = _session?.id;
     if (id == null || id.isEmpty) return;

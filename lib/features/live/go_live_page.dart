@@ -13,6 +13,9 @@ import 'domain/live_session.dart';
 
 enum _Phase { idle, preparing, ready, live, ending, ended }
 
+// Set to false before production release.
+const bool _kSkipAntMediaCheck = true;
+
 class GoLivePage extends StatefulWidget {
   const GoLivePage({super.key, required this.apiClient});
 
@@ -101,8 +104,11 @@ class _GoLivePageState extends State<GoLivePage> {
       _error = null;
     });
     try {
+      final String startUrl = _kSkipAntMediaCheck
+          ? '${Endpoints.liveStart(id)}?skip_ant_media=true'
+          : Endpoints.liveStart(id);
       final response = await widget.apiClient.post<dynamic>(
-        Endpoints.liveStart(id),
+        startUrl,
         authenticated: true,
       );
       if (!mounted) return;

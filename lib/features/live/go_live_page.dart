@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -137,6 +138,36 @@ class _GoLivePageState extends State<GoLivePage> {
         _durationSeconds = 0;
       });
       _startPolling();
+    } on DioException catch (e) {
+      if (!mounted) return;
+      // 409 means Ant Media hasn't received the stream yet.
+      // Extract next_action from response body if available.
+      final dynamic body = e.response?.data;
+      final String? nextAction = body is Map<String, dynamic>
+          ? body['next_action']?.toString()
+          : null;
+
+      if (e.response?.statusCode == 409 &&
+          nextAction == 'retry_status' &&
+          _startRetries < _maxStartRetries) {
+        _startRetries++;
+        setState(() {
+          _error =
+              'Waiting for stream signal... (retry $_startRetries/$_maxStartRetries)';
+          _phase = _Phase.ready;
+        });
+        await Future<void>.delayed(const Duration(seconds: 3));
+        if (mounted) unawaited(_startLive());
+      } else {
+        _startRetries = 0;
+        final String msg = body is Map<String, dynamic>
+            ? body['detail']?.toString() ?? 'Failed to start live.'
+            : 'Failed to start live. Please try again.';
+        setState(() {
+          _error = msg;
+          _phase = _Phase.ready;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

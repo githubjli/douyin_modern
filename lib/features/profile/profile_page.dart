@@ -13,6 +13,7 @@ import '../../core/network/endpoints.dart';
 import '../../shared/brand_page_header.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
+import '../live/go_live_page.dart';
 import '../membership/membership_orders_page.dart';
 import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
@@ -331,6 +332,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ),
               ),
+              onGoLive: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => GoLivePage(apiClient: _apiClient),
+                ),
+              ),
             ),
           ],
         ],
@@ -608,6 +614,7 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.onRefresh,
     required this.onEdit,
     required this.onWalletDetails,
+    required this.onGoLive,
   });
 
   final UserProfile? profile;
@@ -616,6 +623,7 @@ class _SignedInProfileBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
   final VoidCallback onWalletDetails;
+  final VoidCallback onGoLive;
 
   @override
   Widget build(BuildContext context) {
@@ -649,8 +657,8 @@ class _SignedInProfileBody extends StatelessWidget {
               ),
               _MenuItem(
                 icon: Icons.live_tv_outlined,
-                label: 'Live Creator',
-                onTap: () => _showComingSoon(context),
+                label: 'Go Live',
+                onTap: onGoLive,
               ),
               _MenuItem(
                 icon: Icons.menu_book_outlined,

@@ -52,6 +52,19 @@ class Endpoints {
   static String membershipOrderVerifyNow(String orderNo) =>
       '/api/membership/orders/${Uri.encodeComponent(orderNo)}/verify-now/';
 
+  // Live streaming endpoints
+  static const String liveQuickStart = '/api/live/quick-start/';
+
+  static String liveDetail(String id) => '/api/live/$id/';
+
+  static String liveStatus(String id) => '/api/live/$id/status/';
+
+  static String liveStart(String id) => '/api/live/$id/start/';
+
+  static String liveEnd(String id) => '/api/live/$id/end/';
+
+  static String liveChatMessages(String id) => '/api/live/$id/chat/messages/';
+
   // Manual (staff-reviewed) payment endpoints
   static String manualPaymentInfo(String planCode) =>
       '/api/membership/manual/payment-info/?plan_code=${Uri.encodeComponent(planCode)}';

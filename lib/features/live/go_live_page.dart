@@ -55,8 +55,12 @@ class _GoLivePageState extends State<GoLivePage> {
       );
       final dynamic data = response.data;
       if (data is Map<String, dynamic> && mounted) {
+        final LiveSession session = LiveSession.fromJson(data);
+        if (session.id.isEmpty) {
+          throw Exception('Missing live.id from quick-start response');
+        }
         setState(() {
-          _session = LiveSession.fromJson(data);
+          _session = session;
           _phase = _Phase.ready;
         });
       }
@@ -276,9 +280,11 @@ class _PrepareView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool loading = phase == _Phase.preparing;
-    final bool hasSession = session != null;
-    final String? streamKey =
-        session?.publishConfig['stream_key']?.toString();
+    final LiveSession? s = session;
+    final bool hasSession = s != null;
+    final String? streamKey = s?.streamKey.isNotEmpty == true
+        ? s!.streamKey
+        : s?.publishConfig['stream_key']?.toString();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -362,14 +368,28 @@ class _PrepareView extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             _InfoRow(
-                              label: 'Session ID',
-                              value: session!.id,
+                              label: 'ID',
+                              value: s.id,
                             ),
-                            if (streamKey != null) ...<Widget>[
+                            if (s.title.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 4),
+                              _InfoRow(label: 'Title', value: s.title),
+                            ],
+                            if (streamKey != null && streamKey.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
                               _InfoRow(
                                 label: 'Stream Key',
-                                value: '${streamKey.substring(0, streamKey.length.clamp(0, 8))}••••',
+                                value:
+                                    '${streamKey.substring(0, streamKey.length.clamp(0, 8))}••••',
+                              ),
+                            ],
+                            if (s.publishConfig['websocket_url'] != null) ...<Widget>[
+                              const SizedBox(height: 4),
+                              _InfoRow(
+                                label: 'Mode',
+                                value: s.publishConfig['publish_mode']
+                                        ?.toString() ??
+                                    'webrtc',
                               ),
                             ],
                             const SizedBox(height: 8),

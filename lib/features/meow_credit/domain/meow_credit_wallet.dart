@@ -143,6 +143,156 @@ class MeowCreditOrder {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Recharge-info response (no order created)
+// ---------------------------------------------------------------------------
+
+class MeowCreditRechargeInfo {
+  const MeowCreditRechargeInfo({
+    required this.packageCode,
+    required this.totalCredit,
+    required this.expectedAmount,
+    required this.priceCurrency,
+    required this.payToAddress,
+    this.notice,
+  });
+
+  final String packageCode;
+  final int totalCredit;
+  final String expectedAmount;
+  final String priceCurrency;
+  final String payToAddress;
+  final String? notice;
+
+  factory MeowCreditRechargeInfo.fromJson(Map<String, dynamic> json) {
+    return MeowCreditRechargeInfo(
+      packageCode: json['package_code'] as String? ?? '',
+      totalCredit: _int(json['total_credit']) ?? 0,
+      expectedAmount: json['expected_amount'] as String? ?? '0',
+      priceCurrency: json['price_currency'] as String? ??
+          json['display_currency'] as String? ??
+          'THB-LTT',
+      payToAddress: json['pay_to_address'] as String? ?? '',
+      notice: json['notice'] as String?,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Verification block (nested in submit-txid and verify-now responses)
+// ---------------------------------------------------------------------------
+
+class MeowCreditVerification {
+  const MeowCreditVerification({
+    required this.verified,
+    required this.paid,
+    required this.status,
+    required this.reason,
+    this.confirmations,
+    this.matched,
+    this.expectedAmount,
+    this.actualAmount,
+  });
+
+  final bool verified;
+  final bool paid;
+  final String status;
+  final String reason;
+  final int? confirmations;
+  final bool? matched;
+  final String? expectedAmount;
+  final String? actualAmount;
+
+  factory MeowCreditVerification.fromJson(Map<String, dynamic> json) {
+    return MeowCreditVerification(
+      verified: json['verified'] as bool? ?? false,
+      paid: json['paid'] as bool? ?? false,
+      status: json['status'] as String? ?? 'pending',
+      reason: json['reason'] as String? ?? '',
+      confirmations: _int(json['confirmations']),
+      matched: json['matched'] as bool?,
+      expectedAmount: json['expected_amount'] as String?,
+      actualAmount: json['actual_amount'] as String?,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Submit-txid response (flat shape; also used for the recharge record in
+// verify-now's nested "recharge" field)
+// ---------------------------------------------------------------------------
+
+class MeowCreditSubmitResult {
+  const MeowCreditSubmitResult({
+    required this.orderNo,
+    required this.status,
+    required this.paymentOrderStatus,
+    this.txid,
+    this.creditedAt,
+    this.verification,
+  });
+
+  final String orderNo;
+  final String status;
+  final String paymentOrderStatus;
+  final String? txid;
+  final String? creditedAt;
+  final MeowCreditVerification? verification;
+
+  bool get isCredited =>
+      status == 'credited' || (verification?.paid ?? false);
+
+  factory MeowCreditSubmitResult.fromJson(Map<String, dynamic> json) {
+    final verJson = json['verification'];
+    return MeowCreditSubmitResult(
+      orderNo: json['order_no'] as String? ?? '',
+      status: json['status'] as String? ?? 'pending',
+      paymentOrderStatus: json['payment_order_status'] as String? ?? 'pending',
+      txid: json['txid'] as String?,
+      creditedAt: json['credited_at'] as String?,
+      verification: verJson is Map<String, dynamic>
+          ? MeowCreditVerification.fromJson(verJson)
+          : null,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// verify-now response
+// ---------------------------------------------------------------------------
+
+class MeowCreditVerifyResult {
+  const MeowCreditVerifyResult({
+    required this.recharge,
+    required this.verification,
+    this.detail,
+  });
+
+  final MeowCreditSubmitResult recharge;
+  final MeowCreditVerification verification;
+  final String? detail;
+
+  bool get isCredited => recharge.isCredited;
+
+  factory MeowCreditVerifyResult.fromJson(Map<String, dynamic> json) {
+    final rechargeJson = json['recharge'];
+    final verJson = json['verification'];
+    return MeowCreditVerifyResult(
+      recharge: rechargeJson is Map<String, dynamic>
+          ? MeowCreditSubmitResult.fromJson(rechargeJson)
+          : const MeowCreditSubmitResult(
+              orderNo: '', status: 'pending', paymentOrderStatus: 'pending'),
+      verification: verJson is Map<String, dynamic>
+          ? MeowCreditVerification.fromJson(verJson)
+          : const MeowCreditVerification(
+              verified: false, paid: false, status: 'pending', reason: ''),
+      detail: json['detail'] as String?,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 class MeowCreditLedgerEntry {
   const MeowCreditLedgerEntry({
     required this.entryType,

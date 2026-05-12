@@ -19,11 +19,17 @@ class Endpoints {
   static const String meowCreditLedger = '/api/meow-credits/ledger/';
   static const String meowCreditRedeems = '/api/meow-credits/redeems/';
 
+  static String meowCreditRechargeInfo(String packageCode) =>
+      '/api/meow-credits/recharge-info/?package_code=${Uri.encodeComponent(packageCode)}';
+
+  static const String meowCreditSubmitTxid =
+      '/api/meow-credits/recharges/submit-txid/';
+
   static String meowCreditRechargeDetail(String orderNo) =>
       '/api/meow-credits/recharges/${Uri.encodeComponent(orderNo)}/';
 
-  static String meowCreditTxHint(String orderNo) =>
-      '/api/meow-credits/recharges/${Uri.encodeComponent(orderNo)}/tx-hint/';
+  static String meowCreditVerifyNow(String orderNo) =>
+      '/api/meow-credits/recharges/${Uri.encodeComponent(orderNo)}/verify-now/';
 
   static const String publicVideos = '/api/public/videos/';
 

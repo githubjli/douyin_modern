@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_error.dart';
 import '../../../core/network/endpoints.dart';
 import '../../../features/auth/application/auth_providers.dart';
 import '../domain/meow_credit_wallet.dart';
@@ -42,17 +43,45 @@ class MeowCreditRepository {
     return const <MeowCreditPackage>[];
   }
 
-  Future<MeowCreditOrder> createRecharge(String packageCode) async {
-    final response = await _client.post<dynamic>(
-      Endpoints.meowCreditRecharges,
-      data: <String, dynamic>{'package_code': packageCode},
+  Future<MeowCreditRechargeInfo> getRechargeInfo(String packageCode) async {
+    final response = await _client.get<dynamic>(
+      Endpoints.meowCreditRechargeInfo(packageCode),
       authenticated: true,
     );
     final data = response.data;
     if (data is! Map<String, dynamic>) {
-      throw const FormatException('Invalid recharge order response');
+      throw const FormatException('Invalid recharge-info response');
     }
-    return MeowCreditOrder.fromJson(data);
+    return MeowCreditRechargeInfo.fromJson(data);
+  }
+
+  /// Submits a txid for a package; the backend auto-verifies once.
+  /// Returns a [MeowCreditSubmitResult] with status == 'credited' or 'pending'.
+  /// Throws [ApiError] with statusCode 409 on duplicate txid.
+  Future<MeowCreditSubmitResult> submitTxid(
+      String packageCode, String txid) async {
+    final response = await _client.post<dynamic>(
+      Endpoints.meowCreditSubmitTxid,
+      data: <String, dynamic>{'package_code': packageCode, 'txid': txid},
+      authenticated: true,
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid submit-txid response');
+    }
+    return MeowCreditSubmitResult.fromJson(data);
+  }
+
+  Future<MeowCreditVerifyResult> verifyNow(String orderNo) async {
+    final response = await _client.post<dynamic>(
+      Endpoints.meowCreditVerifyNow(orderNo),
+      authenticated: true,
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid verify-now response');
+    }
+    return MeowCreditVerifyResult.fromJson(data);
   }
 
   Future<MeowCreditOrder> getRechargeDetail(String orderNo) async {
@@ -65,14 +94,6 @@ class MeowCreditRepository {
       throw const FormatException('Invalid recharge detail response');
     }
     return MeowCreditOrder.fromJson(data);
-  }
-
-  Future<void> submitTxHint(String orderNo, String txid) async {
-    await _client.post<dynamic>(
-      Endpoints.meowCreditTxHint(orderNo),
-      data: <String, dynamic>{'txid': txid},
-      authenticated: true,
-    );
   }
 
   Future<List<MeowCreditLedgerEntry>> getLedger() async {

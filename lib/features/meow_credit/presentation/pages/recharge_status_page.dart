@@ -8,6 +8,7 @@ import '../../../../app/widgets/back_nav_header.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/info_row.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../data/meow_credit_repository.dart';
 import '../../domain/meow_credit_wallet.dart';
@@ -304,19 +305,19 @@ class _InfoCard extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
-          _Row(label: 'Package', value: package.name),
+          InfoRow(label: 'Package', value: package.name),
           const SizedBox(height: 8),
-          _Row(
+          InfoRow(
             label: 'Credits',
             value: '${recharge.totalCredit}',
             valueColor: AppColors.brandGold,
           ),
           const SizedBox(height: 8),
-          _Row(label: 'Order #', value: recharge.orderNo),
+          InfoRow(label: 'Order #', value: recharge.orderNo),
           const SizedBox(height: 8),
           // Payment status — shows 'Paid ✓' as soon as admin confirms
           if (recharge.paymentOrderStatus.isNotEmpty) ...<Widget>[
-            _Row(
+            InfoRow(
               label: 'Payment',
               value: recharge.paymentOrderStatus == 'paid'
                   ? 'Paid ✓'
@@ -327,7 +328,7 @@ class _InfoCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          _Row(
+          InfoRow(
             label: 'Status',
             value: recharge.isCredited
                 ? 'Credited ✓'
@@ -338,7 +339,7 @@ class _InfoCard extends StatelessWidget {
           ),
           if (recharge.txid != null && recharge.txid!.isNotEmpty) ...<Widget>[
             const SizedBox(height: 8),
-            _Row(
+            InfoRow(
               label: 'Txid',
               value:
                   '${recharge.txid!.substring(0, recharge.txid!.length.clamp(0, 16))}…',
@@ -350,23 +351,3 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({required this.label, required this.value, this.valueColor});
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: <Widget>[
-        Text(label,
-            style: AppTextStyles.caption.copyWith(color: Colors.white54)),
-        Text(value,
-            style: AppTextStyles.caption
-                .copyWith(color: valueColor ?? Colors.white)),
-      ],
-    );
-  }
-}

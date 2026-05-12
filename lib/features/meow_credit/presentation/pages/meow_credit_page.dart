@@ -25,6 +25,7 @@ class MeowCreditPage extends ConsumerWidget {
           onRefresh: () async {
             ref.invalidate(meowCreditWalletProvider);
             ref.invalidate(meowCreditLedgerProvider);
+            ref.invalidate(meowCreditRedeemsProvider);
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -42,6 +43,7 @@ class MeowCreditPage extends ConsumerWidget {
                     onPressed: () {
                       ref.invalidate(meowCreditWalletProvider);
                       ref.invalidate(meowCreditLedgerProvider);
+                      ref.invalidate(meowCreditRedeemsProvider);
                     },
                     visualDensity: VisualDensity.compact,
                   ),

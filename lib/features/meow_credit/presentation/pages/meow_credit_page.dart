@@ -16,6 +16,9 @@ class MeowCreditPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final walletAsync = ref.watch(meowCreditWalletProvider);
     final ledgerAsync = ref.watch(meowCreditLedgerProvider);
+    // Redeems list gives the authoritative status (pending/completed/rejected);
+    // ledger entries of type "redeem" may lag behind.
+    final redeemsAsync = ref.watch(meowCreditRedeemsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -111,13 +114,31 @@ class MeowCreditPage extends ConsumerWidget {
                     style: AppTextStyles.body.copyWith(color: Colors.white)),
                 const SizedBox(height: AppSpacing.sm),
                 ledgerAsync.when(
-                  data: (entries) => entries.isEmpty
-                      ? _emptyLedger()
-                      : Column(
-                          children: entries
-                              .map((e) => _LedgerRow(entry: e))
-                              .toList(),
-                        ),
+                  data: (entries) {
+                    final redeems = redeemsAsync.valueOrNull ?? const <MeowCreditRedeem>[];
+                    if (entries.isEmpty) return _emptyLedger();
+                    return Column(
+                      children: entries.map((e) {
+                        String? overrideStatus;
+                        if (e.entryType == 'redeem' && redeems.isNotEmpty) {
+                          // Match by creation time proximity (same minute) since
+                          // ledger doesn't expose a foreign key to the redeem.
+                          // Fall back to the most recent redeem if only one exists.
+                          final match = redeems.length == 1
+                              ? redeems.first
+                              : redeems.where((r) {
+                                  if (r.createdAt == null || e.createdAt == null) return false;
+                                  final rd = DateTime.tryParse(r.createdAt!);
+                                  final ld = DateTime.tryParse(e.createdAt!);
+                                  if (rd == null || ld == null) return false;
+                                  return rd.difference(ld).abs().inMinutes < 2;
+                                }).firstOrNull;
+                          overrideStatus = match?.status;
+                        }
+                        return _LedgerRow(entry: e, overrideStatus: overrideStatus);
+                      }).toList(),
+                    );
+                  },
                   loading: () => const Center(
                     child: Padding(
                       padding: EdgeInsets.all(AppSpacing.lg),
@@ -295,12 +316,16 @@ class _StatRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _LedgerRow extends StatelessWidget {
-  const _LedgerRow({required this.entry});
+  const _LedgerRow({required this.entry, this.overrideStatus});
   final MeowCreditLedgerEntry entry;
+  // When non-null, shown instead of entry.status (used for redeem entries
+  // whose status is authoritative from the /redeems/ endpoint).
+  final String? overrideStatus;
 
   @override
   Widget build(BuildContext context) {
-    final Color statusColor = _statusColor(entry.status);
+    final String effectiveStatus = overrideStatus ?? entry.status;
+    final Color statusColor = _statusColor(effectiveStatus);
     final String typeLabel = _typeLabel(entry.entryType);
     final String amountStr =
         entry.isPositive ? '+${entry.amount}' : '${entry.amount}';
@@ -336,7 +361,7 @@ class _LedgerRow extends StatelessWidget {
               ],
             ),
           ),
-          _StatusChip(label: _statusLabel(entry.status), color: statusColor),
+          _StatusChip(label: _statusLabel(effectiveStatus), color: statusColor),
         ],
       ),
     );

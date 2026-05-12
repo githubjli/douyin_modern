@@ -51,6 +51,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _registering = false;
   String? _error;
   UserProfile? _profile;
+  _AuthMode _guestMode = _AuthMode.login;
 
   @override
   void initState() {
@@ -184,15 +185,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             password: _passwordController.text,
             username: _usernameController.text.trim(),
           );
-      final AuthState authState = ref.read(authControllerProvider);
-      if (authState.isSignedIn) {
-        _clearAuthControllers();
-        unawaited(_claimDailyReward());
-      }
+      if (!mounted) return;
+      // Show success banner, then switch to sign-in after 1.5 s.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registration successful! Please sign in.'),
+          duration: Duration(milliseconds: 1500),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _clearAuthControllers();
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return;
+      setState(() => _guestMode = _AuthMode.login);
     } finally {
-      if (mounted) {
-        setState(() => _registering = false);
-      }
+      if (mounted) setState(() => _registering = false);
     }
   }
 
@@ -267,6 +274,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     passwordController: _passwordController,
                     confirmPasswordController: _confirmPasswordController,
                     usernameController: _usernameController,
+                    mode: _guestMode,
+                    onToggleMode: () => setState(() {
+                      _guestMode = _guestMode == _AuthMode.login
+                          ? _AuthMode.register
+                          : _AuthMode.login;
+                    }),
                     loggingIn: _loggingIn,
                     registering: _registering,
                     error: _error ?? authState.message,
@@ -353,6 +366,8 @@ class _GuestProfileCard extends StatefulWidget {
     required this.passwordController,
     required this.confirmPasswordController,
     required this.usernameController,
+    required this.mode,
+    required this.onToggleMode,
     required this.loggingIn,
     required this.registering,
     required this.error,
@@ -364,6 +379,8 @@ class _GuestProfileCard extends StatefulWidget {
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
   final TextEditingController usernameController;
+  final _AuthMode mode;
+  final VoidCallback onToggleMode;
   final bool loggingIn;
   final bool registering;
   final String? error;
@@ -378,7 +395,14 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _termsAccepted = false;
-  _AuthMode _mode = _AuthMode.login;
+
+  @override
+  void didUpdateWidget(_GuestProfileCard old) {
+    super.didUpdateWidget(old);
+    if (old.mode != widget.mode) {
+      _termsAccepted = false;
+    }
+  }
 
   bool get _busy => widget.loggingIn || widget.registering;
 
@@ -404,10 +428,8 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
       widget.confirmPasswordController.text.isNotEmpty;
 
   void _toggleMode() {
-    setState(() {
-      _mode = _mode == _AuthMode.login ? _AuthMode.register : _AuthMode.login;
-      _termsAccepted = false;
-    });
+    setState(() => _termsAccepted = false);
+    widget.onToggleMode();
   }
 
   void _showTerms(BuildContext context) {
@@ -426,7 +448,7 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isRegister = _mode == _AuthMode.register;
+    final bool isRegister = widget.mode == _AuthMode.register;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),

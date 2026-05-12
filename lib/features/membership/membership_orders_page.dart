@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../app/widgets/back_nav_header.dart';
 import 'application/membership_providers.dart';
 import 'application/membership_state.dart';
 import 'domain/manual_tx_hint.dart';
@@ -21,30 +22,21 @@ class MembershipOrdersPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.brandGold),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(
-          'Membership & Orders',
-          style: AppTextStyles.sectionTitle.copyWith(fontSize: 17),
-        ),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.brandGold),
-            onPressed: refresh,
-          ),
-        ],
-      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: <Widget>[
+            BackNavHeader(
+              title: 'Membership & Orders',
+              trailing: IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                color: AppColors.mutedOliveText,
+                onPressed: refresh,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
             _MembershipStatusCard(state: state),
             const SizedBox(height: AppSpacing.md),
             _TxHintsSection(hints: hints, onRefresh: refresh),

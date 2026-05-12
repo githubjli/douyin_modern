@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../app/widgets/back_nav_header.dart';
 import '../../core/network/endpoints.dart';
 import '../../features/auth/application/auth_providers.dart';
 import 'application/meow_points_providers.dart';
@@ -73,45 +74,14 @@ class MeowPointsPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => Navigator.of(context).maybePop(),
-                      child: SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: AppColors.cardBackground.withValues(alpha: 0.54),
-                            border: Border.all(color: AppColors.softBorder),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: AppColors.brandGold,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Meow Points',
-                        style: AppTextStyles.sectionTitle.copyWith(
-                          fontSize: 18,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh_rounded, size: 20),
-                      color: AppColors.mutedOliveText,
-                      onPressed: () => ref.invalidate(meowPointsWalletProvider),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
+                BackNavHeader(
+                  title: 'Meow Points',
+                  trailing: IconButton(
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    color: AppColors.mutedOliveText,
+                    onPressed: () => ref.invalidate(meowPointsWalletProvider),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 _BalanceCard(wallet: wallet, loading: loading, error: error),

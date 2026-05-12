@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/back_nav_header.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../data/meow_credit_repository.dart';
 
@@ -114,20 +115,7 @@ class _MeowCreditRedeemPageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  // Header
-                  Row(
-                    children: <Widget>[
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).maybePop(),
-                        child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text('Redeem Meow Credit',
-                          style: AppTextStyles.sectionTitle
-                              .copyWith(color: Colors.white)),
-                    ],
-                  ),
+                  const BackNavHeader(title: 'Redeem Meow Credit'),
                   const SizedBox(height: AppSpacing.lg),
 
                   // Balance card

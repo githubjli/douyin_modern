@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/back_nav_header.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../data/meow_credit_repository.dart';
 import '../../domain/meow_credit_wallet.dart';
@@ -95,22 +96,9 @@ class _RechargePackagePageState extends ConsumerState<RechargePackagePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                children: <Widget>[
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('Recharge Meow Credit',
-                      style: AppTextStyles.sectionTitle
-                          .copyWith(color: Colors.white)),
-                ],
-              ),
+            const Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: BackNavHeader(title: 'Recharge Meow Credit'),
             ),
 
             Expanded(

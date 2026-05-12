@@ -11,6 +11,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/back_nav_header.dart';
 import '../../../../core/network/api_error.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../application/recharge_notifier.dart';
@@ -188,20 +189,7 @@ class _MeowCreditRechargePageState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // ── Header ────────────────────────────────────────────────────
-              Row(
-                children: <Widget>[
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('Manual Payment',
-                      style: AppTextStyles.sectionTitle
-                          .copyWith(color: Colors.white)),
-                ],
-              ),
+              const BackNavHeader(title: 'Manual Payment'),
               const SizedBox(height: AppSpacing.lg),
 
               // ── Selected plan card ────────────────────────────────────────

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/back_nav_header.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../domain/meow_credit_wallet.dart';
 import 'meow_credit_redeem_page.dart';
@@ -33,20 +34,17 @@ class MeowCreditPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                // ── Header ──────────────────────────────────────────────
-                Row(
-                  children: <Widget>[
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => Navigator.of(context).maybePop(),
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text('Meow Credit',
-                        style: AppTextStyles.sectionTitle
-                            .copyWith(color: Colors.white)),
-                  ],
+                BackNavHeader(
+                  title: 'Meow Credit',
+                  trailing: IconButton(
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    color: AppColors.mutedOliveText,
+                    onPressed: () {
+                      ref.invalidate(meowCreditWalletProvider);
+                      ref.invalidate(meowCreditLedgerProvider);
+                    },
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 

@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../app/widgets/back_nav_header.dart';
 import 'domain/manual_membership_repository.dart';
 import 'domain/manual_payment_info.dart';
 import 'domain/manual_tx_hint.dart';
@@ -250,7 +251,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _Header(onBack: () => Navigator.of(context).maybePop()),
+              const BackNavHeader(title: 'Manual Payment'),
               const SizedBox(height: AppSpacing.md),
               _PlanSummaryCard(
                 info: info,
@@ -315,49 +316,6 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
 // ---------------------------------------------------------------------------
 // Sub-widgets
 // ---------------------------------------------------------------------------
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onBack});
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onBack,
-          child: SizedBox(
-            width: 32,
-            height: 32,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground.withValues(alpha: 0.54),
-                border: Border.all(color: AppColors.softBorder),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: AppColors.brandGold,
-                size: 18,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            'Manual Payment',
-            style: AppTextStyles.sectionTitle.copyWith(
-              fontSize: 18,
-              height: 1.1,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _PlanSummaryCard extends StatelessWidget {
   const _PlanSummaryCard({required this.info, this.displayCurrency});

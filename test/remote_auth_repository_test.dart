@@ -98,25 +98,13 @@ void main() {
         <String>[Endpoints.authLogin, Endpoints.authMe]);
   });
 
-  test('register auto-logins after 201 and saves tokens', () async {
+  test('register returns not-signed-in session after 201', () async {
     final _FakeTokenStorage tokenStorage = _FakeTokenStorage();
     final _QueueAdapter adapter = _QueueAdapter(<_QueuedResponse>[
-      // 1. POST /register — user object, no tokens (201)
+      // POST /register — user object, no tokens (201)
       _QueuedResponse.ok(<String, dynamic>{
         'id': 'user-2',
         'email': 'new@example.com',
-      }),
-      // 2. POST /login — tokens
-      _QueuedResponse.ok(<String, dynamic>{
-        'access': 'register-access',
-        'refresh': 'register-refresh',
-      }),
-      // 3. GET /me — current session
-      _QueuedResponse.ok(<String, dynamic>{
-        'user': <String, dynamic>{
-          'id': 'user-2',
-          'display_name': 'New User',
-        },
       }),
     ]);
     final RemoteAuthRepository repository = _repository(adapter, tokenStorage);
@@ -124,20 +112,13 @@ void main() {
     final session = await repository.register(
       email: 'new@example.com',
       password: 'secret',
-      firstName: 'New',
-      lastName: 'User',
     );
 
-    expect(session.isSignedIn, isTrue);
-    expect(session.userId, 'user-2');
-    expect(session.displayName, 'New User');
-    expect(tokenStorage.accessToken, 'register-access');
-    expect(tokenStorage.refreshToken, 'register-refresh');
-    expect(adapter.requests, hasLength(3));
+    expect(session.isSignedIn, isFalse);
+    expect(tokenStorage.accessToken, isNull);
+    expect(tokenStorage.refreshToken, isNull);
+    expect(adapter.requests, hasLength(1));
     expect(adapter.requests[0].path, Endpoints.authRegister);
-    expect(adapter.requests[1].path, Endpoints.authLogin);
-    expect(adapter.requests[2].path, Endpoints.authMe);
-    expect(adapter.requests[2].authorization, 'Bearer register-access');
   });
 }
 

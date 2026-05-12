@@ -12,6 +12,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/back_nav_header.dart';
+import '../../../../app/widgets/gold_button.dart';
+import '../../../../app/widgets/gold_outline_button.dart';
 import '../../../../core/network/api_error.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../application/recharge_notifier.dart';
@@ -278,7 +280,7 @@ class _MeowCreditRechargePageState
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: _OutlineButton(
+                      child: GoldOutlineButton(
                         icon: Icons.share_outlined,
                         label: 'Share QR',
                         onTap: _copyAddress,
@@ -286,7 +288,7 @@ class _MeowCreditRechargePageState
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: _OutlineButton(
+                      child: GoldOutlineButton(
                         icon: Icons.download_outlined,
                         label: _savingQr ? 'Saving…' : 'Save to Album',
                         onTap: _savingQr ? null : _saveQrToAlbum,
@@ -387,7 +389,7 @@ class _MeowCreditRechargePageState
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                _PrimaryButton(
+                GoldButton(
                   label: 'Submit Transaction ID',
                   loading: state.submitting,
                   onTap: state.submitting ? null : _submitTxid,
@@ -403,7 +405,7 @@ class _MeowCreditRechargePageState
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                _PrimaryButton(
+                GoldButton(
                   label: 'Check Payment',
                   loading: state.verifying,
                   onTap: state.canVerify ? _checkPayment : null,
@@ -453,75 +455,3 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.loading,
-    required this.onTap,
-  });
-  final String label;
-  final bool loading;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
-        decoration: BoxDecoration(
-          color: onTap == null
-              ? AppColors.brandGold.withValues(alpha: 0.5)
-              : AppColors.brandGold,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        ),
-        alignment: Alignment.center,
-        child: loading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.black),
-              )
-            : Text(label,
-                style: AppTextStyles.body.copyWith(
-                    color: Colors.black, fontWeight: FontWeight.w600)),
-      ),
-    );
-  }
-}
-
-class _OutlineButton extends StatelessWidget {
-  const _OutlineButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          border: Border.all(color: AppColors.softBorder),
-          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(icon, color: Colors.white70, size: 16),
-            const SizedBox(width: 6),
-            Text(label,
-                style: AppTextStyles.caption.copyWith(color: Colors.white70)),
-          ],
-        ),
-      ),
-    );
-  }
-}

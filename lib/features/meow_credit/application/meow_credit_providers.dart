@@ -29,3 +29,12 @@ final meowCreditLedgerProvider =
     FutureProvider.autoDispose<List<MeowCreditLedgerEntry>>((ref) {
   return ref.watch(meowCreditRepositoryProvider).getLedger();
 });
+
+// ---------------------------------------------------------------------------
+// Redeems
+// ---------------------------------------------------------------------------
+
+final meowCreditRedeemsProvider =
+    FutureProvider.autoDispose<List<MeowCreditRedeem>>((ref) {
+  return ref.watch(meowCreditRepositoryProvider).getRedeems();
+});

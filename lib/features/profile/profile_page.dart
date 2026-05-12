@@ -223,6 +223,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void _handleAuthState(AuthState authState) {
     if (!mounted) return;
     if (authState.status == AuthStatus.signedOut) {
+      // If we were actively logging in, a signedOut result means wrong
+      // credentials (401 is classified as "auth denied" by the controller).
+      // Keep the form fields and show an inline error instead of clearing.
+      if (_loggingIn) {
+        setState(() => _error = 'Invalid email or password.');
+        return;
+      }
+      if (_registering) {
+        setState(() => _error = 'Registration failed. Please try again.');
+        return;
+      }
       setState(() {
         _profile = null;
         _error = null;

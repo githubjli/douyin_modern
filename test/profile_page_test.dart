@@ -262,6 +262,7 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) async {
@@ -320,6 +321,7 @@ class _NeverCompletingAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) {
@@ -367,6 +369,7 @@ class _TokenOnlyLoginAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) async {

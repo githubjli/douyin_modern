@@ -34,6 +34,7 @@ class RemoteAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) async {
@@ -43,6 +44,7 @@ class RemoteAuthRepository implements AuthRepository {
       data: <String, dynamic>{
         'email': email,
         'password': password,
+        if (username != null && username.isNotEmpty) 'username': username,
         if (firstName != null && firstName.isNotEmpty) 'first_name': firstName,
         if (lastName != null && lastName.isNotEmpty) 'last_name': lastName,
       },

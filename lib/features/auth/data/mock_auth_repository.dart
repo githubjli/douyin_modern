@@ -20,13 +20,16 @@ class MockAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) async {
-    final String name = <String>[
-      if (firstName != null && firstName.isNotEmpty) firstName,
-      if (lastName != null && lastName.isNotEmpty) lastName,
-    ].join(' ').trim();
+    final String name = username?.isNotEmpty == true
+        ? username!
+        : <String>[
+            if (firstName != null && firstName.isNotEmpty) firstName,
+            if (lastName != null && lastName.isNotEmpty) lastName,
+          ].join(' ').trim();
     return AuthSession(
       isSignedIn: true,
       userId: email,

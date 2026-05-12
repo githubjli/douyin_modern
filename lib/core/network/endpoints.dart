@@ -72,6 +72,11 @@ class Endpoints {
   static String membershipOrderVerifyNow(String orderNo) =>
       '/api/membership/orders/${Uri.encodeComponent(orderNo)}/verify-now/';
 
+  // KYC
+  static const String kycMe = '/api/kyc/me/';
+  static const String kycDocuments = '/api/kyc/documents/';
+  static const String kycSubmit = '/api/kyc/submit/';
+
   // Live streaming endpoints
   static const String liveQuickStart = '/api/live/quick-start/';
 

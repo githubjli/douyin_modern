@@ -23,6 +23,8 @@ import '../meow_credit/presentation/pages/meow_credit_page.dart';
 import '../meow_points/application/meow_points_providers.dart';
 import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
+import '../kyc/application/kyc_providers.dart';
+import '../kyc/presentation/kyc_page.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -329,6 +331,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             _SignedInProfileBody(
               profile: _profile,
               wallet: ref.watch(meowPointsWalletProvider).valueOrNull,
+              kycStatus: ref.watch(kycProfileProvider).valueOrNull?.status,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,
@@ -342,6 +345,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   builder: (_) => const MeowCreditPage(),
                 ),
               ),
+              onKycDetails: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const KycPage(),
+                ),
+              ).then((_) => ref.invalidate(kycProfileProvider)),
               creditBalance: ref.watch(meowCreditWalletProvider).valueOrNull?.balance,
               onGoLive: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
@@ -918,18 +926,22 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.onEdit,
     required this.onWalletDetails,
     required this.onCreditDetails,
+    required this.onKycDetails,
     required this.onGoLive,
     this.creditBalance,
+    this.kycStatus,
   });
 
   final UserProfile? profile;
   final MeowPointWallet? wallet;
   final int? creditBalance;
+  final String? kycStatus;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
   final VoidCallback onWalletDetails;
   final VoidCallback onCreditDetails;
+  final VoidCallback onKycDetails;
   final VoidCallback onGoLive;
 
   void _soon(BuildContext context) => ScaffoldMessenger.of(context).showSnackBar(
@@ -1059,8 +1071,8 @@ class _SignedInProfileBody extends StatelessWidget {
             _MenuItem(
               icon: Icons.verified_user_outlined,
               label: 'Private KYC/AML',
-              onTap: () => _soon(context),
-              trailing: const _KycChip(status: _KycStatus.notSubmitted),
+              onTap: onKycDetails,
+              trailing: _KycChip(status: _kycStatusFromString(kycStatus)),
             ),
           ],
         ),
@@ -1573,6 +1585,19 @@ class _MenuRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // KYC status chip
 // ---------------------------------------------------------------------------
+
+_KycStatus _kycStatusFromString(String? s) {
+  switch (s) {
+    case 'pending':
+      return _KycStatus.pending;
+    case 'approved':
+      return _KycStatus.approved;
+    case 'rejected':
+      return _KycStatus.rejected;
+    default:
+      return _KycStatus.notSubmitted;
+  }
+}
 
 enum _KycStatus { notSubmitted, pending, approved, rejected }
 

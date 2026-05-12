@@ -258,16 +258,14 @@ class _BalanceMini extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.brandGold,
+            decoration: BoxDecoration(
+              color: AppColors.brandGold.withAlpha(25),
               shape: BoxShape.circle,
             ),
-            child: const Center(
-              child: Text('M',
-                  style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
+            child: const Icon(
+              Icons.monetization_on_outlined,
+              color: AppColors.brandGold,
+              size: 20,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),

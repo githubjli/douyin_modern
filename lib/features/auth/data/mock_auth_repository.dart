@@ -24,17 +24,7 @@ class MockAuthRepository implements AuthRepository {
     String? firstName,
     String? lastName,
   }) async {
-    final String name = username?.isNotEmpty == true
-        ? username!
-        : <String>[
-            if (firstName != null && firstName.isNotEmpty) firstName,
-            if (lastName != null && lastName.isNotEmpty) lastName,
-          ].join(' ').trim();
-    return AuthSession(
-      isSignedIn: true,
-      userId: email,
-      displayName: name.isEmpty ? 'User' : name,
-    );
+    return const AuthSession(isSignedIn: false, userId: null, displayName: '');
   }
 
   @override

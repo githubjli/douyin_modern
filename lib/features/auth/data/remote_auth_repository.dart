@@ -39,6 +39,7 @@ class RemoteAuthRepository implements AuthRepository {
     String? lastName,
   }) async {
     // Backend returns 201 with user object but no tokens.
+    // Caller is responsible for logging in separately after registration.
     await _apiClient.post<dynamic>(
       Endpoints.authRegister,
       data: <String, dynamic>{
@@ -49,8 +50,7 @@ class RemoteAuthRepository implements AuthRepository {
         if (lastName != null && lastName.isNotEmpty) 'last_name': lastName,
       },
     );
-    // Auto-login to obtain access/refresh tokens.
-    return login(email: email, password: password);
+    return const AuthSession(isSignedIn: false, userId: null, displayName: '');
   }
 
   @override

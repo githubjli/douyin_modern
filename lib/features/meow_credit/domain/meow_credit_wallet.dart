@@ -316,7 +316,7 @@ class MeowCreditRedeem {
 
   final String redeemNo;
   final int amount;
-  final String status; // pending | approved | rejected
+  final String status; // pending | completed | rejected
   final String redeemMethod;
   final String receivingAddress;
   final String? reviewedAt;
@@ -325,7 +325,7 @@ class MeowCreditRedeem {
   final String? updatedAt;
 
   bool get isPending => status == 'pending';
-  bool get isApproved => status == 'approved';
+  bool get isCompleted => status == 'completed';
   bool get isRejected => status == 'rejected';
 
   factory MeowCreditRedeem.fromJson(Map<String, dynamic> json) {

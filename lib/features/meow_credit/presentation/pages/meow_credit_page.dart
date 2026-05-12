@@ -50,33 +50,38 @@ class MeowCreditPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // ── Balance card (with inline action buttons) ────────────
+                // ── Balance card ─────────────────────────────────────────
                 walletAsync.when(
-                  data: (w) => _BalanceCard(
-                    wallet: w,
-                    onRecharge: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const RechargePackagePage(),
-                      ),
-                    ),
-                    onRedeem: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => MeowCreditRedeemPage(
-                          balance: w.balance,
+                  data: (w) => _BalanceCard(wallet: w),
+                  loading: () => const _BalanceCard(wallet: null),
+                  error: (_, __) => const _BalanceCard(wallet: null),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+
+                // ── Action buttons ───────────────────────────────────────
+                Row(
+                  children: <Widget>[
+                    GoldButton(
+                      label: '+ Recharge',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const RechargePackagePage(),
                         ),
                       ),
                     ),
-                  ),
-                  loading: () => _BalanceCard(
-                    wallet: null,
-                    onRecharge: () {},
-                    onRedeem: () {},
-                  ),
-                  error: (_, __) => _BalanceCard(
-                    wallet: null,
-                    onRecharge: () {},
-                    onRedeem: () {},
-                  ),
+                    const SizedBox(width: AppSpacing.sm),
+                    GoldOutlineButton(
+                      icon: Icons.swap_horiz_rounded,
+                      label: 'Redeem',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MeowCreditRedeemPage(
+                            balance: walletAsync.valueOrNull?.balance ?? 0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -90,8 +95,7 @@ class MeowCreditPage extends ConsumerWidget {
 
                 // ── Ledger ───────────────────────────────────────────────
                 Text('Meow Credit History',
-                    style: AppTextStyles.sectionTitle
-                        .copyWith(color: Colors.white)),
+                    style: AppTextStyles.body.copyWith(color: Colors.white)),
                 const SizedBox(height: AppSpacing.sm),
                 ledgerAsync.when(
                   data: (entries) => entries.isEmpty
@@ -136,14 +140,8 @@ class MeowCreditPage extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({
-    required this.wallet,
-    required this.onRecharge,
-    required this.onRedeem,
-  });
+  const _BalanceCard({required this.wallet});
   final MeowCreditWallet? wallet;
-  final VoidCallback onRecharge;
-  final VoidCallback onRedeem;
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +175,7 @@ class _BalanceCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.toll_rounded,
+                  Icons.attach_money_rounded,
                   color: AppColors.brandGold,
                   size: 22,
                 ),
@@ -211,20 +209,6 @@ class _BalanceCard extends StatelessWidget {
               color: AppColors.mutedOliveText,
               letterSpacing: 0.6,
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(color: AppColors.softBorder, height: 1),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: <Widget>[
-              GoldButton(label: '+ Recharge', onTap: onRecharge),
-              const SizedBox(width: AppSpacing.sm),
-              GoldOutlineButton(
-                icon: Icons.swap_horiz_rounded,
-                label: 'Redeem',
-                onTap: onRedeem,
-              ),
-            ],
           ),
         ],
       ),

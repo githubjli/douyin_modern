@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_error.dart';
 import '../data/meow_credit_repository.dart';
 import '../domain/meow_credit_wallet.dart';
 
@@ -9,32 +10,30 @@ import '../domain/meow_credit_wallet.dart';
 
 class RechargeState {
   const RechargeState({
-    this.order,
-    this.submittingTxid = false,
-    this.savingQr = false,
-    this.remaining = Duration.zero,
+    this.result,
+    this.submitting = false,
+    this.verifying = false,
   });
 
-  final MeowCreditOrder? order;
-  final bool submittingTxid;
-  final bool savingQr;
-  final Duration remaining;
+  /// Set after a successful submit-txid or verify-now call.
+  final MeowCreditSubmitResult? result;
+  final bool submitting;
+  final bool verifying;
 
-  bool get isCredited => order?.isCredited ?? false;
-  bool get isExpired =>
-      order?.isExpired == true && remaining == Duration.zero && !isCredited;
+  bool get hasResult => result != null;
+  bool get isCredited => result?.isCredited ?? false;
+  bool get isPending => hasResult && !isCredited;
+  bool get canVerify => isPending && !verifying;
 
   RechargeState copyWith({
-    MeowCreditOrder? order,
-    bool? submittingTxid,
-    bool? savingQr,
-    Duration? remaining,
+    MeowCreditSubmitResult? result,
+    bool? submitting,
+    bool? verifying,
   }) {
     return RechargeState(
-      order: order ?? this.order,
-      submittingTxid: submittingTxid ?? this.submittingTxid,
-      savingQr: savingQr ?? this.savingQr,
-      remaining: remaining ?? this.remaining,
+      result: result ?? this.result,
+      submitting: submitting ?? this.submitting,
+      verifying: verifying ?? this.verifying,
     );
   }
 }
@@ -44,46 +43,43 @@ class RechargeState {
 // ---------------------------------------------------------------------------
 
 class RechargeNotifier extends StateNotifier<RechargeState> {
-  RechargeNotifier(this._repo, MeowCreditOrder initialOrder)
-      : super(RechargeState(order: initialOrder));
+  RechargeNotifier(this._repo) : super(const RechargeState());
 
   final MeowCreditRepository _repo;
 
   RechargeState get currentState => state;
 
-  void tick(Duration remaining) {
-    state = state.copyWith(remaining: remaining);
-  }
-
-  void setSavingQr({required bool value}) {
-    state = state.copyWith(savingQr: value);
-  }
-
-  /// Poll the order; returns true when credited.
-  Future<bool> pollOrder() async {
-    final String? orderNo = state.order?.orderNo;
-    if (orderNo == null) return false;
+  /// Submits txid. Returns true when credited immediately.
+  /// Throws [ApiError] (check statusCode == 409 for duplicate txid).
+  Future<bool> submitTxid(String packageCode, String txid) async {
+    state = state.copyWith(submitting: true);
     try {
-      final MeowCreditOrder updated = await _repo.getRechargeDetail(orderNo);
-      state = state.copyWith(order: updated);
-      return updated.isCredited;
-    } catch (_) {
-      return false;
+      final MeowCreditSubmitResult result =
+          await _repo.submitTxid(packageCode, txid);
+      state = state.copyWith(result: result, submitting: false);
+      return result.isCredited;
+    } catch (e) {
+      state = state.copyWith(submitting: false);
+      rethrow;
     }
   }
 
-  /// Submit txid hint; returns true on success.
-  Future<bool> submitTxHint(String txid) async {
-    final String? orderNo = state.order?.orderNo;
-    if (orderNo == null) return false;
-    state = state.copyWith(submittingTxid: true);
+  /// Triggers a manual verify-now check. Returns true when credited.
+  Future<bool> verifyNow() async {
+    final String? orderNo = state.result?.orderNo;
+    if (orderNo == null || orderNo.isEmpty) return false;
+    state = state.copyWith(verifying: true);
     try {
-      await _repo.submitTxHint(orderNo, txid);
-      return true;
+      final MeowCreditVerifyResult verifyResult =
+          await _repo.verifyNow(orderNo);
+      state = state.copyWith(
+        result: verifyResult.recharge,
+        verifying: false,
+      );
+      return verifyResult.isCredited;
     } catch (_) {
+      state = state.copyWith(verifying: false);
       return false;
-    } finally {
-      state = state.copyWith(submittingTxid: false);
     }
   }
 }
@@ -91,5 +87,6 @@ class RechargeNotifier extends StateNotifier<RechargeState> {
 // Placeholder — always overridden via ProviderScope in MeowCreditRechargePage.
 final rechargeNotifierProvider =
     StateNotifierProvider.autoDispose<RechargeNotifier, RechargeState>(
-  (ref) => throw UnimplementedError('rechargeNotifierProvider must be overridden'),
+  (ref) =>
+      throw UnimplementedError('rechargeNotifierProvider must be overridden'),
 );

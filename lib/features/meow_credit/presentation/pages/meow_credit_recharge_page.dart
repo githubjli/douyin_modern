@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -6,26 +5,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../core/network/api_error.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../application/recharge_notifier.dart';
 import '../../data/meow_credit_repository.dart';
 import '../../domain/meow_credit_wallet.dart';
-import 'package:path_provider/path_provider.dart';
 
 class MeowCreditRechargePage extends ConsumerStatefulWidget {
   const MeowCreditRechargePage({
     super.key,
     required this.package,
-    required this.order,
+    required this.rechargeInfo,
   });
 
   final MeowCreditPackage package;
-  final MeowCreditOrder order;
+  final MeowCreditRechargeInfo rechargeInfo;
 
   @override
   ConsumerState<MeowCreditRechargePage> createState() =>
@@ -34,94 +34,28 @@ class MeowCreditRechargePage extends ConsumerStatefulWidget {
 
 class _MeowCreditRechargePageState
     extends ConsumerState<MeowCreditRechargePage> {
-  late RechargeNotifier _notifier;
+  late final RechargeNotifier _notifier;
   final TextEditingController _txHashController = TextEditingController();
   final GlobalKey _qrKey = GlobalKey();
-  Timer? _countdownTimer;
-  Timer? _pollTimer;
   bool _savingQr = false;
-
-  static const Duration _pollInterval = Duration(seconds: 5);
 
   @override
   void initState() {
     super.initState();
-    _notifier = RechargeNotifier(
-      ref.read(meowCreditRepositoryProvider),
-      widget.order,
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _startCountdown();
-      if (mounted) _startPolling();
-    });
+    _notifier = RechargeNotifier(ref.read(meowCreditRepositoryProvider));
   }
 
   @override
   void dispose() {
     _txHashController.dispose();
-    _countdownTimer?.cancel();
-    _pollTimer?.cancel();
     super.dispose();
-  }
-
-  // ── Countdown ──────────────────────────────────────────────────────────────
-
-  void _startCountdown() {
-    final String? expiresAt = widget.order.expiresAt;
-    if (expiresAt == null) return;
-    final DateTime? expiry = DateTime.tryParse(expiresAt);
-    if (expiry == null) return;
-
-    void tick() {
-      if (!mounted) return;
-      final remaining = expiry.difference(DateTime.now());
-      _notifier.tick(remaining.isNegative ? Duration.zero : remaining);
-      setState(() {});
-      if (remaining.isNegative) {
-        _countdownTimer?.cancel();
-        _pollTimer?.cancel();
-      }
-    }
-
-    tick();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
-  }
-
-  // ── Polling ────────────────────────────────────────────────────────────────
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(_pollInterval, (_) async {
-      final credited = await _notifier.pollOrder();
-      if (mounted) setState(() {});
-      if (credited && mounted) {
-        _pollTimer?.cancel();
-        _countdownTimer?.cancel();
-        ref.invalidate(meowCreditWalletProvider);
-        ref.invalidate(meowCreditLedgerProvider);
-        _showSuccessAndPop();
-      }
-    });
-  }
-
-  void _showSuccessAndPop() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            '${widget.package.totalCredit} credits added to your wallet!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    Navigator.of(context)
-      ..pop()
-      ..pop();
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
   Future<void> _copyAddress() async {
     final messenger = ScaffoldMessenger.of(context);
-    final address = widget.order.payToAddress.trim();
+    final address = widget.rechargeInfo.payToAddress.trim();
     if (address.isEmpty) {
       messenger.showSnackBar(
           const SnackBar(content: Text('Payment address unavailable')));
@@ -132,18 +66,13 @@ class _MeowCreditRechargePageState
     messenger.showSnackBar(const SnackBar(content: Text('Address copied')));
   }
 
-  Future<void> _shareQr() async {
-    // Basic share via clipboard for now; can integrate share_plus later
-    await _copyAddress();
-  }
-
   Future<void> _saveQrToAlbum() async {
     if (_savingQr) return;
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _savingQr = true);
     try {
-      final boundary = _qrKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
+      final boundary =
+          _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) throw Exception('QR not rendered');
       final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -163,29 +92,80 @@ class _MeowCreditRechargePageState
     }
   }
 
-  Future<void> _submitTxHash() async {
-    final txHash = _txHashController.text.trim();
+  Future<void> _submitTxid() async {
+    final txid = _txHashController.text.trim();
     final messenger = ScaffoldMessenger.of(context);
-    if (txHash.isEmpty) {
+    if (txid.isEmpty) {
       messenger.showSnackBar(
-          const SnackBar(content: Text('Please enter transaction hash.')));
+          const SnackBar(content: Text('Please enter a transaction ID.')));
       return;
     }
-    final success = await _notifier.submitTxHint(txHash);
-    if (mounted) setState(() {});
-    if (!mounted) return;
-    messenger.showSnackBar(SnackBar(
-      content: Text(success
-          ? 'Transaction hash submitted. Awaiting confirmation.'
-          : 'Unable to submit transaction hash. Please try again.'),
-    ));
+    try {
+      final credited =
+          await _notifier.submitTxid(widget.package.code, txid);
+      if (!mounted) return;
+      setState(() {});
+      if (credited) {
+        _onCredited();
+      } else {
+        final reason =
+            _notifier.currentState.result?.verification?.reason ?? '';
+        messenger.showSnackBar(SnackBar(content: Text(_pendingMessage(reason))));
+      }
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {});
+      if (e.statusCode == 409) {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('This transaction ID has already been used.')));
+      } else {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('Submission failed. Please try again.')));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {});
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Submission failed. Please try again.')));
+    }
   }
 
-  String _formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  Future<void> _checkPayment() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final credited = await _notifier.verifyNow();
+    if (!mounted) return;
+    setState(() {});
+    if (credited) {
+      _onCredited();
+    } else {
+      final reason =
+          _notifier.currentState.result?.verification?.reason ?? '';
+      messenger.showSnackBar(SnackBar(content: Text(_pendingMessage(reason))));
+    }
+  }
+
+  void _onCredited() {
+    ref.invalidate(meowCreditWalletProvider);
+    ref.invalidate(meowCreditLedgerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content:
+            Text('${widget.rechargeInfo.totalCredit} credits added to your wallet!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    Navigator.of(context).maybePop();
+  }
+
+  String _pendingMessage(String reason) {
+    switch (reason) {
+      case 'chain_lookup_failed':
+        return 'Transaction ID recorded. Chain lookup failed — please try again later.';
+      case 'no_matching_output':
+        return 'Transaction ID recorded. No matching output found — please try again later.';
+      default:
+        return 'Transaction submitted. Awaiting blockchain confirmation.';
+    }
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -193,11 +173,11 @@ class _MeowCreditRechargePageState
   @override
   Widget build(BuildContext context) {
     final state = _notifier.currentState;
-    final order = state.order ?? widget.order;
-    final remaining = state.remaining;
-    final address = order.payToAddress.trim();
-    final bool expired = order.isExpired && remaining == Duration.zero;
-    final bool credited = order.isCredited;
+    final info = widget.rechargeInfo;
+    final address = info.payToAddress.trim();
+    final notice = info.notice?.isNotEmpty == true
+        ? info.notice!
+        : 'Send the exact ${info.expectedAmount} ${info.priceCurrency} to the address below.';
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -208,7 +188,7 @@ class _MeowCreditRechargePageState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // ── Header ──────────────────────────────────────────────────
+              // ── Header ────────────────────────────────────────────────────
               Row(
                 children: <Widget>[
                   GestureDetector(
@@ -224,7 +204,7 @@ class _MeowCreditRechargePageState
               ),
               const SizedBox(height: AppSpacing.lg),
 
-              // ── Selected plan card ───────────────────────────────────────
+              // ── Selected plan card ────────────────────────────────────────
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
@@ -247,7 +227,7 @@ class _MeowCreditRechargePageState
                             style: AppTextStyles.body.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600)),
-                        Text('${widget.package.totalCredit} credits total',
+                        Text('${info.totalCredit} credits total',
                             style: AppTextStyles.caption
                                 .copyWith(color: Colors.white54)),
                       ],
@@ -255,10 +235,10 @@ class _MeowCreditRechargePageState
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
-                        Text(order.expectedAmount,
+                        Text(info.expectedAmount,
                             style: AppTextStyles.sectionTitle.copyWith(
                                 color: AppColors.brandGold, fontSize: 28)),
-                        Text(order.priceCurrency,
+                        Text(info.priceCurrency,
                             style: AppTextStyles.caption
                                 .copyWith(color: AppColors.brandGold)),
                       ],
@@ -267,57 +247,27 @@ class _MeowCreditRechargePageState
                 ),
               ),
 
-              // ── Countdown banner ─────────────────────────────────────────
-              if (order.expiresAt != null && !credited) ...<Widget>[
+              // ── Status banner ─────────────────────────────────────────────
+              if (state.isCredited) ...<Widget>[
                 const SizedBox(height: AppSpacing.sm),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: expired
-                        ? Colors.redAccent.withValues(alpha: 0.12)
-                        : AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      Text(
-                        expired ? 'Order expired' : 'Order expires in',
-                        style: AppTextStyles.caption.copyWith(
-                            color:
-                                expired ? Colors.redAccent : Colors.white54),
-                      ),
-                      if (!expired)
-                        Text(_formatDuration(remaining),
-                            style: AppTextStyles.body.copyWith(
-                                color: AppColors.brandGold,
-                                fontWeight: FontWeight.bold)),
-                    ],
-                  ),
+                const _StatusBanner(
+                  color: Colors.green,
+                  icon: Icons.check_circle_outline,
+                  message: 'Payment confirmed — credits added!',
                 ),
-              ],
-
-              // ── Success banner ───────────────────────────────────────────
-              if (credited) ...<Widget>[
+              ] else if (state.isPending) ...<Widget>[
                 const SizedBox(height: AppSpacing.sm),
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  ),
-                  child: Text('Payment confirmed — credits added!',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.body
-                          .copyWith(color: Colors.green)),
+                const _StatusBanner(
+                  color: Colors.orange,
+                  icon: Icons.hourglass_top_outlined,
+                  message: 'Awaiting blockchain confirmation.',
                 ),
               ],
 
               const SizedBox(height: AppSpacing.lg),
 
-              // ── Scan to Pay ──────────────────────────────────────────────
-              if (address.isNotEmpty) ...<Widget>[
+              // ── QR code ───────────────────────────────────────────────────
+              if (address.isNotEmpty && !state.isCredited) ...<Widget>[
                 Text('Scan to Pay',
                     style: AppTextStyles.body.copyWith(
                         color: Colors.white, fontWeight: FontWeight.w600)),
@@ -337,14 +287,13 @@ class _MeowCreditRechargePageState
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                // Share QR / Save to Album buttons
                 Row(
                   children: <Widget>[
                     Expanded(
                       child: _OutlineButton(
                         icon: Icons.share_outlined,
                         label: 'Share QR',
-                        onTap: _shareQr,
+                        onTap: _copyAddress,
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
@@ -360,122 +309,118 @@ class _MeowCreditRechargePageState
                 const SizedBox(height: AppSpacing.lg),
               ],
 
-              // ── Receiving Address ────────────────────────────────────────
-              Text('Receiving Address',
-                  style: AppTextStyles.body.copyWith(
-                      color: Colors.white, fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                ),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        address.isNotEmpty ? address : 'Address unavailable',
-                        style: AppTextStyles.caption
-                            .copyWith(color: Colors.white70),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: _copyAddress,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.brandGold),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.copy,
-                            size: 16, color: AppColors.brandGold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-
-              // Notice
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.brandGold.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  border: Border.all(
-                      color: AppColors.brandGold.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  'Send the exact ${order.priceCurrency} amount to the platform '
-                  'address, then wait for staff verification.',
-                  style: AppTextStyles.caption
-                      .copyWith(color: AppColors.brandGold),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-
-              // ── Already Transferred? ─────────────────────────────────────
-              Text('Already Transferred?',
-                  style: AppTextStyles.body.copyWith(
-                      color: Colors.white, fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Enter your transaction ID to speed up verification.',
-                style: AppTextStyles.caption.copyWith(color: Colors.white54),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _txHashController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Transaction hash / TX ID',
-                  hintStyle:
-                      TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                  filled: true,
-                  fillColor: AppColors.cardBackground,
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusMd),
-                    borderSide:
-                        const BorderSide(color: AppColors.softBorder),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusMd),
-                    borderSide:
-                        const BorderSide(color: AppColors.softBorder),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              GestureDetector(
-                onTap: state.submittingTxid ? null : _submitTxHash,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
+              // ── Receiving Address ─────────────────────────────────────────
+              if (!state.isCredited) ...<Widget>[
+                Text('Receiving Address',
+                    style: AppTextStyles.body.copyWith(
+                        color: Colors.white, fontWeight: FontWeight.w600)),
+                const SizedBox(height: AppSpacing.xs),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: state.submittingTxid
-                        ? AppColors.brandGold.withValues(alpha: 0.5)
-                        : AppColors.brandGold,
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusLg),
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   ),
-                  alignment: Alignment.center,
-                  child: state.submittingTxid
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.black),
-                        )
-                      : Text('Submit Transaction Hash',
-                          style: AppTextStyles.body.copyWith(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w600)),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          address.isNotEmpty ? address : 'Address unavailable',
+                          style: AppTextStyles.caption
+                              .copyWith(color: Colors.white70),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _copyAddress,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.brandGold),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.copy,
+                              size: 16, color: AppColors.brandGold),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.brandGold.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    border: Border.all(
+                        color: AppColors.brandGold.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    notice,
+                    style: AppTextStyles.caption
+                        .copyWith(color: AppColors.brandGold),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+
+              // ── Submit txid section ───────────────────────────────────────
+              if (!state.hasResult) ...<Widget>[
+                Text('Already Transferred?',
+                    style: AppTextStyles.body.copyWith(
+                        color: Colors.white, fontWeight: FontWeight.w600)),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Enter your transaction ID to verify and credit your wallet.',
+                  style: AppTextStyles.caption.copyWith(color: Colors.white54),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _txHashController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Transaction hash / TX ID',
+                    hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.3)),
+                    filled: true,
+                    fillColor: AppColors.cardBackground,
+                    border: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.radiusMd),
+                      borderSide:
+                          const BorderSide(color: AppColors.softBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.radiusMd),
+                      borderSide:
+                          const BorderSide(color: AppColors.softBorder),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _PrimaryButton(
+                  label: 'Submit Transaction ID',
+                  loading: state.submitting,
+                  onTap: state.submitting ? null : _submitTxid,
+                ),
+              ],
+
+              // ── Check Payment button (pending state) ──────────────────────
+              if (state.isPending) ...<Widget>[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Order: ${state.result!.orderNo}',
+                  style: AppTextStyles.caption.copyWith(color: Colors.white38),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _PrimaryButton(
+                  label: 'Check Payment',
+                  loading: state.verifying,
+                  onTap: state.canVerify ? _checkPayment : null,
+                ),
+              ],
             ],
           ),
         ),
@@ -485,8 +430,78 @@ class _MeowCreditRechargePageState
 }
 
 // ---------------------------------------------------------------------------
-// Shared outline button (Share QR / Save to Album)
+// Widgets
 // ---------------------------------------------------------------------------
+
+class _StatusBanner extends StatelessWidget {
+  const _StatusBanner({
+    required this.color,
+    required this.icon,
+    required this.message,
+  });
+  final Color color;
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message,
+                style: AppTextStyles.body.copyWith(color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
+    required this.loading,
+    required this.onTap,
+  });
+  final String label;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
+        decoration: BoxDecoration(
+          color: onTap == null
+              ? AppColors.brandGold.withValues(alpha: 0.5)
+              : AppColors.brandGold,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        ),
+        alignment: Alignment.center,
+        child: loading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.black),
+              )
+            : Text(label,
+                style: AppTextStyles.body.copyWith(
+                    color: Colors.black, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
 
 class _OutlineButton extends StatelessWidget {
   const _OutlineButton({
@@ -503,8 +518,7 @@ class _OutlineButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: Colors.transparent,
           border: Border.all(color: AppColors.softBorder),
@@ -516,8 +530,7 @@ class _OutlineButton extends StatelessWidget {
             Icon(icon, color: Colors.white70, size: 16),
             const SizedBox(width: 6),
             Text(label,
-                style: AppTextStyles.caption
-                    .copyWith(color: Colors.white70)),
+                style: AppTextStyles.caption.copyWith(color: Colors.white70)),
           ],
         ),
       ),

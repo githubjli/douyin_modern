@@ -65,19 +65,20 @@ class _RechargePackagePageState extends ConsumerState<RechargePackagePage> {
     if (_creating) return;
     setState(() => _creating = true);
     try {
-      final order =
-          await ref.read(meowCreditRepositoryProvider).createRecharge(pkg.code);
+      final info = await ref
+          .read(meowCreditRepositoryProvider)
+          .getRechargeInfo(pkg.code);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute<void>(
         builder: (_) => MeowCreditRechargePage(
           package: pkg,
-          order: order,
+          rechargeInfo: info,
         ),
       ));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to create recharge order.')),
+        const SnackBar(content: Text('Unable to load recharge info.')),
       );
     } finally {
       if (mounted) setState(() => _creating = false);

@@ -114,18 +114,44 @@ class MeowCreditRepository {
         .toList();
   }
 
-  Future<void> createRedeem({
+  Future<MeowCreditRedeem> createRedeem({
     required int amount,
     required String receivingAddress,
   }) async {
-    await _client.post<dynamic>(
+    final response = await _client.post<dynamic>(
       Endpoints.meowCreditRedeems,
       data: <String, dynamic>{
         'amount': amount,
-        'receiving_address': receivingAddress,
+        'redeem_method': 'thb_ltt_wallet',
+        'account_snapshot': <String, dynamic>{
+          'receiving_address': receivingAddress,
+        },
       },
       authenticated: true,
     );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid redeem response');
+    }
+    return MeowCreditRedeem.fromJson(data);
+  }
+
+  Future<List<MeowCreditRedeem>> getRedeems() async {
+    final response = await _client.get<dynamic>(
+      Endpoints.meowCreditRedeems,
+      authenticated: true,
+    );
+    final data = response.data;
+    List<dynamic> items = const <dynamic>[];
+    if (data is List) {
+      items = data;
+    } else if (data is Map<String, dynamic> && data['results'] is List) {
+      items = data['results'] as List<dynamic>;
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(MeowCreditRedeem.fromJson)
+        .toList();
   }
 }
 

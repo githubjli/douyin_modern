@@ -101,6 +101,7 @@ class _MeowCreditRedeemPageState
       if (!mounted) return;
       ref.invalidate(meowCreditWalletProvider);
       ref.invalidate(meowCreditLedgerProvider);
+      ref.invalidate(meowCreditRedeemsProvider);
       messenger.showSnackBar(const SnackBar(
         content: Text(
             'Redemption request submitted. We will process it within 1–2 business days.'),

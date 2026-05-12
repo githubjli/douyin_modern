@@ -298,6 +298,56 @@ class MeowCreditVerifyResult {
 }
 
 // ---------------------------------------------------------------------------
+// Redeem record
+// ---------------------------------------------------------------------------
+
+class MeowCreditRedeem {
+  const MeowCreditRedeem({
+    required this.redeemNo,
+    required this.amount,
+    required this.status,
+    required this.redeemMethod,
+    required this.receivingAddress,
+    this.reviewedAt,
+    this.rejectReason,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String redeemNo;
+  final int amount;
+  final String status; // pending | approved | rejected
+  final String redeemMethod;
+  final String receivingAddress;
+  final String? reviewedAt;
+  final String? rejectReason;
+  final String? createdAt;
+  final String? updatedAt;
+
+  bool get isPending => status == 'pending';
+  bool get isApproved => status == 'approved';
+  bool get isRejected => status == 'rejected';
+
+  factory MeowCreditRedeem.fromJson(Map<String, dynamic> json) {
+    final snapshot = json['account_snapshot'];
+    final String address = snapshot is Map<String, dynamic>
+        ? snapshot['receiving_address'] as String? ?? ''
+        : '';
+    return MeowCreditRedeem(
+      redeemNo: json['redeem_no'] as String? ?? '',
+      amount: _int(json['amount']) ?? 0,
+      status: json['status'] as String? ?? 'pending',
+      redeemMethod: json['redeem_method'] as String? ?? 'thb_ltt_wallet',
+      receivingAddress: address,
+      reviewedAt: json['reviewed_at'] as String?,
+      rejectReason: json['reject_reason'] as String?,
+      createdAt: json['created_at'] as String?,
+      updatedAt: json['updated_at'] as String?,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 class MeowCreditLedgerEntry {
   const MeowCreditLedgerEntry({

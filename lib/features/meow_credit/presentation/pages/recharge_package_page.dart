@@ -1,0 +1,231 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../application/meow_credit_providers.dart';
+import '../../data/meow_credit_repository.dart';
+import '../../domain/meow_credit_wallet.dart';
+import 'meow_credit_recharge_page.dart';
+
+class RechargePackagePage extends ConsumerStatefulWidget {
+  const RechargePackagePage({super.key});
+
+  @override
+  ConsumerState<RechargePackagePage> createState() =>
+      _RechargePackagePageState();
+}
+
+class _RechargePackagePageState extends ConsumerState<RechargePackagePage> {
+  bool _creating = false;
+
+  Future<void> _selectPackage(MeowCreditPackage pkg) async {
+    if (_creating) return;
+    setState(() => _creating = true);
+    try {
+      final order =
+          await ref.read(meowCreditRepositoryProvider).createRecharge(pkg.code);
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => MeowCreditRechargePage(
+          package: pkg,
+          order: order,
+        ),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to create recharge order.')),
+      );
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final packagesAsync = ref.watch(meowCreditPackagesProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.warmBackground,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
+                children: <Widget>[
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const Icon(Icons.arrow_back_ios,
+                        color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('Select Recharge Package',
+                      style:
+                          AppTextStyles.sectionTitle.copyWith(color: Colors.white)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: packagesAsync.when(
+                data: (packages) => packages.isEmpty
+                    ? _fallbackPackages()
+                    : _packageList(packages),
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.brandGold),
+                ),
+                error: (_, __) => _fallbackPackages(),
+              ),
+            ),
+            if (_creating)
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.md),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.brandGold),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _packageList(List<MeowCreditPackage> packages) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: packages.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (_, i) => _PackageCard(
+        package: packages[i],
+        onTap: _creating ? null : () => _selectPackage(packages[i]),
+      ),
+    );
+  }
+
+  // Shown when API is unavailable
+  Widget _fallbackPackages() {
+    final fallbacks = <MeowCreditPackage>[
+      const MeowCreditPackage(
+        code: 'credit_100',
+        name: '100 Credits',
+        creditAmount: 100,
+        bonusCredit: 10,
+        totalCredit: 110,
+        priceAmount: '100.00',
+        priceCurrency: 'THB-LTT',
+        description: 'Recharge package',
+      ),
+      const MeowCreditPackage(
+        code: 'credit_500',
+        name: '500 Credits',
+        creditAmount: 500,
+        bonusCredit: 75,
+        totalCredit: 575,
+        priceAmount: '500.00',
+        priceCurrency: 'THB-LTT',
+        description: 'Recharge package',
+      ),
+      const MeowCreditPackage(
+        code: 'credit_1000',
+        name: '1000 Credits',
+        creditAmount: 1000,
+        bonusCredit: 200,
+        totalCredit: 1200,
+        priceAmount: '1000.00',
+        priceCurrency: 'THB-LTT',
+        description: 'Recharge package',
+      ),
+    ];
+    return ListView.separated(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: fallbacks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (_, i) => _PackageCard(
+        package: fallbacks[i],
+        onTap: _creating ? null : () => _selectPackage(fallbacks[i]),
+      ),
+    );
+  }
+}
+
+class _PackageCard extends StatelessWidget {
+  const _PackageCard({required this.package, required this.onTap});
+  final MeowCreditPackage package;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          border: Border.all(color: AppColors.softBorder),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(package.name,
+                      style: AppTextStyles.body
+                          .copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: <Widget>[
+                      Text('${package.creditAmount} Credits',
+                          style: AppTextStyles.caption
+                              .copyWith(color: Colors.white54)),
+                      if (package.bonusCredit > 0) ...<Widget>[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.brandGold.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '+${package.bonusCredit} Bonus',
+                            style: AppTextStyles.caption
+                                .copyWith(color: AppColors.brandGold, fontSize: 10),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (package.bonusCredit > 0)
+                    Text(
+                      '= ${package.totalCredit} Credits total',
+                      style: AppTextStyles.caption
+                          .copyWith(color: AppColors.brandGold),
+                    ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  package.priceAmount,
+                  style: AppTextStyles.sectionTitle.copyWith(
+                      color: AppColors.brandGold, fontSize: 22),
+                ),
+                Text(package.priceCurrency,
+                    style: AppTextStyles.caption
+                        .copyWith(color: AppColors.brandGold)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

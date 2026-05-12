@@ -15,6 +15,8 @@ import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../live/go_live_page.dart';
 import '../membership/membership_orders_page.dart';
+import '../meow_credit/application/meow_credit_providers.dart';
+import '../meow_credit/presentation/pages/meow_credit_page.dart';
 import '../meow_points/application/meow_points_providers.dart';
 import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
@@ -309,6 +311,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   builder: (_) => const MeowPointsPage(),
                 ),
               ),
+              onCreditDetails: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MeowCreditPage(),
+                ),
+              ),
+              creditBalance: ref.watch(meowCreditWalletProvider).valueOrNull?.balance,
               onGoLive: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => GoLivePage(apiClient: _apiClient),
@@ -591,15 +599,19 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.onRefresh,
     required this.onEdit,
     required this.onWalletDetails,
+    required this.onCreditDetails,
     required this.onGoLive,
+    this.creditBalance,
   });
 
   final UserProfile? profile;
   final MeowPointWallet? wallet;
+  final int? creditBalance;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
   final VoidCallback onWalletDetails;
+  final VoidCallback onCreditDetails;
   final VoidCallback onGoLive;
 
   void _soon(BuildContext context) => ScaffoldMessenger.of(context).showSnackBar(
@@ -616,6 +628,10 @@ class _SignedInProfileBody extends StatelessWidget {
         // ── Avatar + name ──────────────────────────────────────────────
         _ProfileHeader(profile: profile, onRefresh: onRefresh, onEdit: onEdit),
         const SizedBox(height: AppSpacing.md),
+
+        // ── Meow Credit card ───────────────────────────────────────────
+        _CreditCard(balance: creditBalance, onDetails: onCreditDetails),
+        const SizedBox(height: AppSpacing.sm),
 
         // ── Meow Points card ───────────────────────────────────────────
         _PointsCard(wallet: wallet, onDetails: onWalletDetails),
@@ -932,6 +948,68 @@ class _RoleBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Meow Credit card
+// ---------------------------------------------------------------------------
+
+class _CreditCard extends StatelessWidget {
+  const _CreditCard({required this.balance, required this.onDetails});
+
+  final int? balance;
+  final VoidCallback onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.brandGold.withAlpha(25),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.monetization_on_outlined,
+              color: AppColors.brandGold,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('Meow Credit', style: AppTextStyles.body),
+                Text(
+                  balance != null ? '$balance credits' : '— credits',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.mutedOliveText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onDetails,
+            child: const Text('Details'),
+          ),
+        ],
       ),
     );
   }

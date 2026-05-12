@@ -45,8 +45,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
 
   bool _loadingProfile = false;
   bool _loggingIn = false;
@@ -71,8 +69,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _usernameController.dispose();
-    _firstNameController.dispose();
-    _lastNameController.dispose();
     super.dispose();
   }
 
@@ -187,16 +183,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             email: _emailController.text.trim(),
             password: _passwordController.text,
             username: _usernameController.text.trim(),
-            firstName: _firstNameController.text.trim(),
-            lastName: _lastNameController.text.trim(),
           );
       final AuthState authState = ref.read(authControllerProvider);
       if (authState.isSignedIn) {
-        _passwordController.clear();
-        _confirmPasswordController.clear();
-        _usernameController.clear();
-        _firstNameController.clear();
-        _lastNameController.clear();
+        _clearAuthControllers();
         unawaited(_claimDailyReward());
       }
     } finally {
@@ -211,8 +201,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _passwordController.clear();
     _confirmPasswordController.clear();
     _usernameController.clear();
-    _firstNameController.clear();
-    _lastNameController.clear();
   }
 
   Future<void> _logout() async {
@@ -279,8 +267,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     passwordController: _passwordController,
                     confirmPasswordController: _confirmPasswordController,
                     usernameController: _usernameController,
-                    firstNameController: _firstNameController,
-                    lastNameController: _lastNameController,
                     loggingIn: _loggingIn,
                     registering: _registering,
                     error: _error ?? authState.message,
@@ -367,8 +353,6 @@ class _GuestProfileCard extends StatefulWidget {
     required this.passwordController,
     required this.confirmPasswordController,
     required this.usernameController,
-    required this.firstNameController,
-    required this.lastNameController,
     required this.loggingIn,
     required this.registering,
     required this.error,
@@ -380,8 +364,6 @@ class _GuestProfileCard extends StatefulWidget {
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
   final TextEditingController usernameController;
-  final TextEditingController firstNameController;
-  final TextEditingController lastNameController;
   final bool loggingIn;
   final bool registering;
   final String? error;
@@ -483,30 +465,6 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                       prefixIcon: const Icon(Icons.person_outline_rounded,
                           size: 20, color: AppColors.mutedOliveText),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: widget.firstNameController,
-                          cursorColor: AppColors.brandGold,
-                          textCapitalization: TextCapitalization.words,
-                          style: AppTextStyles.body,
-                          decoration: _inputDecoration('First name'),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: TextField(
-                          controller: widget.lastNameController,
-                          cursorColor: AppColors.brandGold,
-                          textCapitalization: TextCapitalization.words,
-                          style: AppTextStyles.body,
-                          decoration: _inputDecoration('Last name'),
-                        ),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
                 ],

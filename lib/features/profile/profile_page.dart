@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_assets.dart';
@@ -10,6 +12,7 @@ import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_error.dart';
 import '../../core/network/endpoints.dart';
+import '../../app/widgets/back_nav_header.dart';
 import '../../shared/brand_page_header.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
@@ -1064,7 +1067,11 @@ class _SignedInProfileBody extends StatelessWidget {
             _MenuItem(
               icon: Icons.lock_outline_rounded,
               label: 'Change Password',
-              onTap: () => _soon(context),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ChangePasswordPage(),
+                ),
+              ),
             ),
           ],
         ),
@@ -1212,13 +1219,14 @@ class _ProfileHeader extends StatelessWidget {
     );
   }
 
-  String _initials(String name) {
-    final List<String> parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+}
+
+String _initials(String name) {
+  final List<String> parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.length >= 2) {
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
+  return name.isNotEmpty ? name[0].toUpperCase() : '?';
 }
 
 class _InitialsAvatar extends StatelessWidget {
@@ -1553,7 +1561,7 @@ class _MenuRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Edit profile — full-page, ManualPayment card style
+// Edit profile
 // ---------------------------------------------------------------------------
 
 class EditProfilePage extends StatefulWidget {
@@ -1573,38 +1581,140 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
-  late final TextEditingController _nameController;
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
   late final TextEditingController _bioController;
+  late String _avatarUrl;
+  bool _avatarBusy = false;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.profile.displayName);
+    _firstNameController =
+        TextEditingController(text: widget.profile.firstName ?? '');
+    _lastNameController =
+        TextEditingController(text: widget.profile.lastName ?? '');
     _bioController = TextEditingController(text: widget.profile.bio);
+    _avatarUrl = widget.profile.avatarUrl;
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _bioController.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    final String name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _error = 'Display name cannot be empty.');
-      return;
+  // ── Avatar ────────────────────────────────────────────────────────────────
+
+  void _showAvatarOptions() {
+    final bool hasAvatar = _avatarUrl.trim().isNotEmpty;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppSpacing.radiusLg)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.brandGold),
+              title: Text('Choose from Library',
+                  style: AppTextStyles.body.copyWith(color: Colors.white)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickAndUpload();
+              },
+            ),
+            if (hasAvatar)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded,
+                    color: Colors.redAccent),
+                title: Text('Remove Photo',
+                    style:
+                        AppTextStyles.body.copyWith(color: Colors.redAccent)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _clearAvatar();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.close_rounded, color: Colors.white54),
+              title: Text('Cancel',
+                  style:
+                      AppTextStyles.body.copyWith(color: Colors.white54)),
+              onTap: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUpload() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _avatarBusy = true);
+    try {
+      final UserProfile updated =
+          await widget.profileRepository.uploadAvatar(File(picked.path));
+      if (!mounted) return;
+      setState(() => _avatarUrl = updated.avatarUrl);
+      widget.onSaved(updated);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to upload photo. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
     }
+  }
+
+  Future<void> _clearAvatar() async {
+    setState(() => _avatarBusy = true);
+    try {
+      final UserProfile updated =
+          await widget.profileRepository.clearAvatar();
+      if (!mounted) return;
+      setState(() => _avatarUrl = '');
+      widget.onSaved(updated);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to remove photo. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
+    }
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+
+  Future<void> _save() async {
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
       final UserProfile updated = await widget.profileRepository.updateProfile(
-        displayName: name,
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
         bio: _bioController.text.trim(),
       );
       if (!mounted) return;
@@ -1619,8 +1729,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final String initials = _initials(widget.profile.displayName);
+    final bool hasAvatar = _avatarUrl.trim().isNotEmpty;
+
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
@@ -1634,55 +1749,100 @@ class _EditProfilePageState extends State<EditProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // Header
+              const BackNavHeader(title: 'Edit Profile'),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Avatar ────────────────────────────────────────────────────
+              Center(
+                child: GestureDetector(
+                  onTap: _avatarBusy ? null : _showAvatarOptions,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: <Widget>[
+                      Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: AppColors.brandGold.withAlpha(30),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: AppColors.brandGold, width: 2),
+                        ),
+                        child: _avatarBusy
+                            ? const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.brandGold,
+                                ),
+                              )
+                            : hasAvatar
+                                ? ClipOval(
+                                    child: Image.network(
+                                      _avatarUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _InitialsAvatar(initials: initials),
+                                    ),
+                                  )
+                                : _InitialsAvatar(initials: initials),
+                      ),
+                      if (!_avatarBusy)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: AppColors.brandGold,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: AppColors.warmBackground, width: 2),
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded,
+                                size: 14, color: Colors.black),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Name row ─────────────────────────────────────────────────
               Row(
                 children: <Widget>[
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBackground.withValues(alpha: 0.54),
-                          border: Border.all(color: AppColors.softBorder),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: AppColors.brandGold,
-                          size: 18,
-                        ),
+                  Expanded(
+                    child: _EditCard(
+                      label: 'First Name',
+                      child: TextField(
+                        controller: _firstNameController,
+                        cursorColor: AppColors.brandGold,
+                        textCapitalization: TextCapitalization.words,
+                        style: AppTextStyles.body,
+                        decoration: _editFieldDecoration('First'),
                       ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    'Edit Profile',
-                    style: AppTextStyles.sectionTitle.copyWith(
-                      fontSize: 18,
-                      height: 1.1,
+                  Expanded(
+                    child: _EditCard(
+                      label: 'Last Name',
+                      child: TextField(
+                        controller: _lastNameController,
+                        cursorColor: AppColors.brandGold,
+                        textCapitalization: TextCapitalization.words,
+                        style: AppTextStyles.body,
+                        decoration: _editFieldDecoration('Last'),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.lg),
-
-              // Display Name card
-              _EditCard(
-                label: 'Display Name',
-                child: TextField(
-                  controller: _nameController,
-                  cursorColor: AppColors.brandGold,
-                  textCapitalization: TextCapitalization.words,
-                  style: AppTextStyles.body,
-                  decoration: _editFieldDecoration('Your name'),
-                ),
-              ),
               const SizedBox(height: AppSpacing.sm),
 
-              // Bio card
+              // ── Bio ───────────────────────────────────────────────────────
               _EditCard(
                 label: 'Bio',
                 child: TextField(
@@ -1691,13 +1851,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   maxLines: 5,
                   minLines: 3,
                   style: AppTextStyles.body,
-                  decoration: _editFieldDecoration(
-                    'Tell others a bit about yourself…',
-                  ),
+                  decoration:
+                      _editFieldDecoration('Tell others a bit about yourself…'),
                 ),
               ),
 
-              // Error message
               if (_error != null) ...<Widget>[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
@@ -1707,15 +1865,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                   decoration: BoxDecoration(
                     color: Colors.redAccent.withAlpha(20),
-                    border: Border.all(color: Colors.redAccent.withAlpha(80)),
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    border:
+                        Border.all(color: Colors.redAccent.withAlpha(80)),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
                   ),
-                  child: Text(
-                    _error!,
-                    style: AppTextStyles.caption.copyWith(
-                      color: Colors.redAccent,
-                    ),
-                  ),
+                  child: Text(_error!,
+                      style: AppTextStyles.caption
+                          .copyWith(color: Colors.redAccent)),
                 ),
               ],
 
@@ -1727,15 +1884,231 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   foregroundColor: AppColors.warmBackground,
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
                   ),
                 ),
                 child: Text(
-                  _saving ? 'Saving...' : 'Save',
+                  _saving ? 'Saving…' : 'Save',
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                      fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Change Password
+// ---------------------------------------------------------------------------
+
+class ChangePasswordPage extends StatefulWidget {
+  const ChangePasswordPage({super.key});
+
+  @override
+  State<ChangePasswordPage> createState() => _ChangePasswordPageState();
+}
+
+class _ChangePasswordPageState extends State<ChangePasswordPage> {
+  final TextEditingController _currentPwController = TextEditingController();
+  final TextEditingController _newPwController = TextEditingController();
+  final TextEditingController _confirmPwController = TextEditingController();
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _saving = false;
+  String? _error;
+  String? _success;
+
+  @override
+  void dispose() {
+    _currentPwController.dispose();
+    _newPwController.dispose();
+    _confirmPwController.dispose();
+    super.dispose();
+  }
+
+  String? get _confirmError {
+    final String np = _newPwController.text;
+    final String cp = _confirmPwController.text;
+    if (cp.isNotEmpty && np != cp) return 'Passwords do not match';
+    return null;
+  }
+
+  bool get _canSave =>
+      !_saving &&
+      _currentPwController.text.isNotEmpty &&
+      _newPwController.text.length >= 8 &&
+      _confirmError == null &&
+      _confirmPwController.text.isNotEmpty;
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      final ApiClient client = ApiClient();
+      await client.post<dynamic>(
+        Endpoints.accountChangePassword,
+        authenticated: true,
+        data: <String, dynamic>{
+          'current_password': _currentPwController.text,
+          'new_password': _newPwController.text,
+        },
+      );
+      if (!mounted) return;
+      _currentPwController.clear();
+      _newPwController.clear();
+      _confirmPwController.clear();
+      setState(() => _success = 'Password updated successfully.');
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Failed to update password. Please try again.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.warmBackground,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              const BackNavHeader(title: 'Change Password'),
+              const SizedBox(height: AppSpacing.lg),
+
+              _EditCard(
+                label: 'Current Password',
+                child: TextField(
+                  controller: _currentPwController,
+                  obscureText: _obscureCurrent,
+                  cursorColor: AppColors.brandGold,
+                  style: AppTextStyles.body,
+                  onChanged: (_) => setState(() {}),
+                  decoration: _editFieldDecoration(
+                    'Enter current password',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureCurrent
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined),
+                      color: AppColors.mutedOliveText,
+                      onPressed: () =>
+                          setState(() => _obscureCurrent = !_obscureCurrent),
+                    ),
                   ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+
+              _EditCard(
+                label: 'New Password',
+                child: TextField(
+                  controller: _newPwController,
+                  obscureText: _obscureNew,
+                  cursorColor: AppColors.brandGold,
+                  style: AppTextStyles.body,
+                  onChanged: (_) => setState(() {}),
+                  decoration: _editFieldDecoration(
+                    'Min. 8 characters',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureNew
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined),
+                      color: AppColors.mutedOliveText,
+                      onPressed: () =>
+                          setState(() => _obscureNew = !_obscureNew),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+
+              _EditCard(
+                label: 'Confirm New Password',
+                child: TextField(
+                  controller: _confirmPwController,
+                  obscureText: _obscureConfirm,
+                  cursorColor: AppColors.brandGold,
+                  style: AppTextStyles.body,
+                  onChanged: (_) => setState(() {}),
+                  decoration: _editFieldDecoration(
+                    'Re-enter new password',
+                    errorText: _confirmError,
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirm
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined),
+                      color: AppColors.mutedOliveText,
+                      onPressed: () =>
+                          setState(() => _obscureConfirm = !_obscureConfirm),
+                    ),
+                  ),
+                ),
+              ),
+
+              if (_error != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withAlpha(20),
+                    border: Border.all(color: Colors.redAccent.withAlpha(80)),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                  child: Text(_error!,
+                      style: AppTextStyles.caption
+                          .copyWith(color: Colors.redAccent)),
+                ),
+              ],
+              if (_success != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withAlpha(30),
+                    border:
+                        Border.all(color: Colors.green.withAlpha(80)),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                  child: Text(_success!,
+                      style: AppTextStyles.caption
+                          .copyWith(color: Colors.greenAccent)),
+                ),
+              ],
+
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                onPressed: _canSave ? _save : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brandGold,
+                  foregroundColor: AppColors.warmBackground,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                ),
+                child: Text(
+                  _saving ? 'Updating…' : 'Update Password',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -1785,7 +2158,11 @@ class _EditCard extends StatelessWidget {
   }
 }
 
-InputDecoration _editFieldDecoration(String hint) {
+InputDecoration _editFieldDecoration(
+  String hint, {
+  Widget? suffixIcon,
+  String? errorText,
+}) {
   return InputDecoration(
     hintText: hint,
     hintStyle: AppTextStyles.caption,
@@ -1804,6 +2181,17 @@ InputDecoration _editFieldDecoration(String hint) {
       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       borderSide: const BorderSide(color: AppColors.brandGold),
     ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: Colors.redAccent),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: Colors.redAccent),
+    ),
+    suffixIcon: suffixIcon,
+    errorText: errorText,
+    errorStyle: AppTextStyles.caption.copyWith(color: Colors.redAccent),
   );
 }
 

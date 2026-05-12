@@ -7,6 +7,7 @@ class Endpoints {
   static const String authMe = '/api/auth/me';
 
   static const String accountProfile = '/api/account/profile';
+  static const String accountChangePassword = '/api/account/change-password/';
 
   static const String meowPointsWallet = '/api/meow-points/wallet/';
   static const String meowPointsDailyReward =

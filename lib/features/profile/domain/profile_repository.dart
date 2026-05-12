@@ -1,11 +1,17 @@
+import 'dart:io';
+
 import 'user_profile.dart';
 
 abstract class ProfileRepository {
   Future<UserProfile> getCurrentProfile();
 
   Future<UserProfile> updateProfile({
-    required String displayName,
+    String? firstName,
+    String? lastName,
     required String bio,
-    String? avatarUrl,
   });
+
+  Future<UserProfile> uploadAvatar(File file);
+
+  Future<UserProfile> clearAvatar();
 }

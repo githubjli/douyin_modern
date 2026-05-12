@@ -1056,6 +1056,12 @@ class _SignedInProfileBody extends StatelessWidget {
               label: 'Wallet & Billing',
               onTap: () => _soon(context),
             ),
+            _MenuItem(
+              icon: Icons.verified_user_outlined,
+              label: 'Private KYC/AML',
+              onTap: () => _soon(context),
+              trailing: const _KycChip(status: _KycStatus.notSubmitted),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
@@ -1512,12 +1518,14 @@ class _MenuItem {
     required this.label,
     required this.onTap,
     this.destructive = false,
+    this.trailing,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool destructive;
+  final Widget? trailing;
 }
 
 class _MenuRow extends StatelessWidget {
@@ -1547,13 +1555,68 @@ class _MenuRow extends StatelessWidget {
                 style: AppTextStyles.body.copyWith(color: color),
               ),
             ),
-            if (!item.destructive)
+            if (item.trailing != null)
+              item.trailing!
+            else if (!item.destructive)
               const Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
                 color: AppColors.mutedOliveText,
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// KYC status chip
+// ---------------------------------------------------------------------------
+
+enum _KycStatus { notSubmitted, pending, approved, rejected }
+
+class _KycChip extends StatelessWidget {
+  const _KycChip({required this.status});
+  final _KycStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (String label, Color fg, Color bg) = switch (status) {
+      _KycStatus.notSubmitted => (
+          'Submit',
+          AppColors.brandGold,
+          AppColors.brandGold.withValues(alpha: 0.12),
+        ),
+      _KycStatus.pending => (
+          'Pending',
+          Colors.orange,
+          Colors.orange.withValues(alpha: 0.12),
+        ),
+      _KycStatus.approved => (
+          'Approved',
+          Colors.green,
+          Colors.green.withValues(alpha: 0.12),
+        ),
+      _KycStatus.rejected => (
+          'Rejected',
+          Colors.redAccent,
+          Colors.redAccent.withValues(alpha: 0.12),
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
         ),
       ),
     );

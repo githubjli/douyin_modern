@@ -4,11 +4,52 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../application/meow_credit_providers.dart';
 import '../../data/meow_credit_repository.dart';
+import '../../domain/meow_credit_wallet.dart';
 import 'meow_credit_recharge_page.dart';
 
-/// Amount-input page — the user types how many credits to recharge,
-/// then we create the order and open the Manual-Payment-style payment page.
+// ---------------------------------------------------------------------------
+// Fallback packages shown when the API is unavailable
+// ---------------------------------------------------------------------------
+
+const List<MeowCreditPackage> _fallbackPackages = <MeowCreditPackage>[
+  MeowCreditPackage(
+    code: 'credit_100',
+    name: '100 Credits',
+    creditAmount: 100,
+    bonusCredit: 0,
+    totalCredit: 100,
+    priceAmount: '100.00',
+    priceCurrency: 'THB-LTT',
+    description: 'Starter pack',
+  ),
+  MeowCreditPackage(
+    code: 'credit_500',
+    name: '500 Credits',
+    creditAmount: 500,
+    bonusCredit: 50,
+    totalCredit: 550,
+    priceAmount: '500.00',
+    priceCurrency: 'THB-LTT',
+    description: '+50 bonus credits',
+  ),
+  MeowCreditPackage(
+    code: 'credit_1000',
+    name: '1000 Credits',
+    creditAmount: 1000,
+    bonusCredit: 200,
+    totalCredit: 1200,
+    priceAmount: '1000.00',
+    priceCurrency: 'THB-LTT',
+    description: '+200 bonus credits — best value',
+  ),
+];
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 class RechargePackagePage extends ConsumerStatefulWidget {
   const RechargePackagePage({super.key});
 
@@ -18,32 +59,18 @@ class RechargePackagePage extends ConsumerStatefulWidget {
 }
 
 class _RechargePackagePageState extends ConsumerState<RechargePackagePage> {
-  final TextEditingController _amountController = TextEditingController();
   bool _creating = false;
 
-  @override
-  void dispose() {
-    _amountController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _proceed() async {
-    final String raw = _amountController.text.trim();
-    final int? amount = int.tryParse(raw);
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount.')),
-      );
-      return;
-    }
+  Future<void> _selectPackage(MeowCreditPackage pkg) async {
+    if (_creating) return;
     setState(() => _creating = true);
     try {
       final order =
-          await ref.read(meowCreditRepositoryProvider).createRecharge(amount);
+          await ref.read(meowCreditRepositoryProvider).createRecharge(pkg.code);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute<void>(
         builder: (_) => MeowCreditRechargePage(
-          requestedAmount: amount,
+          package: pkg,
           order: order,
         ),
       ));
@@ -59,17 +86,18 @@ class _RechargePackagePageState extends ConsumerState<RechargePackagePage> {
 
   @override
   Widget build(BuildContext context) {
+    final packagesAsync = ref.watch(meowCreditPackagesProvider);
+
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              // Header
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
                 children: <Widget>[
                   GestureDetector(
                     onTap: () => Navigator.of(context).maybePop(),
@@ -82,97 +110,128 @@ class _RechargePackagePageState extends ConsumerState<RechargePackagePage> {
                           .copyWith(color: Colors.white)),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xl),
+            ),
 
-              // Amount input
-              Text('Amount to Recharge',
-                  style: AppTextStyles.body.copyWith(color: Colors.white)),
-              const SizedBox(height: AppSpacing.xs),
-              TextField(
-                controller: _amountController,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white, fontSize: 18),
-                decoration: InputDecoration(
-                  hintText: 'Eg, 100',
-                  hintStyle:
-                      TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                  suffixText: 'Credits',
-                  suffixStyle: const TextStyle(
-                      color: AppColors.brandGold,
-                      fontWeight: FontWeight.w600),
-                  filled: true,
-                  fillColor: AppColors.cardBackground,
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusMd),
-                    borderSide:
-                        const BorderSide(color: AppColors.softBorder),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusMd),
-                    borderSide:
-                        const BorderSide(color: AppColors.softBorder),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusMd),
-                    borderSide: const BorderSide(color: AppColors.brandGold),
-                  ),
+            Expanded(
+              child: packagesAsync.when(
+                data: (packages) => _list(
+                  packages.isEmpty ? _fallbackPackages : packages,
                 ),
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.brandGold),
+                ),
+                error: (_, __) => _list(_fallbackPackages),
               ),
-              const SizedBox(height: AppSpacing.sm),
+            ),
 
-              // Notice
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.brandGold.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  border: Border.all(
-                      color: AppColors.brandGold.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  'Enter the number of credits you wish to purchase. '
-                  'You will be shown the payment address and amount after confirming.',
-                  style:
-                      AppTextStyles.caption.copyWith(color: AppColors.brandGold),
-                ),
+            if (_creating)
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.md),
+                child: Center(
+                    child: CircularProgressIndicator(
+                        color: AppColors.brandGold)),
               ),
-              const SizedBox(height: AppSpacing.xl),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // Confirm button
-              GestureDetector(
-                onTap: _creating ? null : _proceed,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
-                  decoration: BoxDecoration(
-                    color: _creating
-                        ? AppColors.brandGold.withValues(alpha: 0.5)
-                        : AppColors.brandGold,
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.radiusLg),
-                  ),
-                  alignment: Alignment.center,
-                  child: _creating
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.black),
-                        )
-                      : Text(
-                          'Proceed to Payment',
+  Widget _list(List<MeowCreditPackage> packages) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, 0, AppSpacing.md, AppSpacing.xl),
+      itemCount: packages.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (_, i) => _PackageCard(
+        package: packages[i],
+        onTap: _creating ? null : () => _selectPackage(packages[i]),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Package card
+// ---------------------------------------------------------------------------
+
+class _PackageCard extends StatelessWidget {
+  const _PackageCard({required this.package, required this.onTap});
+
+  final MeowCreditPackage package;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasBonusCredit = package.bonusCredit > 0;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          border: Border.all(color: AppColors.softBorder),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Text(package.name,
                           style: AppTextStyles.body.copyWith(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w600),
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600)),
+                      if (hasBonusCredit) ...<Widget>[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.brandGold.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '+${package.bonusCredit} Bonus',
+                            style: AppTextStyles.caption.copyWith(
+                                color: AppColors.brandGold, fontSize: 10),
+                          ),
                         ),
-                ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasBonusCredit
+                        ? '${package.totalCredit} credits total'
+                        : '${package.creditAmount} credits',
+                    style: AppTextStyles.caption
+                        .copyWith(color: Colors.white54),
+                  ),
+                  if (package.description != null &&
+                      package.description!.isNotEmpty)
+                    Text(package.description!,
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.brandGold, fontSize: 11)),
+                ],
               ),
-            ],
-          ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(package.priceAmount,
+                    style: AppTextStyles.sectionTitle.copyWith(
+                        color: AppColors.brandGold, fontSize: 24)),
+                Text(package.priceCurrency,
+                    style: AppTextStyles.caption
+                        .copyWith(color: AppColors.brandGold)),
+              ],
+            ),
+          ],
         ),
       ),
     );

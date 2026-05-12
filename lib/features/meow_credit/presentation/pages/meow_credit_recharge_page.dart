@@ -20,11 +20,11 @@ import 'package:path_provider/path_provider.dart';
 class MeowCreditRechargePage extends ConsumerStatefulWidget {
   const MeowCreditRechargePage({
     super.key,
-    required this.requestedAmount,
+    required this.package,
     required this.order,
   });
 
-  final int requestedAmount;
+  final MeowCreditPackage package;
   final MeowCreditOrder order;
 
   @override
@@ -108,7 +108,7 @@ class _MeowCreditRechargePageState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-            '${widget.order.totalCredit} credits added to your wallet!'),
+            '${widget.package.totalCredit} credits added to your wallet!'),
         backgroundColor: Colors.green,
       ),
     );
@@ -243,10 +243,13 @@ class _MeowCreditRechargePageState
                             style: AppTextStyles.caption
                                 .copyWith(color: AppColors.brandGold)),
                         const SizedBox(height: 4),
-                        Text('${widget.requestedAmount} Credits',
+                        Text(widget.package.name,
                             style: AppTextStyles.body.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600)),
+                        Text('${widget.package.totalCredit} credits total',
+                            style: AppTextStyles.caption
+                                .copyWith(color: Colors.white54)),
                       ],
                     ),
                     Column(

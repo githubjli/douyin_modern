@@ -629,12 +629,12 @@ class _SignedInProfileBody extends StatelessWidget {
         _ProfileHeader(profile: profile, onRefresh: onRefresh, onEdit: onEdit),
         const SizedBox(height: AppSpacing.md),
 
-        // ── Meow Credit card ───────────────────────────────────────────
-        _CreditCard(balance: creditBalance, onDetails: onCreditDetails),
-        const SizedBox(height: AppSpacing.sm),
-
         // ── Meow Points card ───────────────────────────────────────────
         _PointsCard(wallet: wallet, onDetails: onWalletDetails),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── Meow Credit card ───────────────────────────────────────────
+        _CreditCard(balance: creditBalance, onDetails: onCreditDetails),
         const SizedBox(height: AppSpacing.md),
 
         // ── Creator Studio (only for creators) ────────────────────────

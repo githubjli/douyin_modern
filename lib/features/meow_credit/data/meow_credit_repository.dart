@@ -42,10 +42,12 @@ class MeowCreditRepository {
     return const <MeowCreditPackage>[];
   }
 
-  Future<MeowCreditOrder> createRecharge(String packageCode) async {
+  /// Create a recharge with a custom [amount] (credits).
+  /// Pass [packageCode] instead when using fixed packages.
+  Future<MeowCreditOrder> createRecharge(int amount) async {
     final response = await _client.post<dynamic>(
       Endpoints.meowCreditRecharges,
-      data: <String, dynamic>{'package_code': packageCode},
+      data: <String, dynamic>{'amount': amount},
       authenticated: true,
     );
     final data = response.data;

@@ -4,6 +4,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/back_nav_header.dart';
+import '../../../../app/widgets/gold_button.dart';
+import '../../../../app/widgets/gold_outline_button.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../domain/meow_credit_wallet.dart';
 import 'meow_credit_redeem_page.dart';
@@ -48,42 +50,33 @@ class MeowCreditPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // ── Balance card ─────────────────────────────────────────
+                // ── Balance card (with inline action buttons) ────────────
                 walletAsync.when(
-                  data: (w) => _BalanceCard(wallet: w),
-                  loading: () => const _BalanceCard(wallet: null),
-                  error: (_, __) => const _BalanceCard(wallet: null),
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // ── Action buttons ───────────────────────────────────────
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: _ActionButton(
-                        label: '+ Recharge',
-                        filled: true,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const RechargePackagePage(),
-                          ),
+                  data: (w) => _BalanceCard(
+                    wallet: w,
+                    onRecharge: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RechargePackagePage(),
+                      ),
+                    ),
+                    onRedeem: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => MeowCreditRedeemPage(
+                          balance: w.balance,
                         ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: _ActionButton(
-                        label: 'Redeem',
-                        filled: false,
-                        onTap: () => Navigator.of(context)
-                            .push(MaterialPageRoute<void>(
-                          builder: (_) => MeowCreditRedeemPage(
-                            balance: walletAsync.valueOrNull?.balance ?? 0,
-                          ),
-                        )),
-                      ),
-                    ),
-                  ],
+                  ),
+                  loading: () => _BalanceCard(
+                    wallet: null,
+                    onRecharge: () {},
+                    onRedeem: () {},
+                  ),
+                  error: (_, __) => _BalanceCard(
+                    wallet: null,
+                    onRecharge: () {},
+                    onRedeem: () {},
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -143,51 +136,94 @@ class MeowCreditPage extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.wallet});
+  const _BalanceCard({
+    required this.wallet,
+    required this.onRecharge,
+    required this.onRedeem,
+  });
   final MeowCreditWallet? wallet;
+  final VoidCallback onRecharge;
+  final VoidCallback onRedeem;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFF4D3A22),
+            Color(0xFF302820),
+            AppColors.cardBackground,
+          ],
+        ),
+        border: Border.all(
+          color: AppColors.brandGold.withValues(alpha: 0.38),
+        ),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
+          Row(
+            children: <Widget>[
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.brandGold.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.toll_rounded,
+                  color: AppColors.brandGold,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Current Balance',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.brandGold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            wallet != null ? '${wallet!.balance}' : '—',
+            style: AppTextStyles.sectionTitle.copyWith(
               color: AppColors.brandGold,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Text('M',
-                  style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18)),
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              height: 1.0,
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 2),
+          Text(
+            'CREDITS',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.mutedOliveText,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(color: AppColors.softBorder, height: 1),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
             children: <Widget>[
-              Text('Current Balance',
-                  style: AppTextStyles.caption
-                      .copyWith(color: AppColors.brandGold)),
-              const SizedBox(height: 4),
-              Text(
-                wallet != null ? '${wallet!.balance}' : '--',
-                style: AppTextStyles.sectionTitle
-                    .copyWith(color: Colors.white, fontSize: 32),
+              GoldButton(label: '+ Recharge', onTap: onRecharge),
+              const SizedBox(width: AppSpacing.sm),
+              GoldOutlineButton(
+                icon: Icons.swap_horiz_rounded,
+                label: 'Redeem',
+                onTap: onRedeem,
               ),
-              Text('CREDITS',
-                  style:
-                      AppTextStyles.caption.copyWith(color: Colors.white54)),
             ],
           ),
         ],
@@ -252,44 +288,6 @@ class _StatRow extends StatelessWidget {
               style: AppTextStyles.body
                   .copyWith(color: AppColors.brandGold)),
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Action buttons
-// ---------------------------------------------------------------------------
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.label,
-    required this.filled,
-    required this.onTap,
-  });
-  final String label;
-  final bool filled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
-        decoration: BoxDecoration(
-          color: filled ? AppColors.brandGold : Colors.transparent,
-          border: Border.all(color: AppColors.brandGold),
-          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: AppTextStyles.body.copyWith(
-            color: filled ? Colors.black : AppColors.brandGold,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
       ),
     );
   }

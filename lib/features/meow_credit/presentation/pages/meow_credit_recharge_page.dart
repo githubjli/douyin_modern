@@ -258,43 +258,64 @@ class _MeowCreditRechargePageState
 
               // ── QR code ───────────────────────────────────────────────────
               if (address.isNotEmpty && !state.isCredited) ...<Widget>[
-                Text('Scan to Pay',
-                    style: AppTextStyles.body.copyWith(
-                        color: Colors.white, fontWeight: FontWeight.w600)),
-                const SizedBox(height: AppSpacing.sm),
-                Center(
-                  child: RepaintBoundary(
-                    key: _qrKey,
-                    child: Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      child: QrImageView(
-                        data: address,
-                        version: QrVersions.auto,
-                        size: 200,
-                      ),
-                    ),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    border: Border.all(color: AppColors.softBorder),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: GoldOutlineButton(
-                        icon: Icons.share_outlined,
-                        label: 'Share QR',
-                        onTap: _copyAddress,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Text(
+                        'Scan to Pay',
+                        style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: GoldOutlineButton(
-                        icon: Icons.download_outlined,
-                        label: _savingQr ? 'Saving…' : 'Save to Album',
-                        onTap: _savingQr ? null : _saveQrToAlbum,
+                      const SizedBox(height: AppSpacing.sm),
+                      Center(
+                        child: RepaintBoundary(
+                          key: _qrKey,
+                          child: Container(
+                            color: Colors.white,
+                            padding: const EdgeInsets.all(20),
+                            child: QrImageView(
+                              data: address,
+                              version: QrVersions.auto,
+                              size: 176,
+                              padding: EdgeInsets.zero,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: Colors.black,
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: AppSpacing.sm),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          GoldOutlineButton(
+                            icon: Icons.share_outlined,
+                            label: 'Share QR',
+                            onTap: _copyAddress,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          GoldOutlineButton(
+                            icon: Icons.download_outlined,
+                            label: _savingQr ? 'Saving…' : 'Save to Album',
+                            onTap: _savingQr ? null : _saveQrToAlbum,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
               ],

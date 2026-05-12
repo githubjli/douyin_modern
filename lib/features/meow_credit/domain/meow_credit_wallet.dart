@@ -229,6 +229,7 @@ class MeowCreditSubmitResult {
     required this.paymentOrderStatus,
     this.txid,
     this.creditedAt,
+    this.totalCredit = 0,
     this.verification,
   });
 
@@ -237,6 +238,7 @@ class MeowCreditSubmitResult {
   final String paymentOrderStatus;
   final String? txid;
   final String? creditedAt;
+  final int totalCredit;
   final MeowCreditVerification? verification;
 
   bool get isCredited =>
@@ -250,12 +252,16 @@ class MeowCreditSubmitResult {
       paymentOrderStatus: json['payment_order_status'] as String? ?? 'pending',
       txid: json['txid'] as String?,
       creditedAt: json['credited_at'] as String?,
+      totalCredit: _int(json['total_credit']) ?? 0,
       verification: verJson is Map<String, dynamic>
           ? MeowCreditVerification.fromJson(verJson)
           : null,
     );
   }
 }
+
+/// Alias used by pages that receive a recharge record from the API.
+typedef MeowCreditRecharge = MeowCreditSubmitResult;
 
 // ---------------------------------------------------------------------------
 // verify-now response

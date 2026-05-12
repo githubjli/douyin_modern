@@ -84,7 +84,7 @@ class MeowCreditRepository {
     return MeowCreditVerifyResult.fromJson(data);
   }
 
-  Future<MeowCreditOrder> getRechargeDetail(String orderNo) async {
+  Future<MeowCreditSubmitResult> getRechargeDetail(String orderNo) async {
     final response = await _client.get<dynamic>(
       Endpoints.meowCreditRechargeDetail(orderNo),
       authenticated: true,
@@ -93,7 +93,7 @@ class MeowCreditRepository {
     if (data is! Map<String, dynamic>) {
       throw const FormatException('Invalid recharge detail response');
     }
-    return MeowCreditOrder.fromJson(data);
+    return MeowCreditSubmitResult.fromJson(data);
   }
 
   Future<List<MeowCreditLedgerEntry>> getLedger() async {

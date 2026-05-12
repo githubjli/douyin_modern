@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -284,22 +285,28 @@ class _FakeProfileRepository implements ProfileRepository {
 
   @override
   Future<UserProfile> updateProfile({
-    required String displayName,
+    String? firstName,
+    String? lastName,
     required String bio,
-    String? avatarUrl,
   }) async {
-    return UserProfile(
-      userId: profile.userId,
-      displayName: displayName,
+    final String name = <String>[
+      if (firstName != null && firstName.isNotEmpty) firstName,
+      if (lastName != null && lastName.isNotEmpty) lastName,
+    ].join(' ').trim();
+    return profile.copyWith(
+      displayName: name.isNotEmpty ? name : profile.displayName,
+      firstName: firstName,
+      lastName: lastName,
       bio: bio,
-      avatarUrl: avatarUrl ?? profile.avatarUrl,
-      email: profile.email,
-      isCreator: profile.isCreator,
-      isSeller: profile.isSeller,
-      walletAddress: profile.walletAddress,
-      walletLinked: profile.walletLinked,
     );
   }
+
+  @override
+  Future<UserProfile> uploadAvatar(File file) async =>
+      profile.copyWith(avatarUrl: file.path);
+
+  @override
+  Future<UserProfile> clearAvatar() async => profile.copyWith(avatarUrl: '');
 }
 
 class _NeverCompletingAuthRepository implements AuthRepository {

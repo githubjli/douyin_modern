@@ -95,6 +95,44 @@ class ApiClient {
     }
   }
 
+  Future<Response<T>> patch<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    bool authenticated = false,
+  }) async {
+    try {
+      final Options options = await _buildOptions(authenticated: authenticated);
+      return await _dio.patch<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+      );
+    } on DioException catch (error) {
+      if (_shouldRefresh(
+        authenticated: authenticated,
+        path: path,
+        error: error,
+      )) {
+        return _refreshAndRetry<T>(
+          () async {
+            final Options retryOptions =
+                await _buildOptions(authenticated: authenticated);
+            return _dio.patch<T>(
+              path,
+              data: data,
+              queryParameters: queryParameters,
+              options: retryOptions,
+            );
+          },
+          originalError: error,
+        );
+      }
+      throw _mapDioError(error);
+    }
+  }
+
   Future<Response<T>> delete<T>(
     String path, {
     Object? data,

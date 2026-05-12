@@ -382,6 +382,12 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
 
   bool get _busy => widget.loggingIn || widget.registering;
 
+  String? get _passwordError {
+    final String pw = widget.passwordController.text;
+    if (pw.isNotEmpty && pw.length < 8) return 'At least 8 characters required';
+    return null;
+  }
+
   String? get _confirmPasswordError {
     final String pw = widget.passwordController.text;
     final String cpw = widget.confirmPasswordController.text;
@@ -392,6 +398,8 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
   bool get _canRegister =>
       !_busy &&
       _termsAccepted &&
+      _passwordError == null &&
+      widget.passwordController.text.length >= 8 &&
       _confirmPasswordError == null &&
       widget.confirmPasswordController.text.isNotEmpty;
 
@@ -506,6 +514,8 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
                     ),
+                    helperText: 'Min. 8 characters',
+                    errorText: _passwordError,
                   ),
                 ),
 
@@ -641,6 +651,7 @@ InputDecoration _inputDecoration(
   String label, {
   Widget? prefixIcon,
   Widget? suffixIcon,
+  String? helperText,
   String? errorText,
 }) {
   return InputDecoration(
@@ -674,6 +685,8 @@ InputDecoration _inputDecoration(
     ),
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
+    helperText: helperText,
+    helperStyle: AppTextStyles.caption.copyWith(color: Colors.white38),
     errorText: errorText,
     errorStyle: AppTextStyles.caption.copyWith(color: Colors.redAccent),
   );

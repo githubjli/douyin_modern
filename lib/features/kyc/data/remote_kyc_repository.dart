@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_error.dart';
 import '../../../core/network/endpoints.dart';
 import '../domain/kyc_profile.dart';
 import '../domain/kyc_repository.dart';
@@ -12,13 +13,35 @@ class RemoteKycRepository implements KycRepository {
 
   final ApiClient _api;
 
+  static const KycProfile _defaultProfile = KycProfile(
+    status: 'not_submitted',
+    fullName: '',
+    dateOfBirth: null,
+    nationality: '',
+    idType: '',
+    idNumber: '',
+    idExpiryDate: null,
+    submittedAt: null,
+    reviewedAt: null,
+    rejectReason: '',
+    idFront: null,
+    selfie: null,
+  );
+
   @override
   Future<KycProfile> getProfile() async {
-    final response = await _api.get<Map<String, dynamic>>(
-      Endpoints.kycMe,
-      authenticated: true,
-    );
-    return KycProfile.fromMap(response.data ?? <String, dynamic>{});
+    try {
+      final response = await _api.get<Map<String, dynamic>>(
+        Endpoints.kycMe,
+        authenticated: true,
+      );
+      return KycProfile.fromMap(response.data ?? <String, dynamic>{});
+    } on ApiError catch (e) {
+      // 404 means the endpoint isn't deployed yet or no KYC record exists —
+      // treat as not_submitted so the form is shown instead of an error.
+      if (e.statusCode == 404) return _defaultProfile;
+      rethrow;
+    }
   }
 
   @override

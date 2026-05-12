@@ -5,6 +5,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/back_nav_header.dart';
+import '../../../../features/kyc/application/kyc_providers.dart';
+import '../../../../features/kyc/presentation/kyc_page.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../data/meow_credit_repository.dart';
 
@@ -44,15 +46,28 @@ class _MeowCreditRedeemPageState
   }
 
   Future<void> _checkKyc() async {
-    // KYC status will come from the backend (e.g. wallet.kycVerified field).
-    // Until that field is added, show the KYC overlay by default.
     try {
-      await ref.read(meowCreditRepositoryProvider).getWallet();
-      // TODO: set _kycVerified = wallet.kycVerified when backend adds field.
-      if (mounted) setState(() => _kycLoading = false);
+      final profile = await ref.read(kycRepositoryProvider).getProfile();
+      if (mounted) {
+        setState(() {
+          _kycVerified = profile.isApproved;
+          _kycLoading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _kycLoading = false);
     }
+  }
+
+  Future<void> _openKyc() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const KycPage()),
+    );
+    if (!mounted) return;
+    ref.invalidate(kycProfileProvider);
+    // Re-check after returning from KYC page
+    setState(() => _kycLoading = true);
+    await _checkKyc();
   }
 
   Future<void> _submit() async {
@@ -209,16 +224,7 @@ class _MeowCreditRedeemPageState
 
             // KYC overlay
             if (!_kycLoading && !_kycVerified)
-              _KycOverlay(
-                onVerifyTap: () {
-                  // TODO: navigate to KYC verification page when available
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'KYC verification coming soon.')),
-                  );
-                },
-              ),
+              _KycOverlay(onVerifyTap: _openKyc),
             if (_kycLoading)
               const Center(
                 child: CircularProgressIndicator(color: AppColors.brandGold),

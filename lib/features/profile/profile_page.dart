@@ -42,6 +42,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
 
@@ -66,6 +69,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _usernameController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     super.dispose();
@@ -181,12 +186,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       await ref.read(authControllerProvider.notifier).register(
             email: _emailController.text.trim(),
             password: _passwordController.text,
+            username: _usernameController.text.trim(),
             firstName: _firstNameController.text.trim(),
             lastName: _lastNameController.text.trim(),
           );
       final AuthState authState = ref.read(authControllerProvider);
       if (authState.isSignedIn) {
         _passwordController.clear();
+        _confirmPasswordController.clear();
+        _usernameController.clear();
         _firstNameController.clear();
         _lastNameController.clear();
         unawaited(_claimDailyReward());
@@ -198,16 +206,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  void _clearAuthControllers() {
+    _emailController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    _usernameController.clear();
+    _firstNameController.clear();
+    _lastNameController.clear();
+  }
+
   Future<void> _logout() async {
     await ref.read(authControllerProvider.notifier).logout();
     if (!mounted) return;
     setState(() {
       _profile = null;
       _error = null;
-      _emailController.clear();
-      _passwordController.clear();
-      _firstNameController.clear();
-      _lastNameController.clear();
+      _clearAuthControllers();
     });
   }
 
@@ -217,10 +231,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(() {
         _profile = null;
         _error = null;
-        _emailController.clear();
-        _passwordController.clear();
-        _firstNameController.clear();
-        _lastNameController.clear();
+        _clearAuthControllers();
         _loadingProfile = false;
       });
       return;
@@ -266,6 +277,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   child: _GuestProfileCard(
                     emailController: _emailController,
                     passwordController: _passwordController,
+                    confirmPasswordController: _confirmPasswordController,
+                    usernameController: _usernameController,
                     firstNameController: _firstNameController,
                     lastNameController: _lastNameController,
                     loggingIn: _loggingIn,
@@ -352,6 +365,8 @@ class _GuestProfileCard extends StatefulWidget {
   const _GuestProfileCard({
     required this.emailController,
     required this.passwordController,
+    required this.confirmPasswordController,
+    required this.usernameController,
     required this.firstNameController,
     required this.lastNameController,
     required this.loggingIn,
@@ -363,6 +378,8 @@ class _GuestProfileCard extends StatefulWidget {
 
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final TextEditingController confirmPasswordController;
+  final TextEditingController usernameController;
   final TextEditingController firstNameController;
   final TextEditingController lastNameController;
   final bool loggingIn;
@@ -377,14 +394,44 @@ class _GuestProfileCard extends StatefulWidget {
 
 class _GuestProfileCardState extends State<_GuestProfileCard> {
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _termsAccepted = false;
   _AuthMode _mode = _AuthMode.login;
 
   bool get _busy => widget.loggingIn || widget.registering;
 
+  String? get _confirmPasswordError {
+    final String pw = widget.passwordController.text;
+    final String cpw = widget.confirmPasswordController.text;
+    if (cpw.isNotEmpty && pw != cpw) return 'Passwords do not match';
+    return null;
+  }
+
+  bool get _canRegister =>
+      !_busy &&
+      _termsAccepted &&
+      _confirmPasswordError == null &&
+      widget.confirmPasswordController.text.isNotEmpty;
+
   void _toggleMode() {
     setState(() {
       _mode = _mode == _AuthMode.login ? _AuthMode.register : _AuthMode.login;
+      _termsAccepted = false;
     });
+  }
+
+  void _showTerms(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusLg),
+        ),
+      ),
+      builder: (_) => const _TermsSheet(),
+    );
   }
 
   @override
@@ -412,9 +459,7 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
           const SizedBox(height: AppSpacing.xxs),
           Text(
             isRegister ? 'Create your account' : 'Sign in to continue',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.mutedOliveText,
-            ),
+            style: AppTextStyles.body.copyWith(color: AppColors.mutedOliveText),
           ),
           const SizedBox(height: AppSpacing.lg),
           Container(
@@ -427,7 +472,19 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                // ── Register-only fields ──────────────────────────────────
                 if (isRegister) ...<Widget>[
+                  TextField(
+                    controller: widget.usernameController,
+                    cursorColor: AppColors.brandGold,
+                    style: AppTextStyles.body,
+                    decoration: _inputDecoration(
+                      'Username',
+                      prefixIcon: const Icon(Icons.person_outline_rounded,
+                          size: 20, color: AppColors.mutedOliveText),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: <Widget>[
                       Expanded(
@@ -453,54 +510,140 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                 ],
+
+                // ── Email ─────────────────────────────────────────────────
                 TextField(
                   controller: widget.emailController,
                   cursorColor: AppColors.brandGold,
                   keyboardType: TextInputType.emailAddress,
                   style: AppTextStyles.body,
-                  decoration: _inputDecoration('Email'),
+                  decoration: _inputDecoration(
+                    'Email',
+                    prefixIcon: const Icon(Icons.email_outlined,
+                        size: 20, color: AppColors.mutedOliveText),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
+
+                // ── Password ─────────────────────────────────────────────
                 TextField(
                   controller: widget.passwordController,
                   cursorColor: AppColors.brandGold,
                   obscureText: _obscurePassword,
+                  onChanged: (_) => setState(() {}),
                   style: AppTextStyles.body,
                   decoration: _inputDecoration(
                     'Password',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded,
+                        size: 20, color: AppColors.mutedOliveText),
                     suffixIcon: IconButton(
                       key: const ValueKey<String>(
-                        'profile-password-visibility-toggle',
-                      ),
-                      tooltip: _obscurePassword
-                          ? 'Show password'
-                          : 'Hide password',
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
+                          'profile-password-visibility-toggle'),
+                      tooltip:
+                          _obscurePassword ? 'Show password' : 'Hide password',
+                      icon: Icon(_obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined),
                       color: AppColors.mutedOliveText,
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                 ),
+
+                // ── Confirm Password (register only) ──────────────────────
+                if (isRegister) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: widget.confirmPasswordController,
+                    cursorColor: AppColors.brandGold,
+                    obscureText: _obscureConfirmPassword,
+                    onChanged: (_) => setState(() {}),
+                    style: AppTextStyles.body,
+                    decoration: _inputDecoration(
+                      'Confirm Password',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded,
+                          size: 20, color: AppColors.mutedOliveText),
+                      suffixIcon: IconButton(
+                        tooltip: _obscureConfirmPassword
+                            ? 'Show password'
+                            : 'Hide password',
+                        icon: Icon(_obscureConfirmPassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined),
+                        color: AppColors.mutedOliveText,
+                        onPressed: () => setState(() =>
+                            _obscureConfirmPassword = !_obscureConfirmPassword),
+                      ),
+                      errorText: _confirmPasswordError,
+                    ),
+                  ),
+                ],
+
+                // ── Error ─────────────────────────────────────────────────
                 if (widget.error != null) ...<Widget>[
                   const SizedBox(height: AppSpacing.sm),
                   _InlineAuthMessage(message: widget.error!),
                 ],
+
+                // ── T&C row (register only) ───────────────────────────────
+                if (isRegister) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: <Widget>[
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: _termsAccepted,
+                          activeColor: AppColors.brandGold,
+                          checkColor: Colors.black,
+                          side: const BorderSide(
+                              color: AppColors.mutedOliveText, width: 1.5),
+                          onChanged: (bool? v) =>
+                              setState(() => _termsAccepted = v ?? false),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _showTerms(context),
+                          child: RichText(
+                            text: TextSpan(
+                              style: AppTextStyles.caption
+                                  .copyWith(color: Colors.white70),
+                              children: <TextSpan>[
+                                const TextSpan(text: 'I have read and accept '),
+                                TextSpan(
+                                  text: 'Terms & Conditions',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.brandGold,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: AppColors.brandGold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
                 const SizedBox(height: AppSpacing.md),
+
+                // ── Action button ─────────────────────────────────────────
                 ElevatedButton(
-                  onPressed: _busy
-                      ? null
-                      : (isRegister ? widget.onRegister : widget.onLogin),
+                  onPressed: isRegister
+                      ? (_canRegister ? widget.onRegister : null)
+                      : (_busy ? null : widget.onLogin),
                   child: Text(
                     isRegister
-                        ? (widget.registering ? 'Creating account...' : 'Sign Up')
+                        ? (widget.registering
+                            ? 'Creating account...'
+                            : 'Sign Up')
                         : (widget.loggingIn ? 'Signing in...' : 'Sign In'),
                   ),
                 ),
@@ -536,7 +679,12 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
   }
 }
 
-InputDecoration _inputDecoration(String label, {Widget? suffixIcon}) {
+InputDecoration _inputDecoration(
+  String label, {
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+  String? errorText,
+}) {
   return InputDecoration(
     labelText: label,
     filled: true,
@@ -558,7 +706,18 @@ InputDecoration _inputDecoration(String label, {Widget? suffixIcon}) {
       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       borderSide: const BorderSide(color: AppColors.brandGold),
     ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: Colors.redAccent),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      borderSide: const BorderSide(color: Colors.redAccent),
+    ),
+    prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
+    errorText: errorText,
+    errorStyle: AppTextStyles.caption.copyWith(color: Colors.redAccent),
   );
 }
 
@@ -582,6 +741,158 @@ class _InlineAuthMessage extends StatelessWidget {
       child: Text(
         message,
         style: AppTextStyles.caption.copyWith(color: AppColors.mutedOliveText),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Terms & Conditions bottom sheet
+// ---------------------------------------------------------------------------
+
+class _TermsSheet extends StatelessWidget {
+  const _TermsSheet();
+
+  static const String _termsText = '''TERMS AND CONDITIONS OF SERVICE
+Meow Media — LTT Blockchain Livestream Platform
+Version 1.0 — Effective April 30, 2026
+
+1. ACCEPTANCE OF TERMS
+
+These Terms and Conditions ("Terms") constitute a legally binding agreement between LTT Co., Ltd. ("Company," "we," "us," or "our") and you ("User," "you," or "your") governing your access to and use of the Meow Media platform, including its website, mobile application, APIs, and all associated services (collectively, the "Platform").
+
+If you do not agree with any part of these Terms, you must not register or use the Platform.
+
+2. ELIGIBILITY
+
+You must be at least 18 years of age to create an account and use the Platform. By registering, you represent and warrant that you meet this minimum age requirement.
+
+Use of the Platform may be restricted or prohibited in certain jurisdictions. You are solely responsible for determining whether your use of the Platform complies with the laws of your jurisdiction.
+
+3. ACCOUNT REGISTRATION AND SECURITY
+
+You agree to provide accurate, current, and complete information during registration and to keep your account information up to date.
+
+You are solely responsible for maintaining the confidentiality of your login credentials and for all activities that occur under your account.
+
+You agree to notify us immediately at support@ltt.online if you suspect any unauthorized access to your account.
+
+4. PLATFORM SERVICES
+
+The Platform provides live video streaming, video on demand, and related social and e-commerce features powered by LTT Blockchain technology.
+
+5. USER CONTENT AND CONDUCT
+
+You retain ownership of any content you create, upload, or stream on the Platform. By submitting User Content, you grant the Company a non-exclusive, worldwide, royalty-free license to use, display, distribute, and promote that content solely for the purpose of operating the Platform.
+
+You agree NOT to use the Platform to upload unlawful, obscene, or defamatory content; infringe intellectual property rights; distribute spam or malware; or engage in fraudulent, deceptive, or misleading activity.
+
+6. BLOCKCHAIN AND DIGITAL ASSETS
+
+Blockchain transactions are irreversible once confirmed. The Company cannot reverse, cancel, or modify any confirmed on-chain transaction.
+
+You are solely responsible for the security of your digital wallet and private keys. The Company will never ask for your private key and cannot recover lost wallets or private keys.
+
+7. PAYMENTS AND REFUNDS
+
+All payments are final and non-refundable unless otherwise required by law or explicitly stated in a separate refund policy.
+
+8. PRIVACY AND DATA PROTECTION
+
+Your use of the Platform is governed by our Privacy Policy. We collect and process your personal data in accordance with Thailand's Personal Data Protection Act B.E. 2562 (PDPA). Contact our Data Protection Officer at: privacy@ltt.online
+
+9. LIMITATION OF LIABILITY
+
+THE COMPANY'S TOTAL CUMULATIVE LIABILITY TO YOU SHALL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID TO THE COMPANY IN THE 12 MONTHS PRECEDING THE CLAIM, OR (B) USD 100.
+
+10. GOVERNING LAW
+
+These Terms shall be governed by the laws of the Kingdom of Thailand. Disputes shall be submitted to the exclusive jurisdiction of the Bangkok Civil Court.
+
+11. CONTACT
+
+General Support: support@ltt.online
+Website: https://streaming.ltt.online
+
+Meow Media — LTT
+Last updated: April 30, 2026 | Version 1.0''';
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      maxChildSize: 0.95,
+      minChildSize: 0.4,
+      builder: (_, ScrollController controller) => Column(
+        children: <Widget>[
+          // Handle
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.softBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text(
+                  'Terms & Conditions',
+                  style: AppTextStyles.sectionTitle
+                      .copyWith(color: Colors.white, fontSize: 18),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: AppColors.softBorder, height: 1),
+          Expanded(
+            child: SingleChildScrollView(
+              controller: controller,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Text(
+                _termsText,
+                style:
+                    AppTextStyles.caption.copyWith(color: Colors.white70, height: 1.6),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
+            child: SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brandGold,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                ),
+                child: Text(
+                  'Close',
+                  style: AppTextStyles.body.copyWith(
+                      color: Colors.black, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

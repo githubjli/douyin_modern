@@ -376,6 +376,7 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) async {

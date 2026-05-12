@@ -57,6 +57,7 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> register({
     required String email,
     required String password,
+    String? username,
     String? firstName,
     String? lastName,
   }) async {
@@ -67,6 +68,7 @@ class AuthController extends StateNotifier<AuthState> {
       final AuthSession session = await _repository.register(
         email: email,
         password: password,
+        username: username,
         firstName: firstName,
         lastName: lastName,
       );

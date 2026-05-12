@@ -182,14 +182,11 @@ class _BalanceCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
+                  color: AppColors.brandGold.withAlpha(25),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.brandGold.withValues(alpha: 0.6),
-                    width: 1.5,
-                  ),
                 ),
                 child: const Icon(
-                  Icons.toll_rounded,
+                  Icons.monetization_on_outlined,
                   color: AppColors.brandGold,
                   size: 22,
                 ),

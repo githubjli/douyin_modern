@@ -4,8 +4,6 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/back_nav_header.dart';
-import '../../../../app/widgets/gold_button.dart';
-import '../../../../app/widgets/gold_outline_button.dart';
 import '../../application/meow_credit_providers.dart';
 import '../../domain/meow_credit_wallet.dart';
 import 'meow_credit_redeem_page.dart';
@@ -58,30 +56,43 @@ class MeowCreditPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
 
-                // ── Action buttons ───────────────────────────────────────
-                Row(
-                  children: <Widget>[
-                    GoldButton(
-                      label: '+ Recharge',
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const RechargePackagePage(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    GoldOutlineButton(
-                      icon: Icons.swap_horiz_rounded,
-                      label: 'Redeem',
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => MeowCreditRedeemPage(
-                            balance: walletAsync.valueOrNull?.balance ?? 0,
+                // ── Action card ──────────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    border: Border.all(color: AppColors.softBorder),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: _ActionBtn(
+                          label: '+ Recharge',
+                          filled: true,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const RechargePackagePage(),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: _ActionBtn(
+                          label: 'Redeem',
+                          filled: false,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => MeowCreditRedeemPage(
+                                balance: walletAsync.valueOrNull?.balance ?? 0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -171,11 +182,14 @@ class _BalanceCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.brandGold.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.brandGold.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
                 ),
                 child: const Icon(
-                  Icons.attach_money_rounded,
+                  Icons.toll_rounded,
                   color: AppColors.brandGold,
                   size: 22,
                 ),
@@ -404,6 +418,50 @@ class _StatusChip extends StatelessWidget {
           Icon(Icons.info_outline, size: 14, color: color),
         ],
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Action button (used inside the action card)
+// ---------------------------------------------------------------------------
+
+class _ActionBtn extends StatelessWidget {
+  const _ActionBtn({
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: filled ? AppColors.brandGold : Colors.transparent,
+          border: Border.all(
+            color: filled
+                ? AppColors.brandGold
+                : AppColors.brandGold.withValues(alpha: 0.6),
+          ),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: AppTextStyles.body.copyWith(
+            color: filled ? Colors.black : AppColors.brandGold,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+      ),
     );
   }
 }

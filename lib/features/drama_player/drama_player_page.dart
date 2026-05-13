@@ -194,6 +194,7 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
                 playableUrl: newUrl ?? ep.playableUrl,
               );
           });
+          _pageController?.jumpToPage(index);
           unawaited(_activateIndex(index));
         },
       ),
@@ -215,6 +216,10 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
         currentIndex: _currentIndex,
         seriesTitle: widget.seriesTitle,
         onSelect: _jumpToEpisode,
+        onLockTap: (int index) {
+          Navigator.of(context).pop();
+          _showUnlockSheet(index);
+        },
       ),
     );
   }
@@ -445,12 +450,14 @@ class _EpisodeSelectorSheet extends StatefulWidget {
     required this.currentIndex,
     required this.seriesTitle,
     required this.onSelect,
+    this.onLockTap,
   });
 
   final List<DramaEpisodeItem> episodes;
   final int currentIndex;
   final String seriesTitle;
   final void Function(int index) onSelect;
+  final void Function(int index)? onLockTap;
 
   @override
   State<_EpisodeSelectorSheet> createState() =>
@@ -600,7 +607,7 @@ class _EpisodeSelectorSheetState extends State<_EpisodeSelectorSheet> {
 
                     return GestureDetector(
                       onTap: locked
-                          ? null
+                          ? () => widget.onLockTap?.call(globalIndex)
                           : () => widget.onSelect(globalIndex),
                       child: Container(
                         decoration: BoxDecoration(
@@ -614,7 +621,7 @@ class _EpisodeSelectorSheetState extends State<_EpisodeSelectorSheet> {
                         alignment: Alignment.center,
                         child: locked
                             ? const Icon(Icons.lock_outline,
-                                color: Colors.white38, size: 14)
+                                color: Colors.white54, size: 14)
                             : Text(
                                 '${ep.episodeNo ?? (globalIndex + 1)}',
                                 style: TextStyle(

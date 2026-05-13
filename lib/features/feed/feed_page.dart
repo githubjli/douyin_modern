@@ -48,6 +48,7 @@ class _FeedPageState extends State<FeedPage> {
   String? _notice;
   bool _resumeOnTabActive = false;
   final Set<int> _viewedSeriesIds = <int>{};
+  List<String> _danmakuComments = const <String>[];
 
   @override
   void initState() {
@@ -117,9 +118,43 @@ class _FeedPageState extends State<FeedPage> {
         .ignore();
   }
 
+  Future<void> _loadDanmaku(int index) async {
+    if (index >= _items.length) return;
+    final int? dramaId = _items[index].seriesId;
+    if (dramaId == null) return;
+    try {
+      final response = await _apiClient.get<dynamic>(
+        Endpoints.dramaComments(dramaId),
+      );
+      final List<String> comments = _parseComments(response.data);
+      if (mounted && comments.isNotEmpty) {
+        setState(() => _danmakuComments = comments);
+      }
+    } catch (_) {}
+  }
+
+  List<String> _parseComments(dynamic data) {
+    final List<dynamic> rows = data is List<dynamic>
+        ? data
+        : data is Map<String, dynamic>
+            ? ((data['results'] ?? data['comments'] ?? const <dynamic>[])
+                as List<dynamic>)
+            : const <dynamic>[];
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> m) =>
+            ((m['content'] ?? m['text'] ?? m['body'] ?? '') as Object)
+                .toString()
+                .trim())
+        .where((String s) => s.isNotEmpty)
+        .toList();
+  }
+
   Future<void> _activateIndex(int index, {bool autoPlay = true}) async {
     _currentIndex = index;
+    if (mounted) setState(() => _danmakuComments = const <String>[]);
     if (autoPlay) _postViewStat(index);
+    unawaited(_loadDanmaku(index));
     await _ensureController(index);
 
     final VideoPlayerController? active = _controllers[index];
@@ -269,7 +304,7 @@ class _FeedPageState extends State<FeedPage> {
                 Positioned(
                   left: 12,
                   right: 90,
-                  bottom: 115,
+                  bottom: 150,
                   child: _CaptionBlock(item: item),
                 ),
                 if (item.seriesId != null)
@@ -278,6 +313,15 @@ class _FeedPageState extends State<FeedPage> {
                     right: 0,
                     bottom: 0,
                     child: _WatchFullDramaBanner(item: item),
+                  ),
+                if (index == _currentIndex && _danmakuComments.isNotEmpty)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: _DanmakuOverlay(
+                        key: ValueKey<String>('danmaku_$_currentIndex'),
+                        comments: _danmakuComments,
+                      ),
+                    ),
                   ),
               ],
             );
@@ -1291,6 +1335,110 @@ class _CaptionBlock extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Danmaku (bullet-comment) overlay
+// ---------------------------------------------------------------------------
+
+class _DanmakuEntry {
+  _DanmakuEntry({
+    required this.text,
+    required this.controller,
+    required this.lane,
+  });
+  final String text;
+  final AnimationController controller;
+  final int lane;
+}
+
+class _DanmakuOverlay extends StatefulWidget {
+  const _DanmakuOverlay({super.key, required this.comments});
+  final List<String> comments;
+
+  @override
+  State<_DanmakuOverlay> createState() => _DanmakuOverlayState();
+}
+
+class _DanmakuOverlayState extends State<_DanmakuOverlay>
+    with TickerProviderStateMixin {
+  static const int _laneCount = 5;
+  static const double _laneHeight = 34;
+  static const double _topOffset = 110;
+  static const Duration _interval = Duration(milliseconds: 2500);
+  static const Duration _speed = Duration(seconds: 7);
+
+  final List<_DanmakuEntry> _active = <_DanmakuEntry>[];
+  Timer? _timer;
+  int _commentIndex = 0;
+  int _nextLane = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _launch();
+    _timer = Timer.periodic(_interval, (_) => _launch());
+  }
+
+  void _launch() {
+    if (!mounted || widget.comments.isEmpty) return;
+    final String text =
+        widget.comments[_commentIndex % widget.comments.length];
+    _commentIndex++;
+    final int lane = _nextLane % _laneCount;
+    _nextLane++;
+
+    final AnimationController ctrl = AnimationController(
+      vsync: this,
+      duration: _speed,
+    );
+    final _DanmakuEntry entry =
+        _DanmakuEntry(text: text, controller: ctrl, lane: lane);
+    setState(() => _active.add(entry));
+    ctrl.forward().then((_) {
+      if (mounted) setState(() => _active.remove(entry));
+      ctrl.dispose();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    for (final _DanmakuEntry e in _active) {
+      e.controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double w = MediaQuery.of(context).size.width;
+    return Stack(
+      children: _active.map((_DanmakuEntry entry) {
+        final double top = _topOffset + entry.lane * _laneHeight;
+        return AnimatedBuilder(
+          animation: entry.controller,
+          builder: (_, __) => Positioned(
+            top: top,
+            left: w - entry.controller.value * (w + 320),
+            child: Text(
+              entry.text,
+              maxLines: 1,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1,
+                shadows: <Shadow>[
+                  Shadow(color: Colors.black87, blurRadius: 4),
+                  Shadow(color: Colors.black54, blurRadius: 8),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

@@ -46,6 +46,7 @@ class _FeedPageState extends State<FeedPage> {
   bool _loading = true;
   String? _notice;
   bool _resumeOnTabActive = false;
+  final Set<int> _viewedSeriesIds = <int>{};
 
   @override
   void initState() {
@@ -106,8 +107,18 @@ class _FeedPageState extends State<FeedPage> {
     }
   }
 
+  void _postViewStat(int index) {
+    final int? seriesId = _items[index].seriesId;
+    if (seriesId == null || _viewedSeriesIds.contains(seriesId)) return;
+    _viewedSeriesIds.add(seriesId);
+    _apiClient
+        .post<dynamic>(Endpoints.dramaView(seriesId), authenticated: true)
+        .ignore();
+  }
+
   Future<void> _activateIndex(int index, {bool autoPlay = true}) async {
     _currentIndex = index;
+    if (autoPlay) _postViewStat(index);
     await _ensureController(index);
 
     final VideoPlayerController? active = _controllers[index];
@@ -355,6 +366,7 @@ class _ActionColumnState extends State<_ActionColumn> {
   late int _favoriteCount;
   late int _commentCount;
   late int _shareCount;
+  late int _giftCount;
 
   bool _busy = false;
 
@@ -367,6 +379,7 @@ class _ActionColumnState extends State<_ActionColumn> {
     _favoriteCount = item.favoriteCount ?? item.likeCount ?? 0;
     _commentCount = item.commentCount ?? 0;
     _shareCount = item.shareCount ?? 0;
+    _giftCount = 0;
 
     if (item.seriesId != null) {
       _refreshSummary(item.seriesId!);
@@ -383,12 +396,15 @@ class _ActionColumnState extends State<_ActionColumn> {
       if (data is! Map<String, dynamic>) return;
       if (!mounted) return;
       setState(() {
-        _favorited = (data['is_favorited'] as bool?) ?? _favorited;
+        // API returns viewer_is_favorited in interaction-summary
+        _favorited = (data['viewer_is_favorited'] as bool?) ??
+            (data['is_favorited'] as bool?) ??
+            _favorited;
         _favoriteCount = (data['favorite_count'] as int?) ?? _favoriteCount;
         _commentCount = (data['comment_count'] as int?) ?? _commentCount;
         _shareCount = (data['share_count'] as int?) ?? _shareCount;
-        _subscribed =
-            (data['viewer_is_subscribed'] as bool?) ?? _subscribed;
+        _giftCount = (data['gift_count'] as int?) ?? _giftCount;
+        _subscribed = (data['viewer_is_subscribed'] as bool?) ?? _subscribed;
       });
     } catch (_) {
       // best-effort — keep local state
@@ -399,6 +415,7 @@ class _ActionColumnState extends State<_ActionColumn> {
     if (_busy) return;
     final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
     if (ownerId == null) return;
+    final int? seriesId = widget.item.seriesId;
     final bool next = !_subscribed;
     setState(() {
       _subscribed = next;
@@ -416,6 +433,7 @@ class _ActionColumnState extends State<_ActionColumn> {
           authenticated: true,
         );
       }
+      if (seriesId != null) unawaited(_refreshSummary(seriesId));
     } catch (_) {
       if (mounted) setState(() => _subscribed = !next);
     } finally {
@@ -445,6 +463,7 @@ class _ActionColumnState extends State<_ActionColumn> {
           authenticated: true,
         );
       }
+      unawaited(_refreshSummary(seriesId));
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -474,6 +493,7 @@ class _ActionColumnState extends State<_ActionColumn> {
         data: <String, String>{'channel': 'copy_link'},
         authenticated: true,
       );
+      unawaited(_refreshSummary(seriesId));
     } catch (_) {
       if (mounted) setState(() => _shareCount--);
     }
@@ -492,6 +512,26 @@ class _ActionColumnState extends State<_ActionColumn> {
         initialCount: _commentCount,
         onCountChanged: (int count) {
           if (mounted) setState(() => _commentCount = count);
+        },
+      ),
+    );
+  }
+
+  void _openGifts() {
+    final int? seriesId = widget.item.seriesId;
+    if (seriesId == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GiftSheet(
+        seriesId: seriesId,
+        apiClient: widget.apiClient,
+        onSent: (int newGiftCount) {
+          if (mounted) {
+            setState(() => _giftCount = newGiftCount);
+            unawaited(_refreshSummary(seriesId));
+          }
         },
       ),
     );
@@ -564,7 +604,8 @@ class _ActionColumnState extends State<_ActionColumn> {
         ),
         _ActionIcon(
           icon: Icons.card_giftcard_outlined,
-          label: item.gifts,
+          label: _giftCount.toString(),
+          onTap: _openGifts,
         ),
       ],
     );
@@ -599,6 +640,252 @@ class _ActionIcon extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: Colors.white),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Gift bottom sheet
+// ────────────────────────────────────────────────────────────────────────────
+
+class _GiftSheet extends StatefulWidget {
+  const _GiftSheet({
+    required this.seriesId,
+    required this.apiClient,
+    required this.onSent,
+  });
+
+  final int seriesId;
+  final ApiClient apiClient;
+  final ValueChanged<int> onSent;
+
+  @override
+  State<_GiftSheet> createState() => _GiftSheetState();
+}
+
+class _GiftSheetState extends State<_GiftSheet> {
+  static const List<int> _amounts = <int>[1, 10, 30, 100, 200, 500];
+
+  int _selectedAmount = 30;
+  String _paymentMethod = 'meow_points';
+  bool _sending = false;
+
+  Future<void> _sendGift() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final response = await widget.apiClient.post<dynamic>(
+        Endpoints.dramaGiftSend(widget.seriesId),
+        data: <String, dynamic>{
+          'amount': _selectedAmount,
+          'payment_method': _paymentMethod,
+        },
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      final int newGiftCount = (data is Map<String, dynamic>)
+          ? (data['gift_count'] as int? ?? 0)
+          : 0;
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onSent(newGiftCount);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sent $_selectedAmount gift${_selectedAmount > 1 ? 's' : ''}!'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const SizedBox(height: 8),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              'Send a Gift',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          const Divider(color: Colors.white12, height: 1),
+          const SizedBox(height: 16),
+
+          // Amount picker
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _amounts.map((int amount) {
+                final bool selected = _selectedAmount == amount;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedAmount = amount),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 72,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFFFF4757)
+                          : Colors.white10,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: selected
+                            ? const Color(0xFFFF4757)
+                            : Colors.transparent,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        const Text('🎁', style: TextStyle(fontSize: 14)),
+                        Text(
+                          '$amount',
+                          style: TextStyle(
+                            color: selected ? Colors.white : Colors.white70,
+                            fontSize: 12,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Payment method toggle
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: <Widget>[
+                const Text('Pay with:',
+                    style: TextStyle(color: Colors.white60, fontSize: 13)),
+                const SizedBox(width: 12),
+                _PayToggle(
+                  label: 'Points',
+                  value: 'meow_points',
+                  selected: _paymentMethod == 'meow_points',
+                  onTap: () =>
+                      setState(() => _paymentMethod = 'meow_points'),
+                ),
+                const SizedBox(width: 8),
+                _PayToggle(
+                  label: 'Credits',
+                  value: 'meow_credit',
+                  selected: _paymentMethod == 'meow_credit',
+                  onTap: () =>
+                      setState(() => _paymentMethod = 'meow_credit'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Send button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton(
+                onPressed: _sending ? null : _sendGift,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF4757),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _sending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        'Send $_selectedAmount Gift${_selectedAmount > 1 ? 's' : ''}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PayToggle extends StatelessWidget {
+  const _PayToggle({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.white10,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.black : Colors.white60,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
         ),
       ),
     );

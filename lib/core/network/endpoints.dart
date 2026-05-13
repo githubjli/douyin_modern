@@ -102,6 +102,8 @@ class Endpoints {
 
   static String dramaView(int id) => '/api/dramas/$id/view/';
 
+  static String dramaGiftSend(int id) => '/api/dramas/$id/gifts/send/';
+
   static String channelSubscribe(int ownerId) =>
       '/api/channels/$ownerId/subscribe/';
 

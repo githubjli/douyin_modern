@@ -8,6 +8,7 @@ class FeedItem {
     required this.likes,
     required this.comments,
     required this.shares,
+    this.gifts = '0',
     required this.videoUrl,
     required this.placeholderGradient,
     this.id,
@@ -44,6 +45,7 @@ class FeedItem {
   final String likes;
   final String comments;
   final String shares;
+  final String gifts;
   final String videoUrl;
   final List<Color> placeholderGradient;
 

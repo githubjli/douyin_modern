@@ -339,6 +339,7 @@ class _ActionColumn extends StatelessWidget {
         _ActionIcon(icon: Icons.favorite, label: item.likes),
         _ActionIcon(icon: Icons.mode_comment, label: item.comments),
         _ActionIcon(icon: Icons.share, label: item.shares),
+        _ActionIcon(icon: Icons.card_giftcard, label: item.gifts),
       ],
     );
   }

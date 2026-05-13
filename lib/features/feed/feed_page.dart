@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -709,15 +710,27 @@ class _GiftSheetState extends State<_GiftSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.warmBackground,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground.withValues(alpha: 0.82),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+          ),
+          child: _buildContent(context),
+        ),
       ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 16,
-      ),
-      child: Column(
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    return Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           const SizedBox(height: 8),
@@ -852,8 +865,7 @@ class _GiftSheetState extends State<_GiftSheet> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 }
 
@@ -997,13 +1009,18 @@ class _CommentSheetState extends State<_CommentSheet> {
   @override
   Widget build(BuildContext context) {
     final double bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.65,
-      decoration: const BoxDecoration(
-        color: AppColors.warmBackground,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Column(
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.65,
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground.withValues(alpha: 0.82),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
         children: <Widget>[
           const SizedBox(height: 8),
           Container(
@@ -1119,6 +1136,8 @@ class _CommentSheetState extends State<_CommentSheet> {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

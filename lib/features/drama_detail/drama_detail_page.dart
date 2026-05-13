@@ -6,6 +6,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
+import '../drama_player/drama_player_page.dart';
 import '../home/domain/home_models.dart';
 import 'application/drama_detail_providers.dart';
 
@@ -85,6 +86,7 @@ class _DramaDetailPageState extends ConsumerState<DramaDetailPage> {
                   _DramaEpisodeBody(
                     data: data,
                     tabIndex: tabIndex,
+                    dramaTitle: data.title,
                   ),
               ],
             ),
@@ -465,10 +467,15 @@ class _DramaTabs extends StatelessWidget {
 }
 
 class _DramaEpisodeBody extends StatelessWidget {
-  const _DramaEpisodeBody({required this.data, required this.tabIndex});
+  const _DramaEpisodeBody({
+    required this.data,
+    required this.tabIndex,
+    required this.dramaTitle,
+  });
 
   final DramaDetailData data;
   final int tabIndex;
+  final String dramaTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -502,6 +509,9 @@ class _DramaEpisodeBody extends StatelessWidget {
         return _DramaEpisodeCard(
           episode: episodes[index],
           fallbackCoverUrl: data.coverUrl,
+          dramaId: int.tryParse(data.id),
+          dramaTitle: dramaTitle,
+          totalEpisodes: data.totalEpisodes,
         );
       },
     );
@@ -509,15 +519,22 @@ class _DramaEpisodeBody extends StatelessWidget {
 }
 
 class _DramaEpisodeCard extends StatelessWidget {
-  const _DramaEpisodeCard({required this.episode, this.fallbackCoverUrl});
+  const _DramaEpisodeCard({
+    required this.episode,
+    this.fallbackCoverUrl,
+    this.dramaId,
+    this.dramaTitle,
+    this.totalEpisodes,
+  });
 
   final DramaEpisodeItem episode;
   final String? fallbackCoverUrl;
+  final int? dramaId;
+  final String? dramaTitle;
+  final int? totalEpisodes;
 
   @override
   Widget build(BuildContext context) {
-    final bool playable =
-        (episode.canWatch || episode.isFree) && !episode.isLocked;
     final String badge = episode.isLocked
         ? episode.pointsPrice == null
             ? 'Locked'
@@ -525,17 +542,20 @@ class _DramaEpisodeCard extends StatelessWidget {
         : 'Free';
 
     return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              playable
-                  ? 'Episode playback route coming soon.'
-                  : 'Unlock/payment is not available yet.',
-            ),
-          ),
-        );
-      },
+      onTap: dramaId == null
+          ? null
+          : () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DramaPlayerPage(
+                    dramaId: dramaId!,
+                    seriesTitle: dramaTitle ?? '',
+                    startEpisodeNo: episode.episodeNo ?? 1,
+                    totalEpisodes: totalEpisodes,
+                  ),
+                ),
+              );
+            },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         child: Stack(

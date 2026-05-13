@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'route_observer.dart';
 import 'theme/app_theme.dart';
 import '../shared/main_shell.dart';
 
@@ -22,6 +23,7 @@ class MeowMediaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Meow Media',
       theme: AppTheme.lightTheme(),
+      navigatorObservers: <NavigatorObserver>[appRouteObserver],
       home: MainShell(
         enableFeedVideo: enableFeedVideo,
         enableRemoteFeed: enableRemoteFeed,

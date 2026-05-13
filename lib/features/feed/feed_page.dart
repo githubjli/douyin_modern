@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../app/route_observer.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
@@ -34,7 +35,7 @@ class FeedPage extends StatefulWidget {
   State<FeedPage> createState() => _FeedPageState();
 }
 
-class _FeedPageState extends State<FeedPage> {
+class _FeedPageState extends State<FeedPage> with RouteAware {
   late final PageController _pageController;
   final Map<int, VideoPlayerController> _controllers =
       <int, VideoPlayerController>{};
@@ -58,6 +59,27 @@ class _FeedPageState extends State<FeedPage> {
     _remoteRepository = widget.remoteRepository ??
         RemoteFeedRepository(apiClient: _apiClient);
     _loadFeed();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ModalRoute<Object?>? route = ModalRoute.of(context);
+    if (route != null) appRouteObserver.subscribe(this, route);
+  }
+
+  // Pause when another route is pushed on top (e.g. DramaPlayerPage).
+  @override
+  void didPushNext() {
+    _controllers[_currentIndex]?.pause();
+  }
+
+  // Resume when we come back to the foreground.
+  @override
+  void didPopNext() {
+    if (widget.isActive) {
+      _controllers[_currentIndex]?.play();
+    }
   }
 
   Future<void> _loadFeed() async {
@@ -242,6 +264,7 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     _pageController.dispose();
     for (final VideoPlayerController controller in _controllers.values) {
       controller.dispose();

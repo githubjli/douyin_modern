@@ -528,11 +528,9 @@ class _ActionColumnState extends State<_ActionColumn> {
       builder: (_) => _GiftSheet(
         seriesId: seriesId,
         apiClient: widget.apiClient,
-        onSent: (int newGiftCount) {
-          if (mounted) {
-            setState(() => _giftCount = newGiftCount);
-            unawaited(_refreshSummary(seriesId));
-          }
+        onSent: () {
+          // gift_count comes from interaction-summary, not the send response
+          if (mounted) unawaited(_refreshSummary(seriesId));
         },
       ),
     );
@@ -660,7 +658,7 @@ class _GiftSheet extends StatefulWidget {
 
   final int seriesId;
   final ApiClient apiClient;
-  final ValueChanged<int> onSent;
+  final VoidCallback onSent;
 
   @override
   State<_GiftSheet> createState() => _GiftSheetState();
@@ -685,27 +683,47 @@ class _GiftSheetState extends State<_GiftSheet> {
         },
         authenticated: true,
       );
-      final dynamic data = response.data;
-      final int newGiftCount = (data is Map<String, dynamic>)
-          ? (data['gift_count'] as int? ?? 0)
-          : 0;
       if (!mounted) return;
+      final dynamic data = response.data;
+      final int? balance = data is Map<String, dynamic>
+          ? data['sender_balance'] as int?
+          : null;
+      final String unit =
+          _paymentMethod == 'meow_credit' ? 'Credits' : 'Points';
+      final String balanceNote =
+          balance != null ? '  ·  Balance: $balance $unit' : '';
       Navigator.of(context).pop();
-      widget.onSent(newGiftCount);
+      // gift_count not in response — parent triggers _refreshSummary
+      widget.onSent();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Sent $_selectedAmount gift${_selectedAmount > 1 ? 's' : ''}!'),
-          duration: const Duration(seconds: 2),
+          content: Text(
+              '🎁 Sent $_selectedAmount $unit$balanceNote'),
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (e) {
       if (!mounted) return;
+      final String msg = _friendlyGiftError(e.toString());
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(content: Text(msg)),
       );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  String _friendlyGiftError(String raw) {
+    if (raw.contains('insufficient_balance')) {
+      return 'Not enough balance to send this gift.';
+    }
+    if (raw.contains('receiver_unavailable')) {
+      return 'This drama has no owner to receive gifts.';
+    }
+    if (raw.contains('drama_unavailable')) {
+      return 'This drama is not available for gifts.';
+    }
+    return raw;
   }
 
   @override

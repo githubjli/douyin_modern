@@ -50,6 +50,11 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
   int _shareCount = 0;
   int _giftCount = 0;
 
+  // Owner / follow
+  int? _ownerId;
+  String? _ownerAvatarUrl;
+  bool _subscribed = false;
+
   // Danmaku
   bool _danmakuEnabled = true;
   List<String> _danmakuComments = const <String>[];
@@ -61,6 +66,53 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
     _loadEpisodes();
     _loadInteractions();
     _loadDanmaku();
+    _loadOwner();
+  }
+
+  Future<void> _loadOwner() async {
+    try {
+      final response = await _apiClient
+          .get<dynamic>(Endpoints.dramaDetail(widget.dramaId));
+      final dynamic data = response.data;
+      if (data is! Map<String, dynamic> || !mounted) return;
+      final dynamic ownerId = data['owner'] ?? data['owner_id'] ??
+          data['channel_id'] ?? data['creator_id'];
+      final String? avatarUrl =
+          data['owner_avatar_url'] as String? ??
+          data['owner_avatar'] as String? ??
+          data['creator_avatar_url'] as String?;
+      final dynamic subscribed = data['viewer_is_subscribed'] ??
+          data['is_subscribed'];
+      setState(() {
+        _ownerId = ownerId is int
+            ? ownerId
+            : int.tryParse(ownerId?.toString() ?? '');
+        _ownerAvatarUrl = avatarUrl;
+        _subscribed = subscribed is bool ? subscribed : false;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _toggleSubscribe() async {
+    final int? ownerId = _ownerId;
+    if (ownerId == null) return;
+    final bool next = !_subscribed;
+    setState(() => _subscribed = next);
+    try {
+      if (next) {
+        await _apiClient.post<dynamic>(
+          Endpoints.channelSubscribe(ownerId),
+          authenticated: true,
+        );
+      } else {
+        await _apiClient.delete<dynamic>(
+          Endpoints.channelSubscribe(ownerId),
+          authenticated: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _subscribed = !next);
+    }
   }
 
   Future<void> _loadInteractions() async {
@@ -552,12 +604,15 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
               bottom: 80,
               child: _DramaActionColumn(
                 dramaId: widget.dramaId,
+                ownerAvatarUrl: _ownerAvatarUrl,
+                subscribed: _subscribed,
                 favorited: _favorited,
                 favoriteCount: _favoriteCount,
                 commentCount: _commentCount,
                 shareCount: _shareCount,
                 giftCount: _giftCount,
                 danmakuEnabled: _danmakuEnabled,
+                onSubscribe: _toggleSubscribe,
                 onFavorite: _toggleFavorite,
                 onComment: _openComments,
                 onShare: _share,
@@ -1189,15 +1244,21 @@ class _DramaActionColumn extends StatelessWidget {
     required this.onShare,
     required this.onGift,
     required this.onToggleDanmaku,
+    required this.onSubscribe,
+    this.ownerAvatarUrl,
+    this.subscribed = false,
   });
 
   final int dramaId;
+  final String? ownerAvatarUrl;
+  final bool subscribed;
   final bool favorited;
   final int favoriteCount;
   final int commentCount;
   final int shareCount;
   final int giftCount;
   final bool danmakuEnabled;
+  final VoidCallback onSubscribe;
   final VoidCallback onFavorite;
   final VoidCallback onComment;
   final VoidCallback onShare;
@@ -1206,9 +1267,46 @@ class _DramaActionColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Widget avatar = ownerAvatarUrl != null && ownerAvatarUrl!.isNotEmpty
+        ? CircleAvatar(radius: 24, backgroundImage: NetworkImage(ownerAvatarUrl!))
+        : const CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.white24,
+            child: Icon(Icons.person, color: Colors.white),
+          );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
+        // Avatar + follow button
+        GestureDetector(
+          onTap: onSubscribe,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              avatar,
+              if (!subscribed)
+                Positioned(
+                  bottom: -6,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: const BoxDecoration(
+                        color: AppColors.brandGold,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add,
+                          size: 14, color: AppColors.warmBackground),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
         _DramaActionIcon(
           icon: favorited ? Icons.favorite : Icons.favorite_border,
           label: favoriteCount.toString(),

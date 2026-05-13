@@ -37,6 +37,10 @@ class FeedItem {
     this.durationSeconds,
     this.unlockType,
     this.pointsPrice,
+    this.isFavorited,
+    this.favoriteCount,
+    this.shareCount,
+    this.viewerIsSubscribed,
   });
 
   final String username;
@@ -76,4 +80,8 @@ class FeedItem {
   final int? durationSeconds;
   final String? unlockType;
   final int? pointsPrice;
+  final bool? isFavorited;
+  final int? favoriteCount;
+  final int? shareCount;
+  final bool? viewerIsSubscribed;
 }

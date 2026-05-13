@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -490,13 +491,18 @@ class _EpisodeSelectorSheetState extends State<_EpisodeSelectorSheet> {
       minChildSize: 0.35,
       maxChildSize: 0.9,
       builder: (_, ScrollController scroll) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
+        return ClipRRect(
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(20)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.warmBackground.withValues(alpha: 0.88),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
             children: <Widget>[
               // Drag handle
               const SizedBox(height: 8),
@@ -640,6 +646,8 @@ class _EpisodeSelectorSheetState extends State<_EpisodeSelectorSheet> {
                 ),
               ),
             ],
+              ),
+            ),
           ),
         );
       },
@@ -769,18 +777,23 @@ class _UnlockSheetState extends State<_UnlockSheet> {
     final int? points = ep.pointsPrice;
     final int? credits = ep.creditsPrice;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.warmBackground,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 16,
-        left: 16,
-        right: 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground.withValues(alpha: 0.82),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+            left: 16,
+            right: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           const SizedBox(height: 8),
           Container(
@@ -862,6 +875,8 @@ class _UnlockSheetState extends State<_UnlockSheet> {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -888,12 +903,12 @@ class _UnlockOption extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppColors.brandGold : Colors.white10,
+          color: selected
+              ? AppColors.brandGold
+              : Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected
-                ? AppColors.brandGold
-                : Colors.transparent,
+            color: selected ? AppColors.brandGold : Colors.white24,
           ),
         ),
         alignment: Alignment.center,

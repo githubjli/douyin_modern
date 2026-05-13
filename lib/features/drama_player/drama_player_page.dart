@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../drama_detail/drama_detail_page.dart';
@@ -689,8 +690,8 @@ class _LockedEpisodeOverlay extends StatelessWidget {
               icon: const Icon(Icons.lock_open_rounded, size: 18),
               label: Text('Unlock · $priceLabel'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF4757),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.brandGold,
+                foregroundColor: AppColors.warmBackground,
                 padding: const EdgeInsets.symmetric(
                     horizontal: 28, vertical: 12),
                 shape: RoundedRectangleBorder(
@@ -763,7 +764,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF1C1C1E),
+        color: AppColors.warmBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       padding: EdgeInsets.only(
@@ -834,8 +835,8 @@ class _UnlockSheetState extends State<_UnlockSheet> {
             child: ElevatedButton(
               onPressed: _unlocking ? null : _unlock,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF4757),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.brandGold,
+                foregroundColor: AppColors.warmBackground,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -880,11 +881,11 @@ class _UnlockOption extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFFF4757) : Colors.white10,
+          color: selected ? AppColors.brandGold : Colors.white10,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected
-                ? const Color(0xFFFF4757)
+                ? AppColors.brandGold
                 : Colors.transparent,
           ),
         ),
@@ -894,7 +895,7 @@ class _UnlockOption extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: selected ? Colors.white : Colors.white60,
+                color: selected ? AppColors.warmBackground : Colors.white60,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -903,7 +904,9 @@ class _UnlockOption extends StatelessWidget {
             Text(
               price,
               style: TextStyle(
-                color: selected ? Colors.white70 : Colors.white38,
+                color: selected
+                    ? AppColors.warmBackground.withValues(alpha: 0.7)
+                    : Colors.white38,
                 fontSize: 12,
               ),
             ),

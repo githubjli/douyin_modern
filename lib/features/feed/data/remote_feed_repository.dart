@@ -119,6 +119,8 @@ class RemoteFeedRepository implements FeedRepository {
       favoriteCount: _readIntOrNull(drama['favorite_count']),
       shareCount: _readIntOrNull(drama['share_count']),
       viewerIsSubscribed: _readBool(drama['viewer_is_subscribed']),
+      giftCount: _readIntOrNull(drama['gift_count']),
+      giftAmountTotal: _readIntOrNull(drama['gift_amount_total']),
     );
   }
 

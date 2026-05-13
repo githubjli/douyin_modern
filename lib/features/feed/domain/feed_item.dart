@@ -41,6 +41,8 @@ class FeedItem {
     this.favoriteCount,
     this.shareCount,
     this.viewerIsSubscribed,
+    this.giftCount,
+    this.giftAmountTotal,
   });
 
   final String username;
@@ -84,4 +86,6 @@ class FeedItem {
   final int? favoriteCount;
   final int? shareCount;
   final bool? viewerIsSubscribed;
+  final int? giftCount;
+  final int? giftAmountTotal;
 }

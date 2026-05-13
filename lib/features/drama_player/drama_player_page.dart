@@ -133,6 +133,10 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
     final String? url = ep.playableUrl;
 
     if (ep.isLocked || url == null || url.isEmpty) {
+      // Pause any currently playing controller so audio stops immediately.
+      for (final VideoPlayerController c in _controllers.values) {
+        await c.pause();
+      }
       if (mounted) {
         setState(() {});
         if (ep.isLocked) _showUnlockSheet(index);
@@ -704,44 +708,58 @@ class _LockedEpisodeOverlay extends StatelessWidget {
             ? '$points Points'
             : 'Unlock';
 
-    return ColoredBox(
-      color: Colors.black,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(Icons.lock_rounded, color: Colors.white38, size: 56),
-            const SizedBox(height: 16),
-            Text(
-              episode.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+    final String? thumb = episode.thumbnailUrl;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        // Thumbnail background
+        if (thumb != null && thumb.isNotEmpty)
+          Image.network(thumb, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const ColoredBox(color: Colors.black))
+        else
+          const ColoredBox(color: Colors.black),
+        // Dark overlay so text is readable
+        const ColoredBox(color: Color(0x99000000)),
+        // Lock UI centred
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.lock_rounded, color: Colors.white60, size: 48),
+              const SizedBox(height: 12),
+              Text(
+                episode.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'This episode requires unlocking',
-              style: TextStyle(color: Colors.white54, fontSize: 14),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: onUnlock,
-              icon: const Icon(Icons.lock_open_rounded, size: 18),
-              label: Text('Unlock · $priceLabel'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brandGold,
-                foregroundColor: AppColors.warmBackground,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 28, vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24)),
+              const SizedBox(height: 6),
+              const Text(
+                'This episode requires unlocking',
+                style: TextStyle(color: Colors.white54, fontSize: 13),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: onUnlock,
+                icon: const Icon(Icons.lock_open_rounded, size: 16),
+                label: Text('Unlock · $priceLabel'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brandGold,
+                  foregroundColor: AppColors.warmBackground,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -809,44 +827,44 @@ class _UnlockSheetState extends State<_UnlockSheet> {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.warmBackground.withValues(alpha: 0.82),
+            color: AppColors.warmBackground.withValues(alpha: 0.55),
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).padding.bottom + 16,
+            bottom: MediaQuery.of(context).padding.bottom + 12,
             left: 16,
             right: 16,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Container(
-            width: 36,
-            height: 4,
+            width: 32,
+            height: 3,
             decoration: BoxDecoration(
               color: Colors.white24,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 16),
-          const Icon(Icons.lock_rounded, color: Colors.white54, size: 36),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          const Icon(Icons.lock_rounded, color: Colors.white54, size: 28),
+          const SizedBox(height: 8),
           Text(
             ep.title,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           const Text(
             'Choose payment method to unlock',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: Colors.white54, fontSize: 12),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           Row(
             children: <Widget>[
               if (points != null && points > 0)
@@ -874,10 +892,10 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            height: 46,
+            height: 42,
             child: ElevatedButton(
               onPressed: _unlocking ? null : _unlock,
               style: ElevatedButton.styleFrom(

@@ -574,11 +574,11 @@ class _ActionColumnState extends State<_ActionColumn> {
                       width: 20,
                       height: 20,
                       decoration: const BoxDecoration(
-                        color: Colors.red,
+                        color: AppColors.brandGold,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.add,
-                          size: 14, color: Colors.white),
+                          size: 14, color: AppColors.warmBackground),
                     ),
                   ),
                 ),
@@ -589,7 +589,7 @@ class _ActionColumnState extends State<_ActionColumn> {
         _ActionIcon(
           icon: _favorited ? Icons.favorite : Icons.favorite_border,
           label: _favoriteCount.toString(),
-          color: _favorited ? Colors.red : Colors.white,
+          color: _favorited ? AppColors.brandGold : Colors.white,
           onTap: _toggleFavorite,
         ),
         _ActionIcon(
@@ -711,7 +711,7 @@ class _GiftSheetState extends State<_GiftSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF1C1C1E),
+        color: AppColors.warmBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       padding: EdgeInsets.only(
@@ -759,12 +759,12 @@ class _GiftSheetState extends State<_GiftSheet> {
                     height: 44,
                     decoration: BoxDecoration(
                       color: selected
-                          ? const Color(0xFFFF4757)
+                          ? AppColors.brandGold
                           : Colors.white10,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: selected
-                            ? const Color(0xFFFF4757)
+                            ? AppColors.brandGold
                             : Colors.transparent,
                       ),
                     ),
@@ -776,7 +776,9 @@ class _GiftSheetState extends State<_GiftSheet> {
                         Text(
                           '$amount',
                           style: TextStyle(
-                            color: selected ? Colors.white : Colors.white70,
+                            color: selected
+                                ? AppColors.warmBackground
+                                : Colors.white70,
                             fontSize: 12,
                             fontWeight: selected
                                 ? FontWeight.w700
@@ -829,8 +831,8 @@ class _GiftSheetState extends State<_GiftSheet> {
               child: ElevatedButton(
                 onPressed: _sending ? null : _sendGift,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF4757),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.brandGold,
+                  foregroundColor: AppColors.warmBackground,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -876,13 +878,13 @@ class _PayToggle extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.white10,
+          color: selected ? AppColors.brandGold : Colors.white10,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.black : Colors.white60,
+            color: selected ? AppColors.warmBackground : Colors.white60,
             fontSize: 13,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -998,7 +1000,7 @@ class _CommentSheetState extends State<_CommentSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.65,
       decoration: const BoxDecoration(
-        color: Color(0xFF1C1C1E),
+        color: AppColors.warmBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Column(

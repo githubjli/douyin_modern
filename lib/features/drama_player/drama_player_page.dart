@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
+import '../../shared/danmaku_overlay.dart';
 import '../drama_detail/drama_detail_page.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -41,11 +43,147 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
   bool _loading = true;
   int _currentIndex = 0;
 
+  // Interaction state (fetched from interaction-summary)
+  bool _favorited = false;
+  int _favoriteCount = 0;
+  int _commentCount = 0;
+  int _shareCount = 0;
+  int _giftCount = 0;
+
+  // Danmaku
+  bool _danmakuEnabled = true;
+  List<String> _danmakuComments = const <String>[];
+
   @override
   void initState() {
     super.initState();
     _apiClient = ApiClient();
     _loadEpisodes();
+    _loadInteractions();
+    _loadDanmaku();
+  }
+
+  Future<void> _loadInteractions() async {
+    try {
+      final response = await _apiClient.get<dynamic>(
+        Endpoints.dramaInteractionSummary(widget.dramaId),
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (data is! Map<String, dynamic> || !mounted) return;
+      setState(() {
+        _favorited = (data['viewer_is_favorited'] as bool?) ??
+            (data['is_favorited'] as bool?) ??
+            _favorited;
+        _favoriteCount = (data['favorite_count'] as int?) ?? _favoriteCount;
+        _commentCount = (data['comment_count'] as int?) ?? _commentCount;
+        _shareCount = (data['share_count'] as int?) ?? _shareCount;
+        _giftCount = (data['gift_count'] as int?) ?? _giftCount;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadDanmaku() async {
+    try {
+      final response = await _apiClient
+          .get<dynamic>(Endpoints.dramaComments(widget.dramaId));
+      final dynamic data = response.data;
+      List<dynamic> rows = const <dynamic>[];
+      if (data is List) {
+        rows = data;
+      } else if (data is Map<String, dynamic>) {
+        final dynamic r = data['results'] ?? data['comments'];
+        if (r is List) rows = r;
+      }
+      final List<String> comments = rows
+          .whereType<Map<String, dynamic>>()
+          .map((Map<String, dynamic> m) =>
+              (m['content'] ?? m['text'] ?? m['body'] ?? '').toString().trim())
+          .where((String s) => s.isNotEmpty)
+          .toList();
+      if (mounted && comments.isNotEmpty) {
+        setState(() => _danmakuComments = comments);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFavorite() async {
+    final bool next = !_favorited;
+    setState(() {
+      _favorited = next;
+      _favoriteCount += next ? 1 : -1;
+    });
+    try {
+      if (next) {
+        await _apiClient.post<dynamic>(
+          Endpoints.dramaFavorite(widget.dramaId),
+          authenticated: true,
+        );
+      } else {
+        await _apiClient.delete<dynamic>(
+          Endpoints.dramaFavorite(widget.dramaId),
+          authenticated: true,
+        );
+      }
+      unawaited(_loadInteractions());
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _favorited = !next;
+          _favoriteCount += next ? -1 : 1;
+        });
+      }
+    }
+  }
+
+  Future<void> _share() async {
+    final String link =
+        'https://app.meowdrama.com/drama/${widget.dramaId}';
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Link copied to clipboard')),
+    );
+    setState(() => _shareCount++);
+    try {
+      await _apiClient.post<dynamic>(
+        Endpoints.dramaShare(widget.dramaId),
+        data: <String, String>{'channel': 'copy_link'},
+        authenticated: true,
+      );
+      unawaited(_loadInteractions());
+    } catch (_) {
+      if (mounted) setState(() => _shareCount--);
+    }
+  }
+
+  void _openComments() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DramaCommentSheet(
+        dramaId: widget.dramaId,
+        apiClient: _apiClient,
+        initialCount: _commentCount,
+        onCountChanged: (int c) {
+          if (mounted) setState(() => _commentCount = c);
+        },
+      ),
+    );
+  }
+
+  void _openGifts() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DramaGiftSheet(
+        dramaId: widget.dramaId,
+        apiClient: _apiClient,
+        onSent: () => unawaited(_loadInteractions()),
+      ),
+    );
   }
 
   Future<void> _loadEpisodes() async {
@@ -406,6 +544,39 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
               onTap: _showEpisodeSelector,
             ),
           ),
+
+          // ── Right-side action column ───────────────────────────────────
+          if (!current.isLocked)
+            Positioned(
+              right: 12,
+              bottom: 80,
+              child: _DramaActionColumn(
+                dramaId: widget.dramaId,
+                favorited: _favorited,
+                favoriteCount: _favoriteCount,
+                commentCount: _commentCount,
+                shareCount: _shareCount,
+                giftCount: _giftCount,
+                danmakuEnabled: _danmakuEnabled,
+                onFavorite: _toggleFavorite,
+                onComment: _openComments,
+                onShare: _share,
+                onGift: _openGifts,
+                onToggleDanmaku: () =>
+                    setState(() => _danmakuEnabled = !_danmakuEnabled),
+              ),
+            ),
+
+          // ── Danmaku overlay ────────────────────────────────────────────
+          if (_danmakuEnabled && _danmakuComments.isNotEmpty && !current.isLocked)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DanmakuOverlay(
+                  key: ValueKey<int>(_currentIndex),
+                  comments: _danmakuComments,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -994,6 +1165,554 @@ class _UnlockOption extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Right-side action column for DramaPlayerPage
+// ────────────────────────────────────────────────────────────────────────────
+
+class _DramaActionColumn extends StatelessWidget {
+  const _DramaActionColumn({
+    required this.dramaId,
+    required this.favorited,
+    required this.favoriteCount,
+    required this.commentCount,
+    required this.shareCount,
+    required this.giftCount,
+    required this.danmakuEnabled,
+    required this.onFavorite,
+    required this.onComment,
+    required this.onShare,
+    required this.onGift,
+    required this.onToggleDanmaku,
+  });
+
+  final int dramaId;
+  final bool favorited;
+  final int favoriteCount;
+  final int commentCount;
+  final int shareCount;
+  final int giftCount;
+  final bool danmakuEnabled;
+  final VoidCallback onFavorite;
+  final VoidCallback onComment;
+  final VoidCallback onShare;
+  final VoidCallback onGift;
+  final VoidCallback onToggleDanmaku;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _DramaActionIcon(
+          icon: favorited ? Icons.favorite : Icons.favorite_border,
+          label: favoriteCount.toString(),
+          color: favorited ? AppColors.brandGold : Colors.white,
+          onTap: onFavorite,
+        ),
+        _DramaActionIcon(
+          icon: Icons.mode_comment_outlined,
+          label: commentCount.toString(),
+          onTap: onComment,
+        ),
+        _DramaActionIcon(
+          icon: Icons.share_outlined,
+          label: shareCount.toString(),
+          onTap: onShare,
+        ),
+        _DramaActionIcon(
+          icon: Icons.card_giftcard_outlined,
+          label: giftCount.toString(),
+          onTap: onGift,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: GestureDetector(
+            onTap: onToggleDanmaku,
+            child: Column(
+              children: <Widget>[
+                Icon(
+                  Icons.subtitles_outlined,
+                  size: 30,
+                  color: danmakuEnabled ? Colors.white : Colors.white38,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '弹幕',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: danmakuEnabled ? Colors.white : Colors.white38,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DramaActionIcon extends StatelessWidget {
+  const _DramaActionIcon({
+    required this.icon,
+    required this.label,
+    this.color = Colors.white,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: <Widget>[
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Comment sheet for DramaPlayerPage
+// ────────────────────────────────────────────────────────────────────────────
+
+class _DramaCommentSheet extends StatefulWidget {
+  const _DramaCommentSheet({
+    required this.dramaId,
+    required this.apiClient,
+    required this.initialCount,
+    required this.onCountChanged,
+  });
+
+  final int dramaId;
+  final ApiClient apiClient;
+  final int initialCount;
+  final ValueChanged<int> onCountChanged;
+
+  @override
+  State<_DramaCommentSheet> createState() => _DramaCommentSheetState();
+}
+
+class _DramaCommentSheetState extends State<_DramaCommentSheet> {
+  final TextEditingController _inputCtrl = TextEditingController();
+  List<Map<String, dynamic>> _comments = const <Map<String, dynamic>>[];
+  bool _loading = true;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final response = await widget.apiClient
+          .get<dynamic>(Endpoints.dramaComments(widget.dramaId));
+      final dynamic data = response.data;
+      List<dynamic> rows = const <dynamic>[];
+      if (data is List) {
+        rows = data;
+      } else if (data is Map<String, dynamic>) {
+        final dynamic r = data['results'] ?? data['comments'];
+        if (r is List) rows = r;
+      }
+      if (!mounted) return;
+      setState(() {
+        _comments = rows.whereType<Map<String, dynamic>>().toList();
+        _loading = false;
+      });
+      widget.onCountChanged(_comments.length);
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final String text = _inputCtrl.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.apiClient.post<dynamic>(
+        Endpoints.dramaComments(widget.dramaId),
+        data: <String, String>{'content': text},
+        authenticated: true,
+      );
+      _inputCtrl.clear();
+      await _load();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _inputCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (_, ScrollController scroll) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.warmBackground.withValues(alpha: 0.88),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: <Widget>[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '${_comments.length} Comments',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: _loading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                                color: Colors.white54))
+                        : ListView.builder(
+                            controller: scroll,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _comments.length,
+                            itemBuilder: (_, int i) {
+                              final Map<String, dynamic> c = _comments[i];
+                              final String author =
+                                  (c['author_name'] ?? c['user'] ?? 'User')
+                                      .toString();
+                              final String body =
+                                  (c['content'] ?? c['text'] ?? c['body'] ?? '')
+                                      .toString();
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    const CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: Colors.white24,
+                                      child: Icon(Icons.person,
+                                          size: 16, color: Colors.white),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Text(author,
+                                              style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 12,
+                                                  fontWeight:
+                                                      FontWeight.w600)),
+                                          const SizedBox(height: 2),
+                                          Text(body,
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: 12,
+                      right: 12,
+                      bottom: MediaQuery.of(context).padding.bottom + 8,
+                      top: 8,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TextField(
+                            controller: _inputCtrl,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: 'Add a comment…',
+                              hintStyle:
+                                  const TextStyle(color: Colors.white38),
+                              filled: true,
+                              fillColor: Colors.white12,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _send,
+                          child: _sending
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white))
+                              : const Icon(Icons.send_rounded,
+                                  color: AppColors.brandGold, size: 28),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Gift sheet for DramaPlayerPage
+// ────────────────────────────────────────────────────────────────────────────
+
+class _DramaGiftSheet extends StatefulWidget {
+  const _DramaGiftSheet({
+    required this.dramaId,
+    required this.apiClient,
+    required this.onSent,
+  });
+
+  final int dramaId;
+  final ApiClient apiClient;
+  final VoidCallback onSent;
+
+  @override
+  State<_DramaGiftSheet> createState() => _DramaGiftSheetState();
+}
+
+class _DramaGiftSheetState extends State<_DramaGiftSheet> {
+  static const List<int> _amounts = <int>[1, 10, 30, 100, 200, 500];
+
+  int _selectedAmount = 30;
+  String _paymentMethod = 'meow_points';
+  bool _sending = false;
+
+  Future<void> _send() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final response = await widget.apiClient.post<dynamic>(
+        Endpoints.dramaGiftSend(widget.dramaId),
+        data: <String, dynamic>{
+          'amount': _selectedAmount,
+          'payment_method': _paymentMethod,
+        },
+        authenticated: true,
+      );
+      if (!mounted) return;
+      final dynamic data = response.data;
+      final int? balance = data is Map<String, dynamic>
+          ? data['sender_balance'] as int?
+          : null;
+      final String unit =
+          _paymentMethod == 'meow_credit' ? 'Credits' : 'Points';
+      final String balanceNote =
+          balance != null ? '  ·  Balance: $balance $unit' : '';
+      Navigator.of(context).pop();
+      widget.onSent();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎁 Sent $_selectedAmount $unit$balanceNote'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground.withValues(alpha: 0.82),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'Send a Gift',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16),
+                ),
+              ),
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 2.2,
+                children: _amounts.map((int a) {
+                  final bool sel = a == _selectedAmount;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedAmount = a),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? AppColors.brandGold
+                            : Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: sel ? AppColors.brandGold : Colors.white24,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$a',
+                        style: TextStyle(
+                          color: sel
+                              ? AppColors.warmBackground
+                              : Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _UnlockOption(
+                      label: 'Meow Points',
+                      price: '$_selectedAmount pts',
+                      selected: _paymentMethod == 'meow_points',
+                      onTap: () =>
+                          setState(() => _paymentMethod = 'meow_points'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _UnlockOption(
+                      label: 'Meow Credits',
+                      price: '$_selectedAmount cr',
+                      selected: _paymentMethod == 'meow_credit',
+                      onTap: () =>
+                          setState(() => _paymentMethod = 'meow_credit'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: _sending ? null : _send,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brandGold,
+                    foregroundColor: AppColors.warmBackground,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _sending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Send Gift',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

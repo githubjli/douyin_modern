@@ -9,6 +9,7 @@ import '../../app/route_observer.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
+import '../../shared/danmaku_overlay.dart';
 import '../drama_player/drama_player_page.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
@@ -48,6 +49,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
   bool _loading = true;
   String? _notice;
   bool _resumeOnTabActive = false;
+  bool _danmakuEnabled = true;
   final Set<int> _viewedSeriesIds = <int>{};
   List<String> _danmakuComments = const <String>[];
 
@@ -322,6 +324,9 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
                   child: _ActionColumn(
                     item: item,
                     apiClient: _apiClient,
+                    danmakuEnabled: _danmakuEnabled,
+                    onToggleDanmaku: () =>
+                        setState(() => _danmakuEnabled = !_danmakuEnabled),
                   ),
                 ),
                 Positioned(
@@ -337,10 +342,12 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
                     bottom: 0,
                     child: _WatchFullDramaBanner(item: item),
                   ),
-                if (index == _currentIndex && _danmakuComments.isNotEmpty)
+                if (index == _currentIndex &&
+                    _danmakuEnabled &&
+                    _danmakuComments.isNotEmpty)
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: _DanmakuOverlay(
+                      child: DanmakuOverlay(
                         key: ValueKey<String>('danmaku_$_currentIndex'),
                         comments: _danmakuComments,
                       ),
@@ -419,10 +426,17 @@ class _FeedBackground extends StatelessWidget {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _ActionColumn extends StatefulWidget {
-  const _ActionColumn({required this.item, required this.apiClient});
+  const _ActionColumn({
+    required this.item,
+    required this.apiClient,
+    this.danmakuEnabled = true,
+    this.onToggleDanmaku,
+  });
 
   final FeedItem item;
   final ApiClient apiClient;
+  final bool danmakuEnabled;
+  final VoidCallback? onToggleDanmaku;
 
   @override
   State<_ActionColumn> createState() => _ActionColumnState();
@@ -673,7 +687,45 @@ class _ActionColumnState extends State<_ActionColumn> {
           label: _giftCount.toString(),
           onTap: _openGifts,
         ),
+        _DanmakuToggleButton(
+          enabled: widget.danmakuEnabled,
+          onTap: widget.onToggleDanmaku,
+        ),
       ],
+    );
+  }
+}
+
+class _DanmakuToggleButton extends StatelessWidget {
+  const _DanmakuToggleButton({required this.enabled, this.onTap});
+
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: <Widget>[
+            Icon(
+              Icons.subtitles_outlined,
+              size: 30,
+              color: enabled ? Colors.white : Colors.white38,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '弹幕',
+              style: TextStyle(
+                fontSize: 11,
+                color: enabled ? Colors.white : Colors.white38,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1362,106 +1414,3 @@ class _CaptionBlock extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Danmaku (bullet-comment) overlay
-// ---------------------------------------------------------------------------
-
-class _DanmakuEntry {
-  _DanmakuEntry({
-    required this.text,
-    required this.controller,
-    required this.lane,
-  });
-  final String text;
-  final AnimationController controller;
-  final int lane;
-}
-
-class _DanmakuOverlay extends StatefulWidget {
-  const _DanmakuOverlay({super.key, required this.comments});
-  final List<String> comments;
-
-  @override
-  State<_DanmakuOverlay> createState() => _DanmakuOverlayState();
-}
-
-class _DanmakuOverlayState extends State<_DanmakuOverlay>
-    with TickerProviderStateMixin {
-  static const int _laneCount = 5;
-  static const double _laneHeight = 34;
-  static const double _topOffset = 110;
-  static const Duration _interval = Duration(milliseconds: 2500);
-  static const Duration _speed = Duration(seconds: 7);
-
-  final List<_DanmakuEntry> _active = <_DanmakuEntry>[];
-  Timer? _timer;
-  int _commentIndex = 0;
-  int _nextLane = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _launch();
-    _timer = Timer.periodic(_interval, (_) => _launch());
-  }
-
-  void _launch() {
-    if (!mounted || widget.comments.isEmpty) return;
-    final String text =
-        widget.comments[_commentIndex % widget.comments.length];
-    _commentIndex++;
-    final int lane = _nextLane % _laneCount;
-    _nextLane++;
-
-    final AnimationController ctrl = AnimationController(
-      vsync: this,
-      duration: _speed,
-    );
-    final _DanmakuEntry entry =
-        _DanmakuEntry(text: text, controller: ctrl, lane: lane);
-    setState(() => _active.add(entry));
-    ctrl.forward().then((_) {
-      if (mounted) setState(() => _active.remove(entry));
-      ctrl.dispose();
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    for (final _DanmakuEntry e in _active) {
-      e.controller.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final double w = MediaQuery.of(context).size.width;
-    return Stack(
-      children: _active.map((_DanmakuEntry entry) {
-        final double top = _topOffset + entry.lane * _laneHeight;
-        return AnimatedBuilder(
-          animation: entry.controller,
-          builder: (_, __) => Positioned(
-            top: top,
-            left: w - entry.controller.value * (w + 320),
-            child: Text(
-              entry.text,
-              maxLines: 1,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                height: 1,
-                shadows: <Shadow>[
-                  Shadow(color: Colors.black87, blurRadius: 4),
-                  Shadow(color: Colors.black54, blurRadius: 8),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}

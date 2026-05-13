@@ -25,6 +25,8 @@ import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
 import '../kyc/application/kyc_providers.dart';
 import '../kyc/presentation/kyc_page.dart';
+import '../membership/application/membership_providers.dart';
+import '../membership/domain/membership_status.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -332,6 +334,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               profile: _profile,
               wallet: ref.watch(meowPointsWalletProvider).valueOrNull,
               kycStatus: ref.watch(kycProfileProvider).valueOrNull?.status,
+              membershipStatus:
+                  ref.watch(membershipStatusProvider).valueOrNull,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,
@@ -930,12 +934,14 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.onGoLive,
     this.creditBalance,
     this.kycStatus,
+    this.membershipStatus,
   });
 
   final UserProfile? profile;
   final MeowPointWallet? wallet;
   final int? creditBalance;
   final String? kycStatus;
+  final MembershipStatus? membershipStatus;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
@@ -965,6 +971,10 @@ class _SignedInProfileBody extends StatelessWidget {
 
         // ── Meow Credit card ───────────────────────────────────────────
         _CreditCard(balance: creditBalance, onDetails: onCreditDetails),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── Membership status card ─────────────────────────────────────
+        _MembershipCard(status: membershipStatus),
         const SizedBox(height: AppSpacing.md),
 
         // ── Creator Studio (only for creators) ────────────────────────
@@ -1067,6 +1077,9 @@ class _SignedInProfileBody extends StatelessWidget {
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet & Billing',
               onTap: () => _soon(context),
+              trailing: profile?.walletLinked == true
+                  ? const _WalletLinkedChip()
+                  : null,
             ),
             _MenuItem(
               icon: Icons.verified_user_outlined,
@@ -1413,6 +1426,129 @@ class _PointsCard extends StatelessWidget {
             child: const Text('Details'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Membership status card
+// ---------------------------------------------------------------------------
+
+class _MembershipCard extends StatelessWidget {
+  const _MembershipCard({required this.status});
+
+  final MembershipStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool active = status?.isActive == true;
+    final String planLabel =
+        status != null ? status!.planTitle : 'No active plan';
+    final String? endsAt = status?.endsAt;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(
+          color: active
+              ? AppColors.brandGold.withAlpha(90)
+              : AppColors.softBorder,
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: active
+                  ? AppColors.brandGold.withAlpha(25)
+                  : AppColors.softBorder.withAlpha(40),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.workspace_premium_rounded,
+              color: active ? AppColors.brandGold : AppColors.mutedOliveText,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('Membership', style: AppTextStyles.body),
+                Text(
+                  active
+                      ? (endsAt != null
+                          ? '$planLabel · expires $endsAt'
+                          : planLabel)
+                      : planLabel,
+                  style: AppTextStyles.caption.copyWith(
+                    color: active
+                        ? AppColors.brandGold
+                        : AppColors.mutedOliveText,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (active)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.brandGold.withAlpha(22),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                    color: AppColors.brandGold.withAlpha(80)),
+              ),
+              child: Text(
+                'Active',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.brandGold,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wallet linked chip
+// ---------------------------------------------------------------------------
+
+class _WalletLinkedChip extends StatelessWidget {
+  const _WalletLinkedChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.green.withAlpha(25),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.green.withAlpha(80)),
+      ),
+      child: Text(
+        'Linked',
+        style: AppTextStyles.caption.copyWith(
+          color: Colors.green,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
       ),
     );
   }

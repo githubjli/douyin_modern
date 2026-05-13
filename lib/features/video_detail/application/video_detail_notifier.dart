@@ -14,6 +14,7 @@ class VideoInteractionState {
     this.likeCount = 0,
     this.isLiked = false,
     this.commentCount = 0,
+    this.giftCount = 0,
     this.creatorId,
     this.subscriberCount,
     this.isFollowing = false,
@@ -22,6 +23,7 @@ class VideoInteractionState {
   final int likeCount;
   final bool isLiked;
   final int commentCount;
+  final int giftCount;
   final int? creatorId;
   final int? subscriberCount;
   final bool isFollowing;
@@ -30,6 +32,7 @@ class VideoInteractionState {
     int? likeCount,
     bool? isLiked,
     int? commentCount,
+    int? giftCount,
     int? creatorId,
     int? subscriberCount,
     bool? isFollowing,
@@ -38,6 +41,7 @@ class VideoInteractionState {
       likeCount: likeCount ?? this.likeCount,
       isLiked: isLiked ?? this.isLiked,
       commentCount: commentCount ?? this.commentCount,
+      giftCount: giftCount ?? this.giftCount,
       creatorId: creatorId ?? this.creatorId,
       subscriberCount: subscriberCount ?? this.subscriberCount,
       isFollowing: isFollowing ?? this.isFollowing,
@@ -325,6 +329,7 @@ VideoInteractionState _mapInteraction(
     likeCount: _int(data['like_count']) ?? current.likeCount,
     isLiked: _bool(data['is_liked']) ?? current.isLiked,
     commentCount: _int(data['comment_count']) ?? current.commentCount,
+    giftCount: _int(data['gift_count']) ?? current.giftCount,
     creatorId: creatorId ?? current.creatorId,
     subscriberCount: subscriberCount,
     isFollowing: isFollowing,

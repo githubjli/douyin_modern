@@ -1059,7 +1059,9 @@ class _VideoActionRow extends StatelessWidget {
         ),
         _ActionButton(
           icon: Icons.card_giftcard,
-          label: 'Gift',
+          label: interaction.giftCount > 0
+              ? _formatCount(interaction.giftCount)
+              : 'Gift',
           onTap: onGift,
         ),
         _ActionButton(

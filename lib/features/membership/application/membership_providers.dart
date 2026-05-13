@@ -9,11 +9,18 @@ import '../domain/manual_membership_repository.dart';
 import '../domain/manual_tx_hint.dart';
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
+import '../domain/membership_status.dart';
 import 'membership_controller.dart';
 import 'membership_state.dart';
 
 final membershipRepositoryProvider = Provider<MembershipRepository>((ref) {
   return RemoteMembershipRepository(apiClient: ref.watch(apiClientProvider));
+});
+
+final membershipStatusProvider =
+    FutureProvider.autoDispose<MembershipStatus?>((ref) async {
+  final repo = ref.watch(membershipRepositoryProvider);
+  return repo.getCurrentStatus();
 });
 
 final membershipControllerProvider =

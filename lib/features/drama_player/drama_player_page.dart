@@ -110,6 +110,7 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
       isFree: data['is_free'] as bool? ?? false,
       isLocked: data['is_locked'] as bool? ?? false,
       pointsPrice: _parseInt(data['points_price']),
+      creditsPrice: _parseInt(data['credits_price']),
       playableUrl: data['playback_url'] as String? ??
           data['video_url'] as String? ??
           data['hls_url'] as String? ??

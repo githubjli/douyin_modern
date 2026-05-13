@@ -173,6 +173,46 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
     if (mounted) setState(() {});
   }
 
+  // After a successful unlock the API response has no playback_url.
+  // Re-fetch the episode detail to get the real URL, then activate.
+  Future<void> _reloadEpisodeAfterUnlock(int index) async {
+    final DramaEpisodeItem ep = _episodes[index];
+    final int? epNo = ep.episodeNo;
+    if (epNo == null) return;
+    try {
+      final response = await _apiClient.get<dynamic>(
+        Endpoints.dramaEpisodeDetail(widget.dramaId, epNo),
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (data is! Map<String, dynamic>) return;
+      final String? url = data['playback_url'] as String? ??
+          data['video_url'] as String? ??
+          data['hls_url'] as String? ??
+          data['file_url'] as String?;
+      if (!mounted) return;
+      setState(() {
+        _episodes = List<DramaEpisodeItem>.from(_episodes)
+          ..[index] = ep.copyWith(
+            isLocked: false,
+            canWatch: true,
+            playableUrl: url,
+          );
+      });
+    } catch (_) {
+      // Best-effort: mark unlocked even without a fresh URL;
+      // user can retry by re-entering the page.
+      if (mounted) {
+        setState(() {
+          _episodes = List<DramaEpisodeItem>.from(_episodes)
+            ..[index] = ep.copyWith(isLocked: false, canWatch: true);
+        });
+      }
+    }
+    _pageController?.jumpToPage(index);
+    unawaited(_activateIndex(index));
+  }
+
   void _showUnlockSheet(int index) {
     final DramaEpisodeItem ep = _episodes[index];
     showModalBottomSheet<void>(
@@ -183,21 +223,7 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
         episode: ep,
         dramaId: widget.dramaId,
         apiClient: _apiClient,
-        onUnlocked: (Map<String, dynamic> result) {
-          final String? newUrl = result['playback_url'] as String? ??
-              result['video_url'] as String? ??
-              result['hls_url'] as String?;
-          setState(() {
-            _episodes = List<DramaEpisodeItem>.from(_episodes)
-              ..[index] = ep.copyWith(
-                isLocked: false,
-                canWatch: true,
-                playableUrl: newUrl ?? ep.playableUrl,
-              );
-          });
-          _pageController?.jumpToPage(index);
-          unawaited(_activateIndex(index));
-        },
+        onUnlocked: (_) => unawaited(_reloadEpisodeAfterUnlock(index)),
       ),
     );
   }

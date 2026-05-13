@@ -380,7 +380,7 @@ class _ActionColumnState extends State<_ActionColumn> {
     _favoriteCount = item.favoriteCount ?? item.likeCount ?? 0;
     _commentCount = item.commentCount ?? 0;
     _shareCount = item.shareCount ?? 0;
-    _giftCount = 0;
+    _giftCount = item.giftCount ?? 0;
 
     if (item.seriesId != null) {
       _refreshSummary(item.seriesId!);

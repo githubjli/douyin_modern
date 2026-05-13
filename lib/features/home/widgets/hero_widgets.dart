@@ -99,9 +99,10 @@ class _LiveChannelHero extends StatelessWidget {
 }
 
 class _VideoChannelHero extends StatelessWidget {
-  const _VideoChannelHero({required this.video});
+  const _VideoChannelHero({required this.video, this.recommendations = const <HomeVideoItem>[]});
 
   final HomeVideoItem video;
+  final List<HomeVideoItem> recommendations;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +114,7 @@ class _VideoChannelHero extends StatelessWidget {
         imageUrl: video.thumbnailUrl,
         kind: _CardKind.video,
         compactOverlay: true,
+        onTap: () => _openVideoDetail(context, video, recommendations),
       ),
     );
   }
@@ -124,12 +126,14 @@ class _HeroCarousel extends StatelessWidget {
     required this.controller,
     required this.onPageChanged,
     required this.onDramaTap,
+    this.onVideoTap,
   });
 
   final List<dynamic> items;
   final PageController controller;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<HomeDramaItem> onDramaTap;
+  final ValueChanged<HomeVideoItem>? onVideoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +147,12 @@ class _HeroCarousel extends StatelessWidget {
           final dynamic item = items[index];
           final _CardKind kind =
               item is HomeDramaItem ? _CardKind.drama : _CardKind.video;
+          VoidCallback? onTap;
+          if (item is HomeDramaItem) {
+            onTap = () => onDramaTap(item);
+          } else if (item is HomeVideoItem) {
+            onTap = onVideoTap != null ? () => onVideoTap!(item) : null;
+          }
           return _PortalCard(
             title: item?.title as String? ?? 'Featured Picks',
             subtitle:
@@ -150,7 +160,7 @@ class _HeroCarousel extends StatelessWidget {
             imageUrl: _resolveImageUrl(item),
             kind: kind,
             compactOverlay: true,
-            onTap: item is HomeDramaItem ? () => onDramaTap(item) : null,
+            onTap: onTap,
           );
         },
       ),

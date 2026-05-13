@@ -253,6 +253,11 @@ class _HomePageState extends ConsumerState<HomePage> {
               setState(() => _activeHeroIndex = index);
             },
             onDramaTap: (HomeDramaItem drama) => _openDramaDetail(context, drama),
+            onVideoTap: (HomeVideoItem video) => _openVideoDetail(
+              context,
+              video,
+              _videoDetailRecommendations(data),
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           _HeroDots(count: heroItems.length, activeIndex: _activeHeroIndex),
@@ -452,7 +457,13 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return <Widget>[
       if (heroVideo != null) ...<Widget>[
-        _VideoChannelHero(video: heroVideo),
+        _VideoChannelHero(
+          video: heroVideo,
+          recommendations: _appendUniqueVideos(
+            _videoDetailRecommendations(data),
+            loadedVideos,
+          ),
+        ),
         const SizedBox(height: AppSpacing.sm),
       ],
       _VideoCategoryChips(

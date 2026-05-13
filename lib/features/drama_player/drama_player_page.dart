@@ -137,10 +137,7 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
       for (final VideoPlayerController c in _controllers.values) {
         await c.pause();
       }
-      if (mounted) {
-        setState(() {});
-        if (ep.isLocked) _showUnlockSheet(index);
-      }
+      if (mounted) setState(() {});
       return;
     }
 
@@ -685,6 +682,24 @@ class _EpisodeSelectorSheetState extends State<_EpisodeSelectorSheet> {
   }
 }
 
+// Dark gradient fallback when no thumbnail is available
+class _LockedBg extends StatelessWidget {
+  const _LockedBg();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[Color(0xFF1a1a2e), Color(0xFF0d0d1a)],
+        ),
+      ),
+    );
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Locked episode overlay (shown in PageView when episode is locked)
 // ────────────────────────────────────────────────────────────────────────────
@@ -715,11 +730,13 @@ class _LockedEpisodeOverlay extends StatelessWidget {
       children: <Widget>[
         // Thumbnail background
         if (thumb != null && thumb.isNotEmpty)
-          Image.network(thumb, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  const ColoredBox(color: Colors.black))
+          Image.network(
+            thumb,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _LockedBg(),
+          )
         else
-          const ColoredBox(color: Colors.black),
+          const _LockedBg(),
         // Dark overlay so text is readable
         const ColoredBox(color: Color(0x99000000)),
         // Lock UI centred
@@ -945,7 +962,7 @@ class _UnlockOption extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.brandGold

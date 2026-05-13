@@ -90,6 +90,21 @@ class Endpoints {
 
   static String liveChatMessages(String id) => '/api/live/$id/chat/messages/';
 
+  // Drama interactions
+  static String dramaFavorite(int id) => '/api/dramas/$id/favorite/';
+
+  static String dramaComments(int id) => '/api/dramas/$id/comments/';
+
+  static String dramaShare(int id) => '/api/dramas/$id/share/';
+
+  static String dramaInteractionSummary(int id) =>
+      '/api/dramas/$id/interaction-summary/';
+
+  static String dramaView(int id) => '/api/dramas/$id/view/';
+
+  static String channelSubscribe(int ownerId) =>
+      '/api/channels/$ownerId/subscribe/';
+
   // Manual (staff-reviewed) payment endpoints
   static String manualPaymentInfo(String planCode) =>
       '/api/membership/manual/payment-info/?plan_code=${Uri.encodeComponent(planCode)}';

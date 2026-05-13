@@ -7,6 +7,10 @@ import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../drama_detail/drama_detail_page.dart';
 
+// ────────────────────────────────────────────────────────────────────────────
+// Public entry-point widget
+// ────────────────────────────────────────────────────────────────────────────
+
 class DramaPlayerPage extends StatefulWidget {
   const DramaPlayerPage({
     super.key,
@@ -26,6 +30,7 @@ class DramaPlayerPage extends StatefulWidget {
 }
 
 class _DramaPlayerPageState extends State<DramaPlayerPage> {
+  late final ApiClient _apiClient;
   PageController? _pageController;
   final Map<int, VideoPlayerController> _controllers =
       <int, VideoPlayerController>{};
@@ -37,15 +42,21 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
   @override
   void initState() {
     super.initState();
+    _apiClient = ApiClient();
     _loadEpisodes();
   }
 
   Future<void> _loadEpisodes() async {
     try {
-      final ApiClient client = ApiClient();
-      final response =
-          await client.get<dynamic>(Endpoints.dramaEpisodes(widget.dramaId));
+      final response = await _apiClient
+          .get<dynamic>(Endpoints.dramaEpisodes(widget.dramaId));
       final List<DramaEpisodeItem> episodes = _parseEpisodes(response.data);
+
+      // Record a play view (24h dedup on backend)
+      unawaited(_apiClient.post<dynamic>(
+        Endpoints.dramaView(widget.dramaId),
+        authenticated: true,
+      ));
 
       int startIndex = 0;
       for (int i = 0; i < episodes.length; i++) {
@@ -118,8 +129,11 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
     final DramaEpisodeItem ep = _episodes[index];
     final String? url = ep.playableUrl;
 
-    if (url == null || url.isEmpty || ep.isLocked) {
-      if (mounted) setState(() {});
+    if (ep.isLocked || url == null || url.isEmpty) {
+      if (mounted) {
+        setState(() {});
+        if (ep.isLocked) _showUnlockSheet(index);
+      }
       return;
     }
 
@@ -154,6 +168,34 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
       await c.play();
     }
     if (mounted) setState(() {});
+  }
+
+  void _showUnlockSheet(int index) {
+    final DramaEpisodeItem ep = _episodes[index];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _UnlockSheet(
+        episode: ep,
+        dramaId: widget.dramaId,
+        apiClient: _apiClient,
+        onUnlocked: (Map<String, dynamic> result) {
+          final String? newUrl = result['playback_url'] as String? ??
+              result['video_url'] as String? ??
+              result['hls_url'] as String?;
+          setState(() {
+            _episodes = List<DramaEpisodeItem>.from(_episodes)
+              ..[index] = ep.copyWith(
+                isLocked: false,
+                canWatch: true,
+                playableUrl: newUrl ?? ep.playableUrl,
+              );
+          });
+          unawaited(_activateIndex(index));
+        },
+      ),
+    );
   }
 
   void _jumpToEpisode(int index) {
@@ -236,6 +278,15 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
             itemCount: _episodes.length,
             onPageChanged: (int i) => unawaited(_activateIndex(i)),
             itemBuilder: (BuildContext context, int i) {
+              final DramaEpisodeItem ep = _episodes[i];
+
+              if (ep.isLocked) {
+                return _LockedEpisodeOverlay(
+                  episode: ep,
+                  onUnlock: () => _showUnlockSheet(i),
+                );
+              }
+
               final VideoPlayerController? c = _controllers[i];
               if (c == null || !c.value.isInitialized) {
                 return const ColoredBox(
@@ -583,6 +634,281 @@ class _EpisodeSelectorSheetState extends State<_EpisodeSelectorSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Locked episode overlay (shown in PageView when episode is locked)
+// ────────────────────────────────────────────────────────────────────────────
+
+class _LockedEpisodeOverlay extends StatelessWidget {
+  const _LockedEpisodeOverlay({
+    required this.episode,
+    required this.onUnlock,
+  });
+
+  final DramaEpisodeItem episode;
+  final VoidCallback onUnlock;
+
+  @override
+  Widget build(BuildContext context) {
+    final int? points = episode.pointsPrice;
+    final int? credits = episode.creditsPrice;
+    final String priceLabel = credits != null && credits > 0
+        ? '$credits Credits'
+        : points != null && points > 0
+            ? '$points Points'
+            : 'Unlock';
+
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.lock_rounded, color: Colors.white38, size: 56),
+            const SizedBox(height: 16),
+            Text(
+              episode.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'This episode requires unlocking',
+              style: TextStyle(color: Colors.white54, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onUnlock,
+              icon: const Icon(Icons.lock_open_rounded, size: 18),
+              label: Text('Unlock · $priceLabel'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF4757),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 28, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Unlock bottom sheet
+// ────────────────────────────────────────────────────────────────────────────
+
+class _UnlockSheet extends StatefulWidget {
+  const _UnlockSheet({
+    required this.episode,
+    required this.dramaId,
+    required this.apiClient,
+    required this.onUnlocked,
+  });
+
+  final DramaEpisodeItem episode;
+  final int dramaId;
+  final ApiClient apiClient;
+  final ValueChanged<Map<String, dynamic>> onUnlocked;
+
+  @override
+  State<_UnlockSheet> createState() => _UnlockSheetState();
+}
+
+class _UnlockSheetState extends State<_UnlockSheet> {
+  String _paymentMethod = 'meow_points';
+  bool _unlocking = false;
+
+  Future<void> _unlock() async {
+    final int? episodeId = widget.episode.numericId;
+    if (episodeId == null || _unlocking) return;
+    setState(() => _unlocking = true);
+    try {
+      final response = await widget.apiClient.post<dynamic>(
+        Endpoints.dramaEpisodeUnlock(episodeId),
+        data: <String, String>{'payment_method': _paymentMethod},
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      if (data is Map<String, dynamic>) {
+        widget.onUnlocked(data);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _unlocking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DramaEpisodeItem ep = widget.episode;
+    final int? points = ep.pointsPrice;
+    final int? credits = ep.creditsPrice;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+        left: 16,
+        right: 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const SizedBox(height: 8),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Icon(Icons.lock_rounded, color: Colors.white54, size: 36),
+          const SizedBox(height: 12),
+          Text(
+            ep.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Choose payment method to unlock',
+            style: TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: <Widget>[
+              if (points != null && points > 0)
+                Expanded(
+                  child: _UnlockOption(
+                    label: 'Meow Points',
+                    price: '$points pts',
+                    selected: _paymentMethod == 'meow_points',
+                    onTap: () =>
+                        setState(() => _paymentMethod = 'meow_points'),
+                  ),
+                ),
+              if (points != null && points > 0 &&
+                  credits != null && credits > 0)
+                const SizedBox(width: 10),
+              if (credits != null && credits > 0)
+                Expanded(
+                  child: _UnlockOption(
+                    label: 'Meow Credits',
+                    price: '$credits cr',
+                    selected: _paymentMethod == 'meow_credit',
+                    onTap: () =>
+                        setState(() => _paymentMethod = 'meow_credit'),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: ElevatedButton(
+              onPressed: _unlocking ? null : _unlock,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF4757),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _unlocking
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text(
+                      'Unlock Episode',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnlockOption extends StatelessWidget {
+  const _UnlockOption({
+    required this.label,
+    required this.price,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String price;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFFF4757) : Colors.white10,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFFFF4757)
+                : Colors.transparent,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          children: <Widget>[
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white60,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              price,
+              style: TextStyle(
+                color: selected ? Colors.white70 : Colors.white38,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

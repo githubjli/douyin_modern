@@ -176,6 +176,7 @@ class RemoteDramaDetailRepository implements DramaDetailRepository {
       isFree: _readBool(data['is_free']) ?? false,
       isLocked: _readBool(data['is_locked']) ?? false,
       pointsPrice: _readIntOrNull(data['points_price']),
+      creditsPrice: _readIntOrNull(data['credits_price']),
       playableUrl: _readString(data['playback_url']) ??
           _readString(data['video_url']) ??
           _readString(data['hls_url']) ??
@@ -312,6 +313,7 @@ class DramaEpisodeItem {
     this.episodeNo,
     this.thumbnailUrl,
     this.pointsPrice,
+    this.creditsPrice,
     this.playableUrl,
   });
 
@@ -323,7 +325,29 @@ class DramaEpisodeItem {
   final bool isFree;
   final bool isLocked;
   final int? pointsPrice;
+  final int? creditsPrice;
   final String? playableUrl;
+
+  int? get numericId => int.tryParse(id);
+
+  DramaEpisodeItem copyWith({
+    bool? isLocked,
+    bool? canWatch,
+    String? playableUrl,
+  }) {
+    return DramaEpisodeItem(
+      id: id,
+      title: title,
+      canWatch: canWatch ?? this.canWatch,
+      isFree: isFree,
+      isLocked: isLocked ?? this.isLocked,
+      episodeNo: episodeNo,
+      thumbnailUrl: thumbnailUrl,
+      pointsPrice: pointsPrice,
+      creditsPrice: creditsPrice,
+      playableUrl: playableUrl ?? this.playableUrl,
+    );
+  }
 }
 
 class _DramaHero extends StatelessWidget {

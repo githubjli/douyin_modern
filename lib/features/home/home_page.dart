@@ -322,6 +322,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         onPageChanged: (int index) {
           setState(() => _activeNewsHeroIndex = index);
         },
+        videoRecommendations: _appendUniqueVideos(
+          _videoDetailRecommendations(data),
+          newsVideos,
+        ),
       ),
       if (newsHeroItems.length > 1) ...<Widget>[
         const SizedBox(height: AppSpacing.xs),

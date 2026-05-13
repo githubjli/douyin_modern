@@ -5,11 +5,13 @@ class _NewsHeroCarousel extends StatelessWidget {
     required this.items,
     required this.controller,
     required this.onPageChanged,
+    this.videoRecommendations = const <HomeVideoItem>[],
   });
 
   final List<dynamic> items;
   final PageController controller;
   final ValueChanged<int> onPageChanged;
+  final List<HomeVideoItem> videoRecommendations;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +23,13 @@ class _NewsHeroCarousel extends StatelessWidget {
         onPageChanged: onPageChanged,
         itemBuilder: (_, int index) {
           final dynamic selectedItem = items[index];
+          VoidCallback? onTap;
+          if (selectedItem is HomeLiveItem) {
+            onTap = () => _showLiveComingSoon(context);
+          } else if (selectedItem is HomeVideoItem) {
+            onTap = () =>
+                _openVideoDetail(context, selectedItem, videoRecommendations);
+          }
           return _PortalCard(
             title: _newsTitle(selectedItem),
             subtitle: selectedItem == null
@@ -35,9 +44,7 @@ class _NewsHeroCarousel extends StatelessWidget {
                 ? 'News'
                 : _newsHeroBadgeLabel(selectedItem),
             compactOverlay: true,
-            onTap: selectedItem is HomeLiveItem
-                ? () => _showLiveComingSoon(context)
-                : null,
+            onTap: onTap,
           );
         },
       ),

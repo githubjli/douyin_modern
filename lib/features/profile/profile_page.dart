@@ -1478,34 +1478,28 @@ class _StatPill extends StatelessWidget {
   const _StatPill({
     required this.icon,
     required this.label,
-    this.active = false,
   });
 
   final IconData icon;
   final String label;
-  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    final Color color =
-        active ? AppColors.brandGold : AppColors.mutedOliveText;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        border: Border.all(
-          color: active ? AppColors.brandGold : AppColors.softBorder,
-        ),
+        border: Border.all(color: AppColors.softBorder),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 14, color: AppColors.mutedOliveText),
           const SizedBox(width: 4),
           Text(
             label,
             style: AppTextStyles.caption.copyWith(
-              color: color,
+              color: AppColors.mutedOliveText,
               fontSize: 12,
             ),
           ),

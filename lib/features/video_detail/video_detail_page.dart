@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -209,6 +210,23 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     super.dispose();
   }
 
+  // ── Gifts ─────────────────────────────────────────────────────────────────
+
+  void _openGifts() {
+    final HomeVideoItem video = ref.read(videoDetailProvider).video;
+    final int? videoId = int.tryParse(video.id);
+    if (videoId == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _VideoGiftSheet(
+        videoId: videoId,
+        apiClient: widget.apiClient,
+      ),
+    );
+  }
+
   // ── Comments ──────────────────────────────────────────────────────────────
 
   void _openComments() {
@@ -407,6 +425,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
               onLike: () =>
                   unawaited(ref.read(videoDetailProvider.notifier).toggleLike()),
               onComment: _openComments,
+              onGift: _openGifts,
               onShare: _shareVideo,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -1004,6 +1023,7 @@ class _VideoActionRow extends StatelessWidget {
     required this.isSignedIn,
     required this.onLike,
     required this.onComment,
+    required this.onGift,
     required this.onShare,
   });
 
@@ -1011,6 +1031,7 @@ class _VideoActionRow extends StatelessWidget {
   final bool isSignedIn;
   final VoidCallback onLike;
   final VoidCallback onComment;
+  final VoidCallback onGift;
   final VoidCallback onShare;
 
   @override
@@ -1039,9 +1060,7 @@ class _VideoActionRow extends StatelessWidget {
         _ActionButton(
           icon: Icons.card_giftcard,
           label: 'Gift',
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gifts coming soon.')),
-          ),
+          onTap: onGift,
         ),
         _ActionButton(
           icon: Icons.ios_share,
@@ -1526,6 +1545,278 @@ class _VideoDetailEmptyCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
       ),
       child: Text(message, style: AppTextStyles.caption),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Video gift sheet
+// ---------------------------------------------------------------------------
+
+class _VideoGiftSheet extends StatefulWidget {
+  const _VideoGiftSheet({
+    required this.videoId,
+    required this.apiClient,
+  });
+
+  final int videoId;
+  final ApiClient apiClient;
+
+  @override
+  State<_VideoGiftSheet> createState() => _VideoGiftSheetState();
+}
+
+class _VideoGiftSheetState extends State<_VideoGiftSheet> {
+  static const List<int> _amounts = <int>[1, 10, 30, 100, 200, 500];
+
+  int _selectedAmount = 30;
+  String _paymentMethod = 'meow_points';
+  bool _sending = false;
+
+  Future<void> _send() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final response = await widget.apiClient.post<dynamic>(
+        Endpoints.videoGiftSend(widget.videoId),
+        data: <String, dynamic>{
+          'amount': _selectedAmount,
+          'payment_method': _paymentMethod,
+        },
+        authenticated: true,
+      );
+      if (!mounted) return;
+      final dynamic data = response.data;
+      final int? balance = data is Map<String, dynamic>
+          ? data['sender_balance'] as int?
+          : null;
+      final String unit =
+          _paymentMethod == 'meow_credit' ? 'Credits' : 'Points';
+      final String balanceNote =
+          balance != null ? '  ·  Balance: $balance $unit' : '';
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎁 Sent $_selectedAmount $unit$balanceNote'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e.toString()))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  String _friendlyError(String raw) {
+    if (raw.contains('insufficient_balance')) {
+      return 'Not enough balance to send this gift.';
+    }
+    if (raw.contains('receiver_unavailable')) {
+      return 'This video has no owner to receive gifts.';
+    }
+    if (raw.contains('drama_unavailable') ||
+        raw.contains('video_unavailable')) {
+      return 'This video is not available for gifts.';
+    }
+    return raw;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.warmBackground.withValues(alpha: 0.82),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'Send a Gift',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              const SizedBox(height: 16),
+
+              // Amount picker
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _amounts.map((int amount) {
+                    final bool selected = _selectedAmount == amount;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedAmount = amount),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 72,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? AppColors.brandGold
+                              : Colors.white10,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selected
+                                ? AppColors.brandGold
+                                : Colors.transparent,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            const Text('🎁',
+                                style: TextStyle(fontSize: 14)),
+                            Text(
+                              '$amount',
+                              style: TextStyle(
+                                color: selected
+                                    ? AppColors.warmBackground
+                                    : Colors.white70,
+                                fontSize: 12,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Payment method
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: <Widget>[
+                    const Text('Pay with:',
+                        style:
+                            TextStyle(color: Colors.white60, fontSize: 13)),
+                    const SizedBox(width: 12),
+                    _GiftPayToggle(
+                      label: 'Points',
+                      selected: _paymentMethod == 'meow_points',
+                      onTap: () =>
+                          setState(() => _paymentMethod = 'meow_points'),
+                    ),
+                    const SizedBox(width: 8),
+                    _GiftPayToggle(
+                      label: 'Credits',
+                      selected: _paymentMethod == 'meow_credit',
+                      onTap: () =>
+                          setState(() => _paymentMethod = 'meow_credit'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Send button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: _sending ? null : _send,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brandGold,
+                      foregroundColor: AppColors.warmBackground,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _sending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.warmBackground),
+                          )
+                        : Text(
+                            'Send $_selectedAmount Gift${_selectedAmount > 1 ? 's' : ''}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GiftPayToggle extends StatelessWidget {
+  const _GiftPayToggle({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.brandGold : Colors.white10,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.warmBackground : Colors.white60,
+            fontSize: 13,
+            fontWeight:
+                selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
     );
   }
 }

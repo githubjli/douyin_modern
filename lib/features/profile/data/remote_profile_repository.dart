@@ -91,6 +91,14 @@ class RemoteProfileRepository implements ProfileRepository {
           data, const <String>['primary_user_address', 'wallet_address']),
       walletLinked: _readBool(
           data, const <String>['wallet_linked']),
+      followerCount: _readInt(
+          data, const <String>['follower_count', 'subscriber_count']),
+      likeCount: _readInt(
+          data, const <String>['like_count', 'total_likes']),
+      giftCount: _readInt(
+          data, const <String>['gift_count', 'total_gifts']),
+      videoCount: _readInt(
+          data, const <String>['video_count', 'total_videos']),
     );
   }
 
@@ -107,6 +115,16 @@ class RemoteProfileRepository implements ProfileRepository {
     for (final String key in keys) {
       final dynamic value = map[key];
       if (value is bool) return value;
+    }
+    return null;
+  }
+
+  int? _readInt(Map<String, dynamic> map, List<String> keys) {
+    for (final String key in keys) {
+      final dynamic value = map[key];
+      if (value is int) return value;
+      if (value is double) return value.round();
+      if (value is String) return int.tryParse(value);
     }
     return null;
   }

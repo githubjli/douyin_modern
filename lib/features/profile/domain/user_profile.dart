@@ -11,6 +11,10 @@ class UserProfile {
     this.isSeller,
     this.walletAddress,
     this.walletLinked,
+    this.followerCount,
+    this.likeCount,
+    this.giftCount,
+    this.videoCount,
   });
 
   final String userId;
@@ -24,6 +28,10 @@ class UserProfile {
   final bool? isSeller;
   final String? walletAddress;
   final bool? walletLinked;
+  final int? followerCount;
+  final int? likeCount;
+  final int? giftCount;
+  final int? videoCount;
 
   UserProfile copyWith({
     String? displayName,
@@ -44,6 +52,10 @@ class UserProfile {
       isSeller: isSeller,
       walletAddress: walletAddress,
       walletLinked: walletLinked,
+      followerCount: followerCount,
+      likeCount: likeCount,
+      giftCount: giftCount,
+      videoCount: videoCount,
     );
   }
 }

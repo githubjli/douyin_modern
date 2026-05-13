@@ -25,8 +25,6 @@ import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
 import '../kyc/application/kyc_providers.dart';
 import '../kyc/presentation/kyc_page.dart';
-import '../membership/application/membership_providers.dart';
-import '../membership/domain/membership_status.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -334,8 +332,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               profile: _profile,
               wallet: ref.watch(meowPointsWalletProvider).valueOrNull,
               kycStatus: ref.watch(kycProfileProvider).valueOrNull?.status,
-              membershipStatus:
-                  ref.watch(membershipStatusProvider).valueOrNull,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,
@@ -934,14 +930,12 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.onGoLive,
     this.creditBalance,
     this.kycStatus,
-    this.membershipStatus,
   });
 
   final UserProfile? profile;
   final MeowPointWallet? wallet;
   final int? creditBalance;
   final String? kycStatus;
-  final MembershipStatus? membershipStatus;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
@@ -971,10 +965,6 @@ class _SignedInProfileBody extends StatelessWidget {
 
         // ── Meow Credit card ───────────────────────────────────────────
         _CreditCard(balance: creditBalance, onDetails: onCreditDetails),
-        const SizedBox(height: AppSpacing.sm),
-
-        // ── Membership status card ─────────────────────────────────────
-        _MembershipCard(status: membershipStatus),
         const SizedBox(height: AppSpacing.md),
 
         // ── Creator Studio (only for creators) ────────────────────────
@@ -1077,9 +1067,6 @@ class _SignedInProfileBody extends StatelessWidget {
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet & Billing',
               onTap: () => _soon(context),
-              trailing: profile?.walletLinked == true
-                  ? const _WalletLinkedChip()
-                  : null,
             ),
             _MenuItem(
               icon: Icons.verified_user_outlined,
@@ -1154,6 +1141,11 @@ class _ProfileHeader extends StatelessWidget {
         ? profile!.avatarUrl.trim()
         : null;
 
+    final bool hasStats = profile?.followerCount != null ||
+        profile?.likeCount != null ||
+        profile?.giftCount != null ||
+        profile?.videoCount != null;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -1161,90 +1153,102 @@ class _ProfileHeader extends StatelessWidget {
         border: Border.all(color: AppColors.softBorder),
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Avatar
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: AppColors.brandGold.withAlpha(30),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.brandGold, width: 1.5),
-            ),
-            child: avatarUrl != null
-                ? ClipOval(
-                    child: Image.network(
-                      avatarUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _InitialsAvatar(initials: initials),
-                    ),
-                  )
-                : _InitialsAvatar(initials: initials),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          // Name, email, badges, bio
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(name, style: AppTextStyles.cardTitle),
-                if (email != null && email != name) ...<Widget>[
-                  const SizedBox(height: 2),
-                  Text(
-                    email,
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.mutedOliveText,
-                    ),
-                  ),
-                ],
-                if (isCreator || isSeller) ...<Widget>[
-                  const SizedBox(height: AppSpacing.xs),
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    children: <Widget>[
-                      if (isCreator) const _RoleBadge(label: 'Creator'),
-                      if (isSeller) const _RoleBadge(label: 'Seller'),
-                    ],
-                  ),
-                ],
-                if (bio != null) ...<Widget>[
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    bio,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.mutedOliveText,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          // Action buttons
-          Column(
-            mainAxisSize: MainAxisSize.min,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              IconButton(
-                key: const ValueKey<String>('profile-refresh-button'),
-                icon: const Icon(Icons.refresh_rounded, size: 20),
-                color: AppColors.mutedOliveText,
-                tooltip: 'Refresh profile',
-                onPressed: onRefresh,
-                visualDensity: VisualDensity.compact,
+              // Avatar
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.brandGold.withAlpha(30),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.brandGold, width: 1.5),
+                ),
+                child: avatarUrl != null
+                    ? ClipOval(
+                        child: Image.network(
+                          avatarUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _InitialsAvatar(initials: initials),
+                        ),
+                      )
+                    : _InitialsAvatar(initials: initials),
               ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                color: AppColors.mutedOliveText,
-                tooltip: 'Edit profile',
-                onPressed: onEdit,
-                visualDensity: VisualDensity.compact,
+              const SizedBox(width: AppSpacing.md),
+              // Name, email, badges, bio
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(name, style: AppTextStyles.cardTitle),
+                    if (email != null && email != name) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        email,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.mutedOliveText,
+                        ),
+                      ),
+                    ],
+                    if (isCreator || isSeller) ...<Widget>[
+                      const SizedBox(height: AppSpacing.xs),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        children: <Widget>[
+                          if (isCreator) const _RoleBadge(label: 'Creator'),
+                          if (isSeller) const _RoleBadge(label: 'Seller'),
+                        ],
+                      ),
+                    ],
+                    if (bio != null) ...<Widget>[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        bio,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.mutedOliveText,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Action buttons
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IconButton(
+                    key: const ValueKey<String>('profile-refresh-button'),
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    color: AppColors.mutedOliveText,
+                    tooltip: 'Refresh profile',
+                    onPressed: onRefresh,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    color: AppColors.mutedOliveText,
+                    tooltip: 'Edit profile',
+                    onPressed: onEdit,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
               ),
             ],
           ),
+          // Stats row
+          if (profile != null && hasStats) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(height: 1, color: AppColors.softBorder),
+            const SizedBox(height: AppSpacing.sm),
+            _ProfileStatsRow(profile: profile!),
+          ],
         ],
       ),
     );
@@ -1432,124 +1436,110 @@ class _PointsCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Membership status card
+// Profile stats row (followers / likes / gifts)
 // ---------------------------------------------------------------------------
 
-class _MembershipCard extends StatelessWidget {
-  const _MembershipCard({required this.status});
+class _ProfileStatsRow extends StatelessWidget {
+  const _ProfileStatsRow({required this.profile});
 
-  final MembershipStatus? status;
+  final UserProfile profile;
+
+  String _fmt(int? v) {
+    if (v == null) return '—';
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
+    return v.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool active = status?.isActive == true;
-    final String planLabel =
-        status != null ? status!.planTitle : 'No active plan';
-    final String? endsAt = status?.endsAt;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm + 2,
+    final List<({IconData icon, String label, int? value})> stats =
+        <({IconData icon, String label, int? value})>[
+      (
+        icon: Icons.people_outline_rounded,
+        label: 'Followers',
+        value: profile.followerCount,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(
-          color: active
-              ? AppColors.brandGold.withAlpha(90)
-              : AppColors.softBorder,
+      (
+        icon: Icons.favorite_border_rounded,
+        label: 'Likes',
+        value: profile.likeCount,
+      ),
+      (
+        icon: Icons.card_giftcard_outlined,
+        label: 'Gifts',
+        value: profile.giftCount,
+      ),
+      if (profile.videoCount != null)
+        (
+          icon: Icons.play_circle_outline_rounded,
+          label: 'Videos',
+          value: profile.videoCount,
         ),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: active
-                  ? AppColors.brandGold.withAlpha(25)
-                  : AppColors.softBorder.withAlpha(40),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.workspace_premium_rounded,
-              color: active ? AppColors.brandGold : AppColors.mutedOliveText,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text('Membership', style: AppTextStyles.body),
-                Text(
-                  active
-                      ? (endsAt != null
-                          ? '$planLabel · expires $endsAt'
-                          : planLabel)
-                      : planLabel,
-                  style: AppTextStyles.caption.copyWith(
-                    color: active
-                        ? AppColors.brandGold
-                        : AppColors.mutedOliveText,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (active)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.brandGold.withAlpha(22),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                    color: AppColors.brandGold.withAlpha(80)),
+    ];
+
+    return Row(
+      children: stats
+          .expand(
+            (s) => <Widget>[
+              _StatCell(
+                icon: s.icon,
+                label: s.label,
+                value: _fmt(s.value),
               ),
-              child: Text(
-                'Active',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.brandGold,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11,
+              if (s != stats.last)
+                Container(
+                  height: 28,
+                  width: 1,
+                  color: AppColors.softBorder,
+                  margin: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm),
                 ),
-              ),
-            ),
-        ],
-      ),
+            ],
+          )
+          .toList(),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Wallet linked chip
-// ---------------------------------------------------------------------------
+class _StatCell extends StatelessWidget {
+  const _StatCell({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
-class _WalletLinkedChip extends StatelessWidget {
-  const _WalletLinkedChip();
+  final IconData icon;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.green.withAlpha(25),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.green.withAlpha(80)),
-      ),
-      child: Text(
-        'Linked',
-        style: AppTextStyles.caption.copyWith(
-          color: Colors.green,
-          fontWeight: FontWeight.w700,
-          fontSize: 11,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 13, color: AppColors.brandGold),
+            const SizedBox(width: 3),
+            Text(
+              value,
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ],
         ),
-      ),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.mutedOliveText,
+            fontSize: 10,
+          ),
+        ),
+      ],
     );
   }
 }

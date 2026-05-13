@@ -1141,11 +1141,6 @@ class _ProfileHeader extends StatelessWidget {
         ? profile!.avatarUrl.trim()
         : null;
 
-    final bool hasStats = profile?.followerCount != null ||
-        profile?.likeCount != null ||
-        profile?.giftCount != null ||
-        profile?.videoCount != null;
-
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -1242,8 +1237,8 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
-          // Stats row
-          if (profile != null && hasStats) ...<Widget>[
+          // Stats row — always shown once profile is loaded
+          if (profile != null) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
             const Divider(height: 1, color: AppColors.softBorder),
             const SizedBox(height: AppSpacing.sm),
@@ -1436,7 +1431,7 @@ class _PointsCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Profile stats row (followers / likes / gifts)
+// Profile stats row (followers / likes / gifts) — pill-button style
 // ---------------------------------------------------------------------------
 
 class _ProfileStatsRow extends StatelessWidget {
@@ -1444,8 +1439,8 @@ class _ProfileStatsRow extends StatelessWidget {
 
   final UserProfile profile;
 
-  String _fmt(int? v) {
-    if (v == null) return '—';
+  static String _fmt(int? v) {
+    if (v == null) return '0';
     if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
     return v.toString();
@@ -1453,93 +1448,70 @@ class _ProfileStatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<({IconData icon, String label, int? value})> stats =
-        <({IconData icon, String label, int? value})>[
-      (
-        icon: Icons.people_outline_rounded,
-        label: 'Followers',
-        value: profile.followerCount,
-      ),
-      (
-        icon: Icons.favorite_border_rounded,
-        label: 'Likes',
-        value: profile.likeCount,
-      ),
-      (
-        icon: Icons.card_giftcard_outlined,
-        label: 'Gifts',
-        value: profile.giftCount,
-      ),
-      if (profile.videoCount != null)
-        (
-          icon: Icons.play_circle_outline_rounded,
-          label: 'Videos',
-          value: profile.videoCount,
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
+      children: <Widget>[
+        _StatPill(
+          icon: Icons.people_outline_rounded,
+          label: _fmt(profile.followerCount),
         ),
-    ];
-
-    return Row(
-      children: stats
-          .expand(
-            (s) => <Widget>[
-              _StatCell(
-                icon: s.icon,
-                label: s.label,
-                value: _fmt(s.value),
-              ),
-              if (s != stats.last)
-                Container(
-                  height: 28,
-                  width: 1,
-                  color: AppColors.softBorder,
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm),
-                ),
-            ],
-          )
-          .toList(),
+        _StatPill(
+          icon: Icons.favorite_border_rounded,
+          label: _fmt(profile.likeCount),
+          active: (profile.likeCount ?? 0) > 0,
+        ),
+        _StatPill(
+          icon: Icons.card_giftcard_outlined,
+          label: _fmt(profile.giftCount),
+        ),
+        if (profile.videoCount != null)
+          _StatPill(
+            icon: Icons.play_circle_outline_rounded,
+            label: _fmt(profile.videoCount),
+          ),
+      ],
     );
   }
 }
 
-class _StatCell extends StatelessWidget {
-  const _StatCell({
+class _StatPill extends StatelessWidget {
+  const _StatPill({
     required this.icon,
     required this.label,
-    required this.value,
+    this.active = false,
   });
 
   final IconData icon;
   final String label;
-  final String value;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 13, color: AppColors.brandGold),
-            const SizedBox(width: 3),
-            Text(
-              value,
-              style: AppTextStyles.body.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
+    final Color color =
+        active ? AppColors.brandGold : AppColors.mutedOliveText;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: active ? AppColors.brandGold : AppColors.softBorder,
+        ),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: color,
+              fontSize: 12,
             ),
-          ],
-        ),
-        Text(
-          label,
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.mutedOliveText,
-            fontSize: 10,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

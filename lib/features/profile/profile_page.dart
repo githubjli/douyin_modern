@@ -1459,7 +1459,6 @@ class _ProfileStatsRow extends StatelessWidget {
         _StatPill(
           icon: Icons.favorite_border_rounded,
           label: _fmt(profile.likeCount),
-          active: (profile.likeCount ?? 0) > 0,
         ),
         _StatPill(
           icon: Icons.card_giftcard_outlined,

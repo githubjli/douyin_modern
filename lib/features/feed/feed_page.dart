@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
+import '../drama_player/drama_player_page.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
 import 'domain/feed_item.dart';
@@ -252,6 +253,13 @@ class _FeedPageState extends State<FeedPage> {
                   bottom: 115,
                   child: _CaptionBlock(item: item),
                 ),
+                if (item.seriesId != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _WatchFullDramaBanner(item: item),
+                  ),
               ],
             );
           },
@@ -361,6 +369,64 @@ class _ActionIcon extends StatelessWidget {
           const SizedBox(height: 2),
           Text(label, style: const TextStyle(fontSize: 12)),
         ],
+      ),
+    );
+  }
+}
+
+class _WatchFullDramaBanner extends StatelessWidget {
+  const _WatchFullDramaBanner({required this.item});
+  final FeedItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final int total = item.episodeNo ?? 0;
+    final String label = total > 0
+        ? 'Watch Full Drama  ·  EP $total'
+        : 'Watch Full Drama';
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => DramaPlayerPage(
+            dramaId: item.seriesId!,
+            seriesTitle: item.seriesTitle ?? 'Drama',
+            startEpisodeNo: item.episodeNo ?? 1,
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: <Color>[Color(0xBB000000), Colors.transparent],
+          ),
+        ),
+        padding: EdgeInsets.only(
+          left: 14,
+          right: 14,
+          top: 20,
+          bottom: MediaQuery.of(context).padding.bottom + 10,
+        ),
+        child: Row(
+          children: <Widget>[
+            const Icon(Icons.play_circle_outline_rounded,
+                color: Colors.white70, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500),
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right_rounded,
+                color: Colors.white54, size: 18),
+          ],
+        ),
       ),
     );
   }

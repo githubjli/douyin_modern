@@ -708,22 +708,20 @@ class _DanmakuToggleButton extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
         onTap: onTap,
-        child: Column(
-          children: <Widget>[
-            Icon(
-              Icons.subtitles_outlined,
-              size: 30,
-              color: enabled ? Colors.white : Colors.white38,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '弹幕',
-              style: TextStyle(
-                fontSize: 11,
-                color: enabled ? Colors.white : Colors.white38,
-              ),
-            ),
-          ],
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: enabled
+                ? Colors.white.withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.08),
+          ),
+          child: Icon(
+            enabled ? Icons.subtitles : Icons.subtitles_off,
+            size: 22,
+            color: enabled ? Colors.white : Colors.white38,
+          ),
         ),
       ),
     );

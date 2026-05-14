@@ -950,10 +950,6 @@ class _SignedInProfileBody extends StatelessWidget {
   final VoidCallback onKycDetails;
   final VoidCallback onGoLive;
 
-  void _soon(BuildContext context) => ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Coming soon.')),
-      );
-
   @override
   Widget build(BuildContext context) {
     final bool isCreator = profile?.isCreator == true;
@@ -1093,11 +1089,6 @@ class _SignedInProfileBody extends StatelessWidget {
         _SectionCard(
           label: 'Account',
           items: <_MenuItem>[
-            _MenuItem(
-              icon: Icons.account_balance_wallet_outlined,
-              label: 'Wallet & Billing',
-              onTap: () => _soon(context),
-            ),
             _MenuItem(
               icon: Icons.verified_user_outlined,
               label: 'Private KYC/AML',

@@ -53,7 +53,7 @@ class _LibraryPageState extends State<LibraryPage>
         foregroundColor: AppColors.cocoaText,
         elevation: 0,
         title: const Text(
-          'My Library',
+          'Activity',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         bottom: TabBar(

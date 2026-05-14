@@ -1068,8 +1068,8 @@ class _SignedInProfileBody extends StatelessWidget {
           label: 'My Content',
           items: <_MenuItem>[
             _MenuItem(
-              icon: Icons.video_library_outlined,
-              label: 'My Library',
+              icon: Icons.history_rounded,
+              label: 'Activity',
               onTap: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => const LibraryPage(),

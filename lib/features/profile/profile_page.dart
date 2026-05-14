@@ -25,6 +25,7 @@ import '../meow_points/domain/meow_point_wallet.dart';
 import '../meow_points/meow_points_page.dart';
 import '../kyc/application/kyc_providers.dart';
 import '../kyc/presentation/kyc_page.dart';
+import '../library/library_page.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -1044,7 +1045,11 @@ class _SignedInProfileBody extends StatelessWidget {
             _MenuItem(
               icon: Icons.video_library_outlined,
               label: 'My Library',
-              onTap: () => _soon(context),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const LibraryPage(),
+                ),
+              ),
             ),
             _MenuItem(
               icon: Icons.workspace_premium_outlined,

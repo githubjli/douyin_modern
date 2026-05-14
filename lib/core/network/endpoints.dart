@@ -117,4 +117,11 @@ class Endpoints {
 
   static String manualTxHintVerifyNow(int id) =>
       '/api/membership/manual/tx-hints/$id/verify-now/';
+
+  // ── My Library ───────────────────────────────────────────────────────────
+  static const String libraryHistory   = '/api/account/library/history/';
+  static const String libraryLiked     = '/api/account/library/liked/';
+  static const String libraryPurchased = '/api/account/library/purchased/';
+  static const String libraryGiftsSent     = '/api/account/library/gifts/sent/';
+  static const String libraryGiftsReceived = '/api/account/library/gifts/received/';
 }

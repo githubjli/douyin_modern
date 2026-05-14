@@ -124,4 +124,12 @@ class Endpoints {
   static const String libraryPurchased = '/api/account/library/purchased/';
   static const String libraryGiftsSent     = '/api/account/library/gifts/sent/';
   static const String libraryGiftsReceived = '/api/account/library/gifts/received/';
+
+  // ── Creator Studio ────────────────────────────────────────────────────────
+  static const String creatorVideos     = '/api/creator/videos/';
+  static const String creatorLiveStreams = '/api/creator/live-streams/';
+  static const String creatorDramas     = '/api/creator/dramas/';
+
+  static String creatorDramaEpisodes(int dramaId) =>
+      '/api/creator/dramas/$dramaId/episodes/';
 }

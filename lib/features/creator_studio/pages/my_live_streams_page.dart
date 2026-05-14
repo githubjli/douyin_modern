@@ -278,7 +278,7 @@ class _EmptyView extends StatelessWidget {
                   .copyWith(color: AppColors.mutedOliveText),
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
+            const Text(
               'Your past live streams will appear here.',
               style: AppTextStyles.caption,
               textAlign: TextAlign.center,

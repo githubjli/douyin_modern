@@ -335,7 +335,7 @@ class _EmptyView extends StatelessWidget {
                   .copyWith(color: AppColors.mutedOliveText),
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
+            const Text(
               'Create your first drama series to get started.',
               style: AppTextStyles.caption,
               textAlign: TextAlign.center,

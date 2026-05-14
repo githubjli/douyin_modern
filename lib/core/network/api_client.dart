@@ -14,7 +14,7 @@ class ApiClient {
 
   static const String defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'https://stream.meownews.online/',
   );
 
   final Dio _dio;

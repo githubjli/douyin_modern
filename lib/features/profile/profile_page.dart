@@ -16,6 +16,11 @@ import '../../app/widgets/back_nav_header.dart';
 import '../../shared/brand_page_header.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
+import '../creator_studio/pages/create_drama_page.dart';
+import '../creator_studio/pages/my_drama_page.dart';
+import '../creator_studio/pages/my_live_streams_page.dart';
+import '../creator_studio/pages/my_videos_page.dart';
+import '../creator_studio/pages/upload_video_page.dart';
 import '../live/go_live_page.dart';
 import '../membership/membership_orders_page.dart';
 import '../meow_credit/application/meow_credit_providers.dart';
@@ -990,12 +995,20 @@ class _SignedInProfileBody extends StatelessWidget {
               _MenuItem(
                 icon: Icons.play_circle_outline_rounded,
                 label: 'My Videos',
-                onTap: () => _soon(context),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyVideosPage(),
+                  ),
+                ),
               ),
               _MenuItem(
                 icon: Icons.upload_outlined,
                 label: 'Upload Video',
-                onTap: () => _soon(context),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const UploadVideoPage(),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1008,7 +1021,11 @@ class _SignedInProfileBody extends StatelessWidget {
               _MenuItem(
                 icon: Icons.live_tv_outlined,
                 label: 'My Live Streams',
-                onTap: () => _soon(context),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyLiveStreamsPage(),
+                  ),
+                ),
               ),
               _MenuItem(
                 icon: Icons.sensors_rounded,
@@ -1026,12 +1043,20 @@ class _SignedInProfileBody extends StatelessWidget {
               _MenuItem(
                 icon: Icons.menu_book_outlined,
                 label: 'My Drama',
-                onTap: () => _soon(context),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyDramaPage(),
+                  ),
+                ),
               ),
               _MenuItem(
                 icon: Icons.add_box_outlined,
                 label: 'Create Drama',
-                onTap: () => _soon(context),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CreateDramaPage(),
+                  ),
+                ),
               ),
             ],
           ),

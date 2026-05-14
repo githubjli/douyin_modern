@@ -329,7 +329,7 @@ class _EmptyView extends StatelessWidget {
                   .copyWith(color: AppColors.mutedOliveText),
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
+            const Text(
               'Upload your first video to get started.',
               style: AppTextStyles.caption,
               textAlign: TextAlign.center,

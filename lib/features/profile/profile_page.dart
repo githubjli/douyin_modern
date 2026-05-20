@@ -197,6 +197,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             username: _usernameController.text.trim(),
           );
       if (!mounted) return;
+      // If registration failed, _handleAuthState already set _error. Bail out.
+      if (ref.read(authControllerProvider).status == AuthStatus.error) return;
       // Show success banner, then switch to sign-in after 1.5 s.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -241,10 +243,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         setState(() => _error = 'Invalid email or password.');
         return;
       }
-      if (_registering) {
-        setState(() => _error = 'Registration failed. Please try again.');
-        return;
-      }
+      // During registration, signedOut is the expected outcome — the backend
+      // does not auto-login after sign-up. Let _register() own its success
+      // flow; we must not treat this transition as a failure.
+      if (_registering) return;
       setState(() {
         _profile = null;
         _error = null;

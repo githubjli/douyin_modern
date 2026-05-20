@@ -562,43 +562,23 @@ class AntHelper {
     }
   }
 
-  // Strip VP8 and VP9 from the SDP offer and keep only H264.
-  // Reordering payload types is not enough — the server can still answer
-  // with VP8. Removing them forces H264 negotiation so Ant Media Community
-  // Edition receives H264 directly and muxes to HLS without transcoding,
-  // which eliminates the UV-plane stride bug that produces colour blocks.
+  // Reorder video codec payload types so H264 is negotiated first.
+  // This avoids VP8→H264 server-side transcoding which loses chroma on
+  // Ant Media Community Edition.
   String _preferH264(String sdp) {
     if (sdp.isEmpty) return sdp;
-
-    // Collect all VP8 and VP9 payload type numbers.
-    final Set<String> removePts = <String>{};
-    for (final Match m in RegExp(r'a=rtpmap:(\d+) VP[89]/').allMatches(sdp)) {
-      removePts.add(m.group(1)!);
-    }
-    if (removePts.isEmpty) return sdp; // no VP8/VP9 → nothing to do
-
-    final List<String> lines = sdp.split('\r\n');
-    final List<String> result = <String>[];
-    for (final String line in lines) {
-      // Drop rtpmap, fmtp, rtcp-fb lines for removed codecs.
-      final Match? attrPt =
-          RegExp(r'^a=(?:rtpmap|fmtp|rtcp-fb):(\d+)').firstMatch(line);
-      if (attrPt != null && removePts.contains(attrPt.group(1))) continue;
-
-      // Remove the payload types from the m=video line.
-      if (line.startsWith('m=video')) {
-        final List<String> parts = line.split(' ');
-        final List<String> pts = parts
-            .sublist(3)
-            .where((String pt) => !removePts.contains(pt))
-            .toList();
-        result.add([...parts.sublist(0, 3), ...pts].join(' '));
-        continue;
-      }
-
-      result.add(line);
-    }
-    return result.join('\r\n');
+    final Match? m = RegExp(r'a=rtpmap:(\d+) H264/').firstMatch(sdp);
+    if (m == null) return sdp;
+    final String h264Pt = m.group(1)!;
+    return sdp.split('\r\n').map((String line) {
+      if (!line.startsWith('m=video')) return line;
+      final List<String> parts = line.split(' ');
+      if (parts.length < 4) return line;
+      final List<String> pts = List<String>.from(parts.sublist(3))
+        ..remove(h264Pt)
+        ..insert(0, h264Pt);
+      return [...parts.sublist(0, 3), ...pts].join(' ');
+    }).join('\r\n');
   }
 
 

@@ -12,8 +12,6 @@ class RemoteFeedRepository implements FeedRepository {
 
   @override
   Future<List<FeedItem>> getShortsFeed() async {
-    final List<FeedItem> items = <FeedItem>[];
-
     // Shorts tab is drama-only by product decision.
     // TODO(meow-media): public videos will be consumed by Home/Browse later.
 
@@ -25,16 +23,30 @@ class RemoteFeedRepository implements FeedRepository {
       return true;
     }());
 
-    for (final dynamic drama in dramaRows) {
-      if (drama is! Map<String, dynamic>) continue;
-      final int? dramaId = _readIntOrNull(drama['id']);
-      if (dramaId == null) continue;
+    final List<Map<String, dynamic>> validDramas = dramaRows
+        .whereType<Map<String, dynamic>>()
+        .where((Map<String, dynamic> d) => _readIntOrNull(d['id']) != null)
+        .toList();
 
-      final episodeResponse = await _apiClient.get<dynamic>(
-        Endpoints.dramaEpisodes(dramaId),
-      );
-      final List<dynamic> episodeRows = _extractEpisodeRows(episodeResponse.data);
-      for (final dynamic episode in episodeRows) {
+    // Fetch all episode lists in parallel instead of sequentially.
+    final List<List<dynamic>> episodeLists = await Future.wait(
+      validDramas.map((Map<String, dynamic> drama) async {
+        final int dramaId = _readIntOrNull(drama['id'])!;
+        try {
+          final episodeResponse = await _apiClient.get<dynamic>(
+            Endpoints.dramaEpisodes(dramaId),
+          );
+          return _extractEpisodeRows(episodeResponse.data);
+        } catch (_) {
+          return const <dynamic>[];
+        }
+      }),
+    );
+
+    final List<FeedItem> items = <FeedItem>[];
+    for (int i = 0; i < validDramas.length; i++) {
+      final Map<String, dynamic> drama = validDramas[i];
+      for (final dynamic episode in episodeLists[i]) {
         if (episode is! Map<String, dynamic>) continue;
         final FeedItem? item = _mapDramaEpisode(drama, episode);
         if (item != null) items.add(item);

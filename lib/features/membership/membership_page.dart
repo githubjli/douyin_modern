@@ -5,7 +5,6 @@ import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../core/network/api_client.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../home/data/remote_home_repository.dart';
@@ -24,7 +23,7 @@ import 'domain/membership_status.dart';
 import 'manual_payment_page.dart';
 
 /// Outer widget — injects page-scoped providers via [ProviderScope].
-class MembershipPage extends StatelessWidget {
+class MembershipPage extends ConsumerWidget {
   const MembershipPage({
     super.key,
     this.repository,
@@ -48,29 +47,34 @@ class MembershipPage extends StatelessWidget {
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
-  MembershipRepository _resolveRepo() {
+  MembershipRepository _resolveRepo(WidgetRef ref) {
     if (!useRemote) return mockRepository;
-    return repository ?? RemoteMembershipRepository(apiClient: ApiClient());
+    return repository ??
+        RemoteMembershipRepository(apiClient: ref.read(apiClientProvider));
   }
 
-  ManualMembershipRepository _resolveManualRepo() {
+  ManualMembershipRepository _resolveManualRepo(WidgetRef ref) {
     return manualRepository ??
-        RemoteManualMembershipRepository(apiClient: ApiClient());
+        RemoteManualMembershipRepository(
+            apiClient: ref.read(apiClientProvider));
   }
 
-  RemoteHomeRepository _resolveVideoRepo() {
-    return videoRepository ?? RemoteHomeRepository(apiClient: ApiClient());
+  RemoteHomeRepository _resolveVideoRepo(WidgetRef ref) {
+    return videoRepository ??
+        RemoteHomeRepository(apiClient: ref.read(apiClientProvider));
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final Future<List<HomeVideoItem>>? vipFuture = vipVideosFuture;
     return ProviderScope(
       overrides: <Override>[
-        membershipPageRepoProvider.overrideWithValue(_resolveRepo()),
+        membershipPageRepoProvider.overrideWithValue(_resolveRepo(ref)),
         membershipPageMockRepoProvider.overrideWithValue(mockRepository),
-        membershipPageManualRepoProvider.overrideWithValue(_resolveManualRepo()),
-        membershipPageVideoRepoProvider.overrideWithValue(_resolveVideoRepo()),
+        membershipPageManualRepoProvider
+            .overrideWithValue(_resolveManualRepo(ref)),
+        membershipPageVideoRepoProvider
+            .overrideWithValue(_resolveVideoRepo(ref)),
         membershipPageUseRemoteProvider.overrideWithValue(useRemote),
         if (vipFuture != null)
           membershipPageVipFutureProvider.overrideWithValue(vipFuture),

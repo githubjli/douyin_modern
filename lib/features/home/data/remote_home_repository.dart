@@ -49,7 +49,7 @@ class RemoteHomeRepository implements HomeRepository {
     }
 
     try {
-      final liveResponse = await _apiClient.get<dynamic>('/api/live/');
+      final liveResponse = await _apiClient.get<dynamic>(Endpoints.live);
       live = _rows(liveResponse.data);
       liveNextUrl = _next(liveResponse.data);
     } catch (_) {
@@ -70,10 +70,7 @@ class RemoteHomeRepository implements HomeRepository {
     final List<HomeLiveItem> liveNow = live.take(30).map(_mapLive).toList();
 
     final List<HomeVideoItem> recommended =
-        (videos.skip(2).take(4).map(_mapVideo).toList()) +
-            (latestVideos.isEmpty
-                ? const <HomeVideoItem>[]
-                : <HomeVideoItem>[latestVideos.first]);
+        videos.skip(2).take(5).map(_mapVideo).toList();
 
     return HomePortalData(
       featured: featured,

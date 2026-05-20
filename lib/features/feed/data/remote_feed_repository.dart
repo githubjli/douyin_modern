@@ -15,7 +15,10 @@ class RemoteFeedRepository implements FeedRepository {
     // Shorts tab is drama-only by product decision.
     // TODO(meow-media): public videos will be consumed by Home/Browse later.
 
-    final dramasResponse = await _apiClient.get<dynamic>(Endpoints.dramas);
+    final dramasResponse = await _apiClient.get<dynamic>(
+      Endpoints.dramas,
+      authenticated: true,
+    );
     final List<dynamic> dramaRows = _extractRows(dramasResponse.data);
 
     assert(() {
@@ -35,6 +38,7 @@ class RemoteFeedRepository implements FeedRepository {
         try {
           final episodeResponse = await _apiClient.get<dynamic>(
             Endpoints.dramaEpisodes(dramaId),
+            authenticated: true,
           );
           return _extractEpisodeRows(episodeResponse.data);
         } catch (_) {

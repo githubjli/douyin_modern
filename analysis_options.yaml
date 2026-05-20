@@ -2,5 +2,4 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
-    - packages/ant_media_flutter/example/**
-    - packages/ant_media_flutter/test/**
+    - packages/**

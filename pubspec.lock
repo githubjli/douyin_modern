@@ -20,9 +20,10 @@ packages:
   ant_media_flutter:
     dependency: "direct main"
     description:
-      path: "packages/ant_media_flutter"
-      relative: true
-    source: path
+      name: ant_media_flutter
+      sha256: "31d27731d58c234161c6355e8f3bc661cbe95d88d12668e26cf620703d98c7e2"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.5.4"
   archive:
     dependency: transitive

@@ -3,32 +3,31 @@ import 'dart:async';
 import 'package:ant_media_flutter/ant_media_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
+import '../auth/application/auth_providers.dart';
 import 'domain/live_chat_message.dart';
 import 'domain/live_session.dart';
 
 enum _Phase { idle, preparing, ready, live, ending, ended }
 
-// true  → use ?skip_ant_media=true on /start/ (no real WebRTC needed)
-// false → use Ant Media SDK; onPublishStarted triggers /start/
-const bool _kSkipAntMediaCheck = false;
+class GoLivePage extends ConsumerStatefulWidget {
+  const GoLivePage({super.key, this.skipAntMediaCheck = false});
 
-class GoLivePage extends StatefulWidget {
-  const GoLivePage({super.key, required this.apiClient});
-
-  final ApiClient apiClient;
+  // When true, /start/ is called with ?skip_ant_media=true and the Ant Media
+  // SDK is bypassed entirely — useful for local testing without a WebRTC setup.
+  final bool skipAntMediaCheck;
 
   @override
-  State<GoLivePage> createState() => _GoLivePageState();
+  ConsumerState<GoLivePage> createState() => _GoLivePageState();
 }
 
-class _GoLivePageState extends State<GoLivePage> {
+class _GoLivePageState extends ConsumerState<GoLivePage> {
   _Phase _phase = _Phase.idle;
   LiveSession? _session;
   final List<LiveChatMessage> _messages = [];
@@ -42,6 +41,7 @@ class _GoLivePageState extends State<GoLivePage> {
   int _lastChatId = 0;
   int _startRetries = 0;
   static const int _maxStartRetries = 5;
+  static const int _maxMessages = 200;
 
   // Ant Media / WebRTC
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
@@ -67,7 +67,7 @@ class _GoLivePageState extends State<GoLivePage> {
     _chatController.dispose();
     _stopPolling();
     _localRenderer.dispose();
-    if (!_kSkipAntMediaCheck) {
+    if (!widget.skipAntMediaCheck) {
       AntMediaFlutter.anthelper?.close();
     }
     super.dispose();
@@ -81,7 +81,7 @@ class _GoLivePageState extends State<GoLivePage> {
       _error = null;
     });
     try {
-      final response = await widget.apiClient.post<dynamic>(
+      final response = await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveQuickStart,
         data: <String, dynamic>{},
         authenticated: true,
@@ -120,9 +120,9 @@ class _GoLivePageState extends State<GoLivePage> {
     }
   }
 
-  // Called by Go Live button. Branches on _kSkipAntMediaCheck.
+  // Called by Go Live button. Branches on widget.skipAntMediaCheck.
   Future<void> _goLive() async {
-    if (_kSkipAntMediaCheck) {
+    if (widget.skipAntMediaCheck) {
       await _startLive();
     } else {
       _initAndPublish();
@@ -227,17 +227,22 @@ class _GoLivePageState extends State<GoLivePage> {
   // Called when streamIdInUse is received before publish_started.
   // Ends the stale Ant Media session and acquires a brand-new live session.
   Future<void> _freshRestart() async {
+    if (_freshRestartInProgress) return;
     _freshRestartInProgress = true;
     AntMediaFlutter.anthelper?.close();
-    if (!mounted) return;
+    if (!mounted) {
+      _freshRestartInProgress = false;
+      return;
+    }
     setState(() {
       _phase = _Phase.preparing;
       _cameraReady = false;
       _error = 'Previous stream detected — starting fresh session…';
     });
     try {
-      final response = await widget.apiClient.post<dynamic>(
-        '${Endpoints.liveQuickStart}?fresh=true',
+      final response = await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveQuickStart,
+        queryParameters: <String, dynamic>{'fresh': 'true'},
         data: <String, dynamic>{},
         authenticated: true,
       );
@@ -287,37 +292,18 @@ class _GoLivePageState extends State<GoLivePage> {
       });
     }
     try {
-      final String startUrl = _kSkipAntMediaCheck
-          ? '${Endpoints.liveStart(id)}?skip_ant_media=true'
-          : Endpoints.liveStart(id);
-      final response = await widget.apiClient.post<dynamic>(
-        startUrl,
+      final response = await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveStart(id),
+        queryParameters: widget.skipAntMediaCheck
+            ? <String, dynamic>{'skip_ant_media': 'true'}
+            : null,
         authenticated: true,
       );
       if (!mounted) return;
       final dynamic data = response.data;
 
       if (data is Map<String, dynamic> && data['next_action'] == 'retry_status') {
-        _startRetries++;
-        if (_publishStarted) {
-          // Camera is live on Ant Media — retry silently without error banner
-          setState(() => _error = 'Connecting to server... ($_startRetries)');
-          await Future<void>.delayed(const Duration(seconds: 3));
-          if (mounted) unawaited(_startLive());
-        } else if (_startRetries <= _maxStartRetries) {
-          setState(() {
-            _error = 'Waiting for stream... (retry $_startRetries/$_maxStartRetries)';
-            _phase = _Phase.ready;
-          });
-          await Future<void>.delayed(const Duration(seconds: 3));
-          if (mounted) unawaited(_startLive());
-        } else {
-          _startRetries = 0;
-          setState(() {
-            _error = 'Stream signal not received. Please try again.';
-            _phase = _Phase.ready;
-          });
-        }
+        await _scheduleStartRetry();
         return;
       }
 
@@ -337,27 +323,8 @@ class _GoLivePageState extends State<GoLivePage> {
       final int statusCode = e.response?.statusCode ?? 0;
 
       if (statusCode == 409 || nextAction == 'retry_status') {
-        _startRetries++;
-        if (_publishStarted) {
-          setState(() => _error = 'Connecting to server... ($_startRetries)');
-          await Future<void>.delayed(const Duration(seconds: 3));
-          if (mounted) unawaited(_startLive());
-        } else if (_startRetries <= _maxStartRetries) {
-          setState(() {
-            _error = 'Waiting for stream... (retry $_startRetries/$_maxStartRetries)';
-            _phase = _Phase.ready;
-          });
-          await Future<void>.delayed(const Duration(seconds: 3));
-          if (mounted) unawaited(_startLive());
-        } else {
-          _startRetries = 0;
-          setState(() {
-            _error = 'Failed to start live. Please try again.';
-            _phase = _Phase.ready;
-          });
-        }
+        await _scheduleStartRetry();
       } else if (_publishStarted) {
-        // Backend error but camera is broadcasting — keep retrying silently
         setState(() => _error = 'Server error — retrying...');
         await Future<void>.delayed(const Duration(seconds: 5));
         if (mounted) unawaited(_startLive());
@@ -378,6 +345,7 @@ class _GoLivePageState extends State<GoLivePage> {
         await Future<void>.delayed(const Duration(seconds: 5));
         if (mounted) unawaited(_startLive());
       } else {
+        _startRetries = 0;
         setState(() {
           _error = 'Failed to start live. Please try again.';
           _phase = _Phase.ready;
@@ -386,11 +354,35 @@ class _GoLivePageState extends State<GoLivePage> {
     }
   }
 
+  // Shared retry logic for both the success-path next_action and 409 errors.
+  Future<void> _scheduleStartRetry() async {
+    _startRetries++;
+    if (_publishStarted) {
+      // Camera is live on Ant Media — retry silently without hiding the preview.
+      setState(() => _error = 'Connecting to server... ($_startRetries)');
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (mounted) unawaited(_startLive());
+    } else if (_startRetries <= _maxStartRetries) {
+      setState(() {
+        _error = 'Waiting for stream... (retry $_startRetries/$_maxStartRetries)';
+        _phase = _Phase.ready;
+      });
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (mounted) unawaited(_startLive());
+    } else {
+      _startRetries = 0;
+      setState(() {
+        _error = 'Stream signal not received. Please try again.';
+        _phase = _Phase.ready;
+      });
+    }
+  }
+
   Future<void> _endLive() async {
     final String? id = _session?.id;
     if (id == null) return;
     _stopPolling();
-    if (!_kSkipAntMediaCheck) {
+    if (!widget.skipAntMediaCheck) {
       AntMediaFlutter.anthelper?.close();
     }
     setState(() {
@@ -399,7 +391,7 @@ class _GoLivePageState extends State<GoLivePage> {
       _localStream = null;
     });
     try {
-      await widget.apiClient.post<dynamic>(
+      await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveEnd(id),
         authenticated: true,
       );
@@ -433,7 +425,7 @@ class _GoLivePageState extends State<GoLivePage> {
     final String? id = _session?.id;
     if (id == null) return;
     try {
-      final response = await widget.apiClient.get<dynamic>(
+      final response = await ref.read(apiClientProvider).get<dynamic>(
         Endpoints.liveStatus(id),
         authenticated: true,
       );
@@ -466,7 +458,7 @@ class _GoLivePageState extends State<GoLivePage> {
     try {
       final Map<String, dynamic>? query =
           _lastChatId > 0 ? <String, dynamic>{'after_id': _lastChatId} : null;
-      final response = await widget.apiClient.get<dynamic>(
+      final response = await ref.read(apiClientProvider).get<dynamic>(
         Endpoints.liveChatMessages(id),
         queryParameters: query,
         authenticated: true,
@@ -486,6 +478,9 @@ class _GoLivePageState extends State<GoLivePage> {
             .toList();
         setState(() {
           _messages.addAll(newMessages);
+          if (_messages.length > _maxMessages) {
+            _messages.removeRange(0, _messages.length - _maxMessages);
+          }
           _lastChatId = newMessages.last.id;
         });
       }
@@ -500,7 +495,7 @@ class _GoLivePageState extends State<GoLivePage> {
     setState(() => _sendingMessage = true);
     _chatController.clear();
     try {
-      await widget.apiClient.post<dynamic>(
+      await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveChatMessages(id),
         data: <String, String>{'message': text},
         authenticated: true,

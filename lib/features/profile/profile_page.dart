@@ -361,7 +361,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               creditBalance: ref.watch(meowCreditWalletProvider).valueOrNull?.balance,
               onGoLive: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
-                  builder: (_) => GoLivePage(apiClient: _apiClient),
+                  builder: (_) => const GoLivePage(),
                 ),
               ),
             ),

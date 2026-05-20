@@ -80,6 +80,7 @@ class Endpoints {
   static const String kycSubmit = '/api/kyc/submit/';
 
   // Live streaming endpoints
+  static const String live = '/api/live/';
   static const String liveQuickStart = '/api/live/quick-start/';
 
   static String liveDetail(String id) => '/api/live/$id/';

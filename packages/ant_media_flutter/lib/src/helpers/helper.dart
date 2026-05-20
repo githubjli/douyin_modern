@@ -562,39 +562,30 @@ class AntHelper {
     }
   }
 
-  // Strip VP8 and VP9 (and their associated RTX entries) from the SDP offer,
-  // keeping only H264. This forces H264 negotiation so Ant Media Community
+  // Strip VP8 and VP9 from the SDP offer and keep only H264.
+  // Reordering payload types is not enough — the server can still answer
+  // with VP8. Removing them forces H264 negotiation so Ant Media Community
   // Edition receives H264 directly and muxes to HLS without transcoding,
-  // eliminating the UV-plane stride bug that produces colour blocks.
-  //
-  // RTX (retransmission) payload types reference their base codec via
-  // "a=fmtp:<rtx_pt> apt=<base_pt>". Leaving these dangling after the base
-  // codec is removed causes libwebrtc to reject the entire video m-section
-  // with "Failed to set remote video description send parameters".
+  // which eliminates the UV-plane stride bug that produces colour blocks.
   String _preferH264(String sdp) {
     if (sdp.isEmpty) return sdp;
 
-    // Step 1: collect VP8 / VP9 payload type numbers.
+    // Collect all VP8 and VP9 payload type numbers.
     final Set<String> removePts = <String>{};
     for (final Match m in RegExp(r'a=rtpmap:(\d+) VP[89]/').allMatches(sdp)) {
       removePts.add(m.group(1)!);
     }
-    if (removePts.isEmpty) return sdp;
+    if (removePts.isEmpty) return sdp; // no VP8/VP9 → nothing to do
 
-    // Step 2: also collect RTX PTs whose apt points to a removed codec.
-    // e.g. "a=fmtp:97 apt=96" where 96 is VP8 → remove 97 too.
-    for (final Match m
-        in RegExp(r'a=fmtp:(\d+) apt=(\d+)').allMatches(sdp)) {
-      if (removePts.contains(m.group(2))) removePts.add(m.group(1)!);
-    }
-
-    // Step 3: rebuild SDP without any line referencing a removed PT.
+    final List<String> lines = sdp.split('\r\n');
     final List<String> result = <String>[];
-    for (final String line in sdp.split('\r\n')) {
+    for (final String line in lines) {
+      // Drop rtpmap, fmtp, rtcp-fb lines for removed codecs.
       final Match? attrPt =
           RegExp(r'^a=(?:rtpmap|fmtp|rtcp-fb):(\d+)').firstMatch(line);
       if (attrPt != null && removePts.contains(attrPt.group(1))) continue;
 
+      // Remove the payload types from the m=video line.
       if (line.startsWith('m=video')) {
         final List<String> parts = line.split(' ');
         final List<String> pts = parts

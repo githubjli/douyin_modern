@@ -43,27 +43,29 @@ final txHintsProvider =
 });
 
 // ── MembershipPage page-scoped providers ─────────────────────────────────────
-// Always overridden via ProviderScope inside MembershipPage.
+// Normally overridden via ProviderScope inside MembershipPage. The defaults
+// fall back to the global repositories so a missing override degrades
+// gracefully instead of crashing.
 
 final membershipPageRepoProvider = Provider<MembershipRepository>(
-  (ref) => throw UnimplementedError('membershipPageRepoProvider must be overridden'),
+  (ref) => ref.watch(membershipRepositoryProvider),
 );
 
 final membershipPageMockRepoProvider = Provider<MembershipRepository>(
-  (ref) => throw UnimplementedError('membershipPageMockRepoProvider must be overridden'),
+  (ref) => ref.watch(membershipRepositoryProvider),
 );
 
 final membershipPageManualRepoProvider = Provider<ManualMembershipRepository>(
-  (ref) => throw UnimplementedError('membershipPageManualRepoProvider must be overridden'),
+  (ref) => RemoteManualMembershipRepository(
+    apiClient: ref.watch(apiClientProvider),
+  ),
 );
 
 final membershipPageVideoRepoProvider = Provider<RemoteHomeRepository>(
-  (ref) => throw UnimplementedError('membershipPageVideoRepoProvider must be overridden'),
+  (ref) => RemoteHomeRepository(apiClient: ref.watch(apiClientProvider)),
 );
 
-final membershipPageUseRemoteProvider = Provider<bool>(
-  (ref) => throw UnimplementedError('membershipPageUseRemoteProvider must be overridden'),
-);
+final membershipPageUseRemoteProvider = Provider<bool>((ref) => true);
 
 /// Optional pre-built future — when provided, `membershipVipVideosProvider` returns
 /// it directly without hitting the network.

@@ -67,7 +67,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _apiClient = ApiClient();
+    _apiClient = ref.read(apiClientProvider);
     _profileRepository = widget._profileRepository ??
         RemoteProfileRepository(apiClient: _apiClient);
     Future<void>.microtask(() {
@@ -2108,14 +2108,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
 // Change Password
 // ---------------------------------------------------------------------------
 
-class ChangePasswordPage extends StatefulWidget {
+class ChangePasswordPage extends ConsumerStatefulWidget {
   const ChangePasswordPage({super.key});
 
   @override
-  State<ChangePasswordPage> createState() => _ChangePasswordPageState();
+  ConsumerState<ChangePasswordPage> createState() => _ChangePasswordPageState();
 }
 
-class _ChangePasswordPageState extends State<ChangePasswordPage> {
+class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
   final TextEditingController _currentPwController = TextEditingController();
   final TextEditingController _newPwController = TextEditingController();
   final TextEditingController _confirmPwController = TextEditingController();
@@ -2155,7 +2155,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       _success = null;
     });
     try {
-      final ApiClient client = ApiClient();
+      final ApiClient client = ref.read(apiClientProvider);
       await client.post<dynamic>(
         Endpoints.accountChangePassword,
         authenticated: true,

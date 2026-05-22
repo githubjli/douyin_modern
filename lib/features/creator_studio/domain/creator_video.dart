@@ -6,6 +6,8 @@ class CreatorVideo {
     required this.viewCount,
     required this.likeCount,
     required this.commentCount,
+    required this.giftCount,
+    required this.shareCount,
     required this.createdAt,
     this.thumbnailUrl,
     this.categoryName,
@@ -18,6 +20,8 @@ class CreatorVideo {
   final int viewCount;
   final int likeCount;
   final int commentCount;
+  final int giftCount;
+  final int shareCount;
   final String createdAt;
   final String? thumbnailUrl;
   final String? categoryName;
@@ -31,6 +35,8 @@ class CreatorVideo {
       viewCount: (json['view_count'] as num?)?.toInt() ?? 0,
       likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
       commentCount: (json['comment_count'] as num?)?.toInt() ?? 0,
+      giftCount: (json['gift_count'] as num?)?.toInt() ?? 0,
+      shareCount: (json['share_count'] as num?)?.toInt() ?? 0,
       createdAt: json['created_at'] as String? ?? '',
       thumbnailUrl: json['thumbnail_url'] as String?,
       categoryName: json['category_name'] as String?,

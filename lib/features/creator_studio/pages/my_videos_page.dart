@@ -224,32 +224,33 @@ class _VideoCard extends StatelessWidget {
                     spacing: AppSpacing.xs,
                     children: <Widget>[
                       _Badge(
-                        label: video.visibility,
+                        label: _visibilityLabel(video.visibility),
                         color: video.visibility == 'public'
                             ? Colors.green
                             : Colors.orange,
                       ),
                       if (video.accessType != null)
                         _Badge(
-                          label: video.accessType!,
+                          label: _accessLabel(video.accessType!),
                           color: AppColors.brandGold,
                         ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xxs),
-                  Row(
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: 2,
                     children: <Widget>[
-                      const Icon(Icons.remove_red_eye_outlined,
-                          size: 12, color: AppColors.mutedOliveText),
-                      const SizedBox(width: 3),
-                      Text(_fmt(video.viewCount),
-                          style: AppTextStyles.caption),
-                      const SizedBox(width: AppSpacing.sm),
-                      const Icon(Icons.favorite_border_rounded,
-                          size: 12, color: AppColors.mutedOliveText),
-                      const SizedBox(width: 3),
-                      Text(_fmt(video.likeCount),
-                          style: AppTextStyles.caption),
+                      _StatItem(icon: Icons.remove_red_eye_outlined,
+                          value: _fmt(video.viewCount)),
+                      _StatItem(icon: Icons.favorite_border_rounded,
+                          value: _fmt(video.likeCount)),
+                      _StatItem(icon: Icons.chat_bubble_outline,
+                          value: _fmt(video.commentCount)),
+                      _StatItem(icon: Icons.card_giftcard_outlined,
+                          value: _fmt(video.giftCount)),
+                      _StatItem(icon: Icons.ios_share,
+                          value: _fmt(video.shareCount)),
                     ],
                   ),
                 ],
@@ -266,6 +267,23 @@ class _VideoCard extends StatelessWidget {
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
     return v.toString();
   }
+
+  static String _visibilityLabel(String v) {
+    switch (v.toLowerCase()) {
+      case 'public':   return 'Public';
+      case 'private':  return 'Private';
+      case 'unlisted': return 'Unlisted';
+      default:         return v;
+    }
+  }
+
+  static String _accessLabel(String v) {
+    switch (v.toLowerCase()) {
+      case 'membership': return 'VIP';
+      case 'free':       return 'Free';
+      default:           return v;
+    }
+  }
 }
 
 class _ThumbnailPlaceholder extends StatelessWidget {
@@ -279,6 +297,25 @@ class _ThumbnailPlaceholder extends StatelessWidget {
         child: Icon(Icons.play_circle_outline_rounded,
             color: AppColors.mutedOliveText, size: 28),
       ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  const _StatItem({required this.icon, required this.value});
+
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(icon, size: 12, color: AppColors.mutedOliveText),
+        const SizedBox(width: 3),
+        Text(value, style: AppTextStyles.caption),
+      ],
     );
   }
 }

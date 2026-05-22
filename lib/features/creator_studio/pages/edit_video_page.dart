@@ -11,29 +11,42 @@ import '../../../app/widgets/back_nav_header.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_error.dart';
 import '../../../core/network/endpoints.dart';
+import '../domain/creator_video.dart';
 import 'video_form_widgets.dart';
 
-class UploadVideoPage extends StatefulWidget {
-  const UploadVideoPage({super.key});
+class EditVideoPage extends StatefulWidget {
+  const EditVideoPage({super.key, required this.video});
+
+  final CreatorVideo video;
 
   @override
-  State<UploadVideoPage> createState() => _UploadVideoPageState();
+  State<EditVideoPage> createState() => _EditVideoPageState();
 }
 
-class _UploadVideoPageState extends State<UploadVideoPage> {
+class _EditVideoPageState extends State<EditVideoPage> {
   final ApiClient _apiClient = ApiClient();
   final ImagePicker _picker = ImagePicker();
 
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _categoryController = TextEditingController();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _categoryController;
 
-  String _visibility = 'public';
-  String _accessType = 'free';
-  File? _videoFile;
+  late String _visibility;
+  late String _accessType;
   File? _thumbnailFile;
-  bool _uploading = false;
+  bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final CreatorVideo v = widget.video;
+    _titleController = TextEditingController(text: v.title);
+    _descriptionController = TextEditingController(text: v.description ?? '');
+    _categoryController = TextEditingController(text: v.category ?? '');
+    _visibility = v.visibility;
+    _accessType = v.accessType ?? 'free';
+  }
 
   @override
   void dispose() {
@@ -41,13 +54,6 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
     _descriptionController.dispose();
     _categoryController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickVideo() async {
-    final XFile? picked =
-        await _picker.pickVideo(source: ImageSource.gallery);
-    if (picked == null || !mounted) return;
-    setState(() => _videoFile = File(picked.path));
   }
 
   Future<void> _pickThumbnail() async {
@@ -61,45 +67,52 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
     setState(() => _thumbnailFile = File(picked.path));
   }
 
-  Future<void> _upload() async {
+  Future<void> _save() async {
     final String title = _titleController.text.trim();
     if (title.isEmpty) {
       setState(() => _error = 'Title is required.');
       return;
     }
-    if (_videoFile == null) {
-      setState(() => _error = 'Please select a video file.');
-      return;
-    }
 
     setState(() {
-      _uploading = true;
+      _saving = true;
       _error = null;
     });
 
     try {
-      final formData = FormData.fromMap(<String, dynamic>{
-        'title': title,
-        'description': _descriptionController.text.trim(),
-        'visibility': _visibility,
-        'access_type': _accessType,
-        if (_categoryController.text.trim().isNotEmpty)
-          'category': _categoryController.text.trim(),
-        'file': await MultipartFile.fromFile(_videoFile!.path),
-        if (_thumbnailFile != null)
+      final String category = _categoryController.text.trim();
+      if (_thumbnailFile != null) {
+        final formData = FormData.fromMap(<String, dynamic>{
+          'title': title,
+          'description': _descriptionController.text.trim(),
+          'visibility': _visibility,
+          'access_type': _accessType,
+          if (category.isNotEmpty) 'category': category,
           'thumbnail': await MultipartFile.fromFile(_thumbnailFile!.path),
-      });
-
-      await _apiClient.post<dynamic>(
-        Endpoints.creatorVideos,
-        data: formData,
-        authenticated: true,
-      );
+        });
+        await _apiClient.patch<dynamic>(
+          Endpoints.videoOwnerDetail(widget.video.id),
+          data: formData,
+          authenticated: true,
+        );
+      } else {
+        await _apiClient.patch<dynamic>(
+          Endpoints.videoOwnerDetail(widget.video.id),
+          data: <String, dynamic>{
+            'title': title,
+            'description': _descriptionController.text.trim(),
+            'visibility': _visibility,
+            'access_type': _accessType,
+            if (category.isNotEmpty) 'category': category,
+          },
+          authenticated: true,
+        );
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Video uploaded successfully!'),
+          content: Text('Video updated successfully!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -107,11 +120,11 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Upload failed. Please try again.');
+      setState(() => _error = 'Save failed. Please try again.');
     } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -126,31 +139,36 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const BackNavHeader(title: 'Upload Video'),
+              const BackNavHeader(title: 'Edit Video'),
               const SizedBox(height: AppSpacing.lg),
 
-              // ── Video file picker ─────────────────────────────────────────
-              FieldCard(
-                label: 'Video File',
-                child: FilePicker(
-                  icon: Icons.videocam_outlined,
-                  label: _videoFile != null
-                      ? _videoFile!.path.split('/').last
-                      : 'Select video from gallery',
-                  onTap: _uploading ? null : _pickVideo,
+              // ── Current thumbnail preview ─────────────────────────────────
+              if (widget.video.thumbnailUrl != null && _thumbnailFile == null)
+                FieldCard(
+                  label: 'Current Thumbnail',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    child: Image.network(
+                      widget.video.thumbnailUrl!,
+                      height: 120,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              if (widget.video.thumbnailUrl != null && _thumbnailFile == null)
+                const SizedBox(height: AppSpacing.sm),
 
               // ── Thumbnail picker ──────────────────────────────────────────
               FieldCard(
-                label: 'Thumbnail (optional)',
+                label: 'Replace Thumbnail (optional)',
                 child: FilePicker(
                   icon: Icons.image_outlined,
                   label: _thumbnailFile != null
                       ? _thumbnailFile!.path.split('/').last
-                      : 'Select thumbnail image',
-                  onTap: _uploading ? null : _pickThumbnail,
+                      : 'Choose a new thumbnail image',
+                  onTap: _saving ? null : _pickThumbnail,
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -187,9 +205,8 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
                 child: FormDropdownRow<String>(
                   value: _visibility,
                   items: const <String>['public', 'private'],
-                  onChanged: _uploading
-                      ? null
-                      : (v) => setState(() => _visibility = v!),
+                  onChanged:
+                      _saving ? null : (v) => setState(() => _visibility = v!),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -199,10 +216,9 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
                 label: 'Access Type',
                 child: FormDropdownRow<String>(
                   value: _accessType,
-                  items: const <String>['free', 'paid'],
-                  onChanged: _uploading
-                      ? null
-                      : (v) => setState(() => _accessType = v!),
+                  items: const <String>['free', 'membership'],
+                  onChanged:
+                      _saving ? null : (v) => setState(() => _accessType = v!),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -225,7 +241,7 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
 
               const SizedBox(height: AppSpacing.lg),
               ElevatedButton(
-                onPressed: _uploading ? null : _upload,
+                onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brandGold,
                   foregroundColor: Colors.black,
@@ -234,7 +250,7 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
                     borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   ),
                 ),
-                child: _uploading
+                child: _saving
                     ? const SizedBox(
                         height: 20,
                         width: 20,
@@ -244,7 +260,7 @@ class _UploadVideoPageState extends State<UploadVideoPage> {
                         ),
                       )
                     : Text(
-                        'Upload',
+                        'Save Changes',
                         style: AppTextStyles.body.copyWith(
                             color: Colors.black, fontWeight: FontWeight.w700),
                       ),

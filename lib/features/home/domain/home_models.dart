@@ -7,6 +7,7 @@ class HomeVideoItem {
     this.videoUrl,
     this.description,
     this.ownerName,
+    this.ownerAvatarUrl,
     this.viewCount,
     this.category,
     this.categoryName,
@@ -25,6 +26,7 @@ class HomeVideoItem {
   final String? videoUrl;
   final String? description;
   final String? ownerName;
+  final String? ownerAvatarUrl;
   final int? viewCount;
   final String? category;
   final String? categoryName;

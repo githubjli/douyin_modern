@@ -181,6 +181,7 @@ class RemoteHomeRepository implements HomeRepository {
       videoUrl: _str(m['video_url']) ?? _str(m['playback_url']) ?? _str(m['file_url']),
       description: _str(m['description']) ?? _str(m['summary']),
       ownerName: owner.isEmpty ? null : owner,
+      ownerAvatarUrl: _videoOwnerAvatarUrl(m),
       viewCount: _int(m['view_count']),
       category: _str(m['category']),
       categoryName: _str(m['category_name']),
@@ -244,6 +245,12 @@ class RemoteHomeRepository implements HomeRepository {
         _nestedStr(m['owner'], 'username') ??
         _nestedStr(m['owner'], 'email') ??
         _nestedStr(m['creator'], 'name');
+  }
+
+  String? _videoOwnerAvatarUrl(Map<String, dynamic> m) {
+    return _str(m['owner_avatar_url']) ??
+        _nestedStr(m['owner'], 'avatar_url') ??
+        _nestedStr(m['creator'], 'avatar_url');
   }
 
   String _dramaMetadata({int? total, int? free, int? locked}) {

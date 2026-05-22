@@ -262,6 +262,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
         ? '${video.title}\n${video.videoUrl}'
         : video.title;
     SharePlus.instance.share(ShareParams(text: text));
+    unawaited(ref.read(videoDetailProvider.notifier).recordShare());
   }
 
   // ── Video controller ──────────────────────────────────────────────────────
@@ -939,12 +940,7 @@ class _AuthorFollowRow extends StatelessWidget {
       children: <Widget>[
         ClipRRect(
           borderRadius: BorderRadius.circular(99),
-          child: Image.asset(
-            AppAssets.meowLogo,
-            width: 40,
-            height: 40,
-            fit: BoxFit.cover,
-          ),
+          child: _OwnerAvatar(avatarUrl: video.ownerAvatarUrl, size: 40),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -1066,7 +1062,9 @@ class _VideoActionRow extends StatelessWidget {
         ),
         _ActionButton(
           icon: Icons.ios_share,
-          label: 'Share',
+          label: interaction.shareCount > 0
+              ? _formatCount(interaction.shareCount)
+              : 'Share',
           onTap: onShare,
         ),
       ],
@@ -1782,6 +1780,41 @@ class _VideoGiftSheetState extends State<_VideoGiftSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Owner avatar — network image with logo fallback
+// ---------------------------------------------------------------------------
+
+class _OwnerAvatar extends StatelessWidget {
+  const _OwnerAvatar({required this.avatarUrl, required this.size});
+
+  final String? avatarUrl;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? url = avatarUrl?.trim();
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback(),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    return Image.asset(
+      AppAssets.meowLogo,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
     );
   }
 }

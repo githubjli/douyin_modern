@@ -223,6 +223,11 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       builder: (_) => _VideoGiftSheet(
         videoId: videoId,
         apiClient: widget.apiClient,
+        onGiftSent: () {
+          if (mounted) {
+            ref.read(videoDetailProvider.notifier).incrementGiftCount();
+          }
+        },
       ),
     );
   }
@@ -1556,10 +1561,12 @@ class _VideoGiftSheet extends StatefulWidget {
   const _VideoGiftSheet({
     required this.videoId,
     required this.apiClient,
+    this.onGiftSent,
   });
 
   final int videoId;
   final ApiClient apiClient;
+  final VoidCallback? onGiftSent;
 
   @override
   State<_VideoGiftSheet> createState() => _VideoGiftSheetState();
@@ -1594,6 +1601,7 @@ class _VideoGiftSheetState extends State<_VideoGiftSheet> {
       final String balanceNote =
           balance != null ? '  ·  Balance: $balance $unit' : '';
       Navigator.of(context).pop();
+      widget.onGiftSent?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('🎁 Sent $_selectedAmount $unit$balanceNote'),

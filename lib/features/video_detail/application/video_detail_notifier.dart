@@ -234,6 +234,14 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
     );
   }
 
+  void incrementGiftCount() {
+    state = state.copyWith(
+      interaction: state.interaction.copyWith(
+        giftCount: state.interaction.giftCount + 1,
+      ),
+    );
+  }
+
   // ── View tracking ─────────────────────────────────────────────────────────
 
   Future<void> trackView() async {

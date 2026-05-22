@@ -93,6 +93,7 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
         super(VideoDetailState(video: initialVideo));
 
   ApiClient _apiClient;
+  bool _viewTracked = false;
 
   void setApiClient(ApiClient client) {
     _apiClient = client;
@@ -231,6 +232,27 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
         commentCount: state.interaction.commentCount + 1,
       ),
     );
+  }
+
+  // ── View tracking ─────────────────────────────────────────────────────────
+
+  Future<void> trackView() async {
+    if (_viewTracked) return;
+    _viewTracked = true;
+    final int? videoId = int.tryParse(state.video.id);
+    if (videoId == null) return;
+    try {
+      final response = await _apiClient.post<dynamic>(
+        Endpoints.publicVideoView(videoId),
+        authenticated: true, // sends token if available; anonymous if not
+      );
+      if (response.data is Map<String, dynamic>) {
+        final HomeVideoItem updated = _mapDetail(response.data, state.video);
+        state = state.copyWith(video: updated);
+      }
+    } catch (_) {
+      // never block playback; _viewTracked stays true to avoid retry loops
+    }
   }
 
   // ── Share ─────────────────────────────────────────────────────────────────

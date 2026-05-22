@@ -345,6 +345,9 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     final VideoPlayerController? controller = _videoController;
     final bool isPlaying = controller?.value.isPlaying == true;
     if (!mounted || _videoPlaying == isPlaying) return;
+    if (isPlaying) {
+      unawaited(ref.read(videoDetailProvider.notifier).trackView());
+    }
     setState(() {
       _videoPlaying = isPlaying;
     });

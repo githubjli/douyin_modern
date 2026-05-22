@@ -11,6 +11,8 @@ class CreatorVideo {
     required this.createdAt,
     this.thumbnailUrl,
     this.categoryName,
+    this.category,
+    this.description,
     this.accessType,
   });
 
@@ -25,6 +27,8 @@ class CreatorVideo {
   final String createdAt;
   final String? thumbnailUrl;
   final String? categoryName;
+  final String? category;
+  final String? description;
   final String? accessType;
 
   factory CreatorVideo.fromJson(Map<String, dynamic> json) {
@@ -40,6 +44,8 @@ class CreatorVideo {
       createdAt: json['created_at'] as String? ?? '',
       thumbnailUrl: json['thumbnail_url'] as String?,
       categoryName: json['category_name'] as String?,
+      category: (json['category_slug'] ?? json['category']) as String?,
+      description: json['description'] as String?,
       accessType: json['access_type'] as String?,
     );
   }

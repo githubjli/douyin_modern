@@ -40,6 +40,8 @@ class Endpoints {
 
   static String videoPostComment(int id) => '/api/videos/$id/comments/';
 
+  static String videoOwnerDetail(int id) => '/api/videos/$id/';
+
   static String videoLike(int id) => '/api/videos/$id/like/';
 
   static String videoGiftSend(int id) => '/api/public/videos/$id/gifts/send/';

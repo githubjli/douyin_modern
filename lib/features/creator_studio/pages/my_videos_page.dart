@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_error.dart';
 import '../../../core/network/endpoints.dart';
 import '../domain/creator_video.dart';
+import 'edit_video_page.dart';
 import 'upload_video_page.dart';
 
 class MyVideosPage extends StatefulWidget {
@@ -105,6 +106,14 @@ class _MyVideosPageState extends State<MyVideosPage> {
 
   Future<void> _refresh() => _load(Endpoints.creatorVideos);
 
+  Future<void> _openEdit(CreatorVideo video) async {
+    final bool? saved = await Navigator.of(context)
+        .push<bool?>(MaterialPageRoute<bool?>(
+          builder: (_) => EditVideoPage(video: video),
+        ));
+    if (saved == true) _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,7 +174,10 @@ class _MyVideosPageState extends State<MyVideosPage> {
                               ),
                             );
                           }
-                          return _VideoCard(video: _items[index]);
+                          return _VideoCard(
+                            video: _items[index],
+                            onEdit: () => _openEdit(_items[index]),
+                          );
                         },
                       ),
                     ),
@@ -174,8 +186,9 @@ class _MyVideosPageState extends State<MyVideosPage> {
 }
 
 class _VideoCard extends StatelessWidget {
-  const _VideoCard({required this.video});
+  const _VideoCard({required this.video, required this.onEdit});
   final CreatorVideo video;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -213,11 +226,25 @@ class _VideoCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    video.title,
-                    style: AppTextStyles.body,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          video.title,
+                          style: AppTextStyles.body,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: onEdit,
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: AppSpacing.xs),
+                          child: Icon(Icons.edit_outlined,
+                              size: 16, color: AppColors.mutedOliveText),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.xxs),
                   Wrap(

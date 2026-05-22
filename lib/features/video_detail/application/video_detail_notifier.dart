@@ -15,6 +15,7 @@ class VideoInteractionState {
     this.isLiked = false,
     this.commentCount = 0,
     this.giftCount = 0,
+    this.shareCount = 0,
     this.creatorId,
     this.subscriberCount,
     this.isFollowing = false,
@@ -24,6 +25,7 @@ class VideoInteractionState {
   final bool isLiked;
   final int commentCount;
   final int giftCount;
+  final int shareCount;
   final int? creatorId;
   final int? subscriberCount;
   final bool isFollowing;
@@ -33,6 +35,7 @@ class VideoInteractionState {
     bool? isLiked,
     int? commentCount,
     int? giftCount,
+    int? shareCount,
     int? creatorId,
     int? subscriberCount,
     bool? isFollowing,
@@ -42,6 +45,7 @@ class VideoInteractionState {
       isLiked: isLiked ?? this.isLiked,
       commentCount: commentCount ?? this.commentCount,
       giftCount: giftCount ?? this.giftCount,
+      shareCount: shareCount ?? this.shareCount,
       creatorId: creatorId ?? this.creatorId,
       subscriberCount: subscriberCount ?? this.subscriberCount,
       isFollowing: isFollowing ?? this.isFollowing,
@@ -228,6 +232,26 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
       ),
     );
   }
+
+  // ── Share ─────────────────────────────────────────────────────────────────
+
+  Future<void> recordShare() async {
+    final int? videoId = int.tryParse(state.video.id);
+    if (videoId == null) return;
+    state = state.copyWith(
+      interaction: state.interaction.copyWith(
+        shareCount: state.interaction.shareCount + 1,
+      ),
+    );
+    try {
+      await _apiClient.post<dynamic>(
+        Endpoints.videoShare(videoId),
+        authenticated: false,
+      );
+    } catch (_) {
+      // best-effort — local optimistic count is kept even on failure
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +286,7 @@ HomeVideoItem _lockedForAuthDenied(HomeVideoItem video) {
     videoUrl: video.videoUrl,
     description: video.description,
     ownerName: video.ownerName,
+    ownerAvatarUrl: video.ownerAvatarUrl,
     viewCount: video.viewCount,
     category: video.category,
     categoryName: video.categoryName,
@@ -296,6 +321,7 @@ HomeVideoItem _mapDetail(dynamic data, HomeVideoItem fallback) {
         _str(data['summary']) ??
         fallback.description,
     ownerName: owner.isEmpty ? fallback.ownerName : owner,
+    ownerAvatarUrl: _videoOwnerAvatarUrl(data) ?? fallback.ownerAvatarUrl,
     viewCount: views,
     category: _str(data['category']) ?? fallback.category,
     categoryName: _str(data['category_name']) ?? fallback.categoryName,
@@ -330,6 +356,7 @@ VideoInteractionState _mapInteraction(
     isLiked: _bool(data['is_liked']) ?? current.isLiked,
     commentCount: _int(data['comment_count']) ?? current.commentCount,
     giftCount: _int(data['gift_count']) ?? current.giftCount,
+    shareCount: _int(data['share_count']) ?? current.shareCount,
     creatorId: creatorId ?? current.creatorId,
     subscriberCount: subscriberCount,
     isFollowing: isFollowing,
@@ -341,6 +368,12 @@ String? _videoOwnerName(Map<String, dynamic> data) {
       _nestedStr(data['owner'], 'username') ??
       _nestedStr(data['owner'], 'email') ??
       _nestedStr(data['creator'], 'name');
+}
+
+String? _videoOwnerAvatarUrl(Map<String, dynamic> data) {
+  return _str(data['owner_avatar_url']) ??
+      _nestedStr(data['owner'], 'avatar_url') ??
+      _nestedStr(data['creator'], 'avatar_url');
 }
 
 String? _nestedStr(dynamic value, String key) {

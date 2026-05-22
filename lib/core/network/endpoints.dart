@@ -46,6 +46,8 @@ class Endpoints {
 
   static String videoShare(int id) => '/api/public/videos/$id/share/';
 
+  static String publicVideoView(int id) => '/api/public/videos/$id/view/';
+
   static String creatorFollow(int creatorId) =>
       '/api/creators/$creatorId/follow/';
 

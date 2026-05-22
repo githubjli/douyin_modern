@@ -15,6 +15,7 @@ class UserProfile {
     this.likeCount,
     this.giftCount,
     this.videoCount,
+    this.viewCount,
   });
 
   final String userId;
@@ -32,6 +33,7 @@ class UserProfile {
   final int? likeCount;
   final int? giftCount;
   final int? videoCount;
+  final int? viewCount;
 
   UserProfile copyWith({
     String? displayName,
@@ -56,6 +58,7 @@ class UserProfile {
       likeCount: likeCount,
       giftCount: giftCount,
       videoCount: videoCount,
+      viewCount: viewCount,
     );
   }
 }

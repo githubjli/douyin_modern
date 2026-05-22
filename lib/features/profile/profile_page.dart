@@ -1492,6 +1492,11 @@ class _ProfileStatsRow extends StatelessWidget {
             icon: Icons.play_circle_outline_rounded,
             label: _fmt(profile.videoCount),
           ),
+        if (profile.viewCount != null)
+          _StatPill(
+            icon: Icons.remove_red_eye_outlined,
+            label: _fmt(profile.viewCount),
+          ),
       ],
     );
   }

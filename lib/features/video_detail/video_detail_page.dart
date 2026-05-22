@@ -942,6 +942,8 @@ class _AuthorFollowRow extends StatelessWidget {
     final String meta = <String>[
       'Creator',
       if (subs != null) '${_formatCount(subs)} followers',
+      if (video.viewCount != null && video.viewCount! > 0)
+        '${_formatCount(video.viewCount!)} views',
     ].join(' · ');
 
     return Row(

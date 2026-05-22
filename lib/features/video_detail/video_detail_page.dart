@@ -1055,16 +1055,12 @@ class _VideoActionRow extends StatelessWidget {
         ),
         _ActionButton(
           icon: Icons.card_giftcard,
-          label: interaction.giftCount > 0
-              ? _formatCount(interaction.giftCount)
-              : 'Gift',
+          label: _formatCount(interaction.giftCount),
           onTap: onGift,
         ),
         _ActionButton(
           icon: Icons.ios_share,
-          label: interaction.shareCount > 0
-              ? _formatCount(interaction.shareCount)
-              : 'Share',
+          label: _formatCount(interaction.shareCount),
           onTap: onShare,
         ),
       ],

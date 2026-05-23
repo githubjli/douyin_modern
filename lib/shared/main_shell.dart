@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/theme/app_colors.dart';
+import '../features/creator_studio/pages/create_drama_page.dart';
+import '../features/creator_studio/pages/upload_video_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/home/home_page.dart';
 import '../features/home/domain/home_repository.dart';
+import '../features/live/go_live_page.dart';
 import '../features/membership/membership_page.dart';
 import '../features/profile/profile_page.dart';
 import 'shell_providers.dart';
@@ -45,7 +48,7 @@ class MainShell extends ConsumerWidget {
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          builder: (BuildContext context) {
+          builder: (BuildContext sheetContext) {
             return SafeArea(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -54,19 +57,40 @@ class MainShell extends ConsumerWidget {
                     leading:
                         const Icon(Icons.live_tv, color: AppColors.deepGold),
                     title: const Text('Go Live'),
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const GoLivePage(),
+                        ),
+                      );
+                    },
                   ),
                   ListTile(
                     leading: const Icon(Icons.ondemand_video,
                         color: AppColors.deepGold),
                     title: const Text('Publish Video'),
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      Navigator.of(context).push<bool?>(
+                        MaterialPageRoute<bool?>(
+                          builder: (_) => const UploadVideoPage(),
+                        ),
+                      );
+                    },
                   ),
                   ListTile(
                     leading: const Icon(Icons.video_collection,
                         color: AppColors.deepGold),
                     title: const Text('Upload Short'),
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      Navigator.of(context).push<bool?>(
+                        MaterialPageRoute<bool?>(
+                          builder: (_) => const CreateDramaPage(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

@@ -550,16 +550,8 @@ class AntHelper {
       final s = await pc
           .createOffer(DataChannelOnly ? _dc_constraints : _constraints);
 
-      // ── VP8 diagnostic & preference ──────────────────────────────────────
-      // Print the raw offer so we can confirm which codecs the iOS WebRTC
-      // build actually exposes (VP8, H264, or both).
-      print('[AntMedia] ORIGINAL OFFER SDP:\n${s.sdp}');
-
       final vp8Sdp = _preferVp8(s.sdp ?? '');
       final vp8Offer = RTCSessionDescription(vp8Sdp, s.type);
-      print('[AntMedia] MODIFIED OFFER SDP:\n$vp8Sdp');
-      // ─────────────────────────────────────────────────────────────────────
-
       await pc.setLocalDescription(vp8Offer);
       final request = {
         'command': 'takeConfiguration',
@@ -574,11 +566,7 @@ class AntHelper {
   }
 
   /// Reorders the `m=video` payload list so that VP8 comes first.
-  /// If VP8 is not present in the SDP (e.g. the WebRTC build only has H264),
-  /// the SDP is returned unchanged — check the ORIGINAL OFFER SDP log above.
-  ///
-  /// To go further and *remove* H264 entirely, swap the body of this method
-  /// with _stripNonVp8() below.
+  /// If VP8 is not present in the SDP the SDP is returned unchanged.
   String _preferVp8(String sdp) {
     final lines = sdp.split('\r\n');
     final vp8Payloads = <String>[];
@@ -590,11 +578,7 @@ class AntHelper {
       }
     }
 
-    if (vp8Payloads.isEmpty) {
-      print('[AntMedia] WARNING: VP8 not found in offer — SDP unchanged. '
-          'The WebRTC build on this device may only support H264.');
-      return sdp;
-    }
+    if (vp8Payloads.isEmpty) return sdp;
 
     return lines.map((line) {
       if (!line.startsWith('m=video ')) return line;

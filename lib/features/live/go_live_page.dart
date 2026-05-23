@@ -125,13 +125,14 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     if (widget.skipAntMediaCheck) {
       await _startLive();
     } else {
-      _initAndPublish();
+      unawaited(_initAndPublish());
     }
   }
 
-  // Initialise Ant Media SDK and start publishing.
-  // /start/ is called once the SDK fires the publish_started notification.
-  void _initAndPublish() {
+  // Acquire media with explicit constraints, show local preview immediately,
+  // then connect to Ant Media and inject the stream so the SDK skips its own
+  // getUserMedia call (AntHelper.createStream only runs when _localStream==null).
+  Future<void> _initAndPublish() async {
     final LiveSession? session = _session;
     if (session == null) return;
     setState(() {
@@ -141,28 +142,57 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
 
     _publishStarted = false;
     _freshRestartInProgress = false;
-    final int gen = ++_antGeneration; // this session's generation token
+    final int gen = ++_antGeneration;
 
     AntMediaFlutter.requestPermissions();
 
-    // connect(ip, streamId, roomId, token, type, userScreen,
-    //         onStateChange, onLocalStream, onAddRemoteStream,
-    //         onDataChannel, onDataChannelMessage,
-    //         onupdateConferencePerson, onRemoveRemoteStream,
-    //         iceServers, callbacks)
+    // Acquire stream with explicit 720p/30fps constraints before connecting.
+    // This lets us verify colour correctness in the preview independently of
+    // the Ant Media SDK, and prevents the SDK from opening a second camera track.
+    MediaStream stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(<String, dynamic>{
+        'audio': true,
+        'video': <String, dynamic>{
+          'width': <String, dynamic>{'ideal': 1280},
+          'height': <String, dynamic>{'ideal': 720},
+          'frameRate': <String, dynamic>{'ideal': 30},
+          'facingMode': 'user',
+        },
+      });
+    } catch (e) {
+      if (!mounted || gen != _antGeneration) return;
+      setState(() {
+        _error = 'Camera access failed. Check permissions and try again.';
+        _phase = _Phase.ready;
+      });
+      return;
+    }
+
+    if (!mounted || gen != _antGeneration) {
+      stream.dispose();
+      return;
+    }
+
+    // Bind to renderer now — colour check happens here, before any SDK code.
+    setState(() {
+      _localStream = stream;
+      _localRenderer.srcObject = stream;
+      _cameraReady = true;
+    });
+
     AntMediaFlutter.connect(
-      session.websocketUrl,  // ip / websocket URL
-      session.streamId,      // streamId (= stream_key)
-      '',                    // roomId
-      '',                    // token
+      session.websocketUrl,
+      session.streamId,
+      '',
+      '',
       AntMediaType.Publish,
-      false,                 // userScreen — false = camera
+      false,
       (HelperState state) {
         if (!mounted || gen != _antGeneration) return;
         switch (state) {
           case HelperState.ConnectionError:
           case HelperState.ConnectionClosed:
-            // Only treat as failure if publishing never started
             if (!_publishStarted &&
                 _phase != _Phase.live &&
                 _phase != _Phase.ending) {
@@ -176,14 +206,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
             break;
         }
       },
-      (MediaStream stream) {
-        if (!mounted || gen != _antGeneration) return;
-        setState(() {
-          _localStream = stream;
-          _localRenderer.srcObject = stream;
-          _cameraReady = true;
-        });
-      },
+      (MediaStream _) {},  // stream pre-injected via setStream — SDK won't call createStream
       (MediaStream stream) {},
       (RTCDataChannel channel) {},
       (RTCDataChannel dc, RTCDataChannelMessage data, bool isReceived) {},
@@ -191,10 +214,9 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       (MediaStream stream) {},
       <Map<String, String>>[],
       (String command, Map<dynamic, dynamic> mapData) {
-        if (gen != _antGeneration) return; // stale helper — ignore
+        if (gen != _antGeneration) return;
         if (command == 'notification' &&
             mapData['definition'] == 'publish_started') {
-          // Stream is live on Ant Media — notify backend once
           if (!_publishStarted) {
             _publishStarted = true;
             unawaited(_startLive());
@@ -202,19 +224,21 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
         } else if (command == 'error' &&
             mapData['definition'] == 'streamIdInUse') {
           if (_publishStarted) {
-            // SDK reconnected after a successful publish — stream already live.
-            // Increment generation so any further callbacks from this helper
-            // are ignored, then close it to stop the reconnect loop.
             _antGeneration++;
             AntMediaFlutter.anthelper?.close();
           } else if (!_freshRestartInProgress) {
-            // Previous session still occupying this streamId on Ant Media.
-            // End the old session server-side and get a fresh one.
             unawaited(_freshRestart());
           }
         }
       },
     );
+
+    // Inject our stream synchronously — the WebSocket open callback is async
+    // network I/O and hasn't fired yet, so _createPeerConnection hasn't run,
+    // meaning AntHelper._localStream is still null at this point.
+    // Once we set it, the SDK's createStream() check (if _localStream == null)
+    // will be false and our stream is used directly for the PeerConnection.
+    AntMediaFlutter.anthelper?.setStream(stream);
   }
 
   Future<void> _switchCamera() async {
@@ -266,7 +290,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           _error = null;
         });
         _freshRestartInProgress = false;
-        _initAndPublish();
+        unawaited(_initAndPublish());
       }
     } catch (e) {
       _freshRestartInProgress = false;

@@ -40,3 +40,9 @@ flutter_launcher_icons:
   ios: true
   image_path: assets/brand/app_icon_black.png
   remove_alpha_ios: true
+
+# Local fork of ant_media_flutter with VP8 preference patch applied to
+# _createOfferAntMedia(). Remove this block to go back to the pub.dev version.
+dependency_overrides:
+  ant_media_flutter:
+    path: packages/ant_media_flutter

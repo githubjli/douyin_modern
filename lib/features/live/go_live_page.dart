@@ -349,7 +349,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       if (statusCode == 409 || nextAction == 'retry_status') {
         await _scheduleStartRetry();
       } else if (_publishStarted) {
-        setState(() => _error = 'Server error — retrying...');
+        setState(() => _error = 'Connecting to server...');
         await Future<void>.delayed(const Duration(seconds: 5));
         if (mounted) unawaited(_startLive());
       } else {
@@ -365,7 +365,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     } catch (e) {
       if (!mounted) return;
       if (_publishStarted) {
-        setState(() => _error = 'Server error — retrying...');
+        setState(() => _error = 'Connecting to server...');
         await Future<void>.delayed(const Duration(seconds: 5));
         if (mounted) unawaited(_startLive());
       } else {
@@ -548,6 +548,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
 
   @override
   Widget build(BuildContext context) {
+    final String displayName = ref.watch(authControllerProvider).session?.displayName ?? '';
     return switch (_phase) {
       _Phase.ended => _EndedView(
           session: _session,
@@ -564,6 +565,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           localRenderer: _cameraReady ? _localRenderer : null,
           isFrontCamera: _isFrontCamera,
           canSwitchCamera: _localStream != null,
+          displayName: displayName,
           onSend: _sendMessage,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
@@ -577,6 +579,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           publishStarted: _publishStarted,
           isFrontCamera: _isFrontCamera,
           canSwitchCamera: _localStream != null,
+          displayName: displayName,
           onStart: _phase == _Phase.idle ? _quickStart : _goLive,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
@@ -600,6 +603,7 @@ class _PrepareView extends StatelessWidget {
     required this.publishStarted,
     required this.isFrontCamera,
     required this.canSwitchCamera,
+    required this.displayName,
     this.localRenderer,
   });
 
@@ -609,6 +613,7 @@ class _PrepareView extends StatelessWidget {
   final bool publishStarted;
   final bool isFrontCamera;
   final bool canSwitchCamera;
+  final String displayName;
   final VoidCallback onStart;
   final VoidCallback onEnd;
   final VoidCallback onBack;
@@ -674,8 +679,10 @@ class _PrepareView extends StatelessWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Row(
                 children: <Widget>[
-                  _CircleButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+                  if (!broadcasting)
+                    _CircleButton(icon: Icons.arrow_back_rounded, onTap: onBack),
                   if (broadcasting) ...<Widget>[
+                    _StreamerChip(displayName: displayName),
                     const SizedBox(width: AppSpacing.sm),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -750,12 +757,7 @@ class _BroadcastingPanel extends StatelessWidget {
               Expanded(
                 child: Text(
                   error ?? 'Connecting to server...',
-                  style: TextStyle(
-                    color: error != null && error!.startsWith('Server')
-                        ? Colors.orangeAccent
-                        : Colors.white70,
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
             ],
@@ -914,6 +916,7 @@ class _LiveView extends StatefulWidget {
     required this.ending,
     required this.isFrontCamera,
     required this.canSwitchCamera,
+    required this.displayName,
     required this.onSend,
     required this.onEnd,
     required this.onSwitchCamera,
@@ -928,6 +931,7 @@ class _LiveView extends StatefulWidget {
   final RTCVideoRenderer? localRenderer;
   final bool isFrontCamera;
   final bool canSwitchCamera;
+  final String displayName;
   final int durationSeconds;
   final bool ending;
   final VoidCallback onSend;
@@ -1037,6 +1041,9 @@ class _LiveViewState extends State<_LiveView> {
                   ),
                   child: Row(
                     children: <Widget>[
+                      // Streamer identity chip
+                      _StreamerChip(displayName: widget.displayName),
+                      const SizedBox(width: AppSpacing.sm),
                       // Live badge
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -1406,6 +1413,59 @@ class _EndedView extends StatelessWidget {
 }
 
 // ── Shared small widgets ──────────────────────────────────────────────────────
+
+/// Avatar initial + display name chip shown in both the broadcasting and live bars.
+class _StreamerChip extends StatelessWidget {
+  const _StreamerChip({required this.displayName});
+  final String displayName;
+
+  @override
+  Widget build(BuildContext context) {
+    final String initial = displayName.isNotEmpty
+        ? displayName.trimLeft()[0].toUpperCase()
+        : '?';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black45,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: AppColors.brandGold,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          if (displayName.isNotEmpty) ...<Widget>[
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 90),
+              child: Text(
+                displayName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _CircleButton extends StatelessWidget {
   const _CircleButton({required this.icon, required this.onTap});

@@ -2,6 +2,5 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
-    # Vendored package example app and tests — not part of this project.
-    - packages/ant_media_flutter/example/**
-    - packages/ant_media_flutter/test/**
+    # Vendored package — SDK source, example app and tests are not ours to lint.
+    - packages/ant_media_flutter/**

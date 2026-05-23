@@ -227,8 +227,9 @@ class AntHelper {
 
           // Log the codec the server selected (only relevant for publish answer).
           if (!isTypeOffer) {
+            final _answerCodecs = _videoCodecs(sdp as String);
             print('[WebRTC] server answer video codec: '
-                '${_videoCodecs(sdp as String).firstOrNull ?? "none"}');
+                '${_answerCodecs.isEmpty ? "none" : _answerCodecs.first}');
           }
 
           if (isTypeOffer) {
@@ -558,8 +559,9 @@ class AntHelper {
 
       final vp8Sdp = _preferVp8(s.sdp ?? '');
       final vp8Offer = RTCSessionDescription(vp8Sdp, s.type);
+      final _preferred = _videoCodecs(vp8Sdp);
       print('[WebRTC] offer video codecs: ${_videoCodecs(s.sdp ?? '')} '
-          '→ preferred: ${_videoCodecs(vp8Sdp).firstOrNull ?? "none"}');
+          '→ preferred: ${_preferred.isEmpty ? "none" : _preferred.first}');
       await pc.setLocalDescription(vp8Offer);
       final request = {
         'command': 'takeConfiguration',

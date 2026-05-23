@@ -225,6 +225,12 @@ class AntHelper {
           }
           _remoteCandidates.clear();
 
+          // Log the codec the server selected (only relevant for publish answer).
+          if (!isTypeOffer) {
+            print('[WebRTC] server answer video codec: '
+                '${_videoCodecs(sdp as String).firstOrNull ?? "none"}');
+          }
+
           if (isTypeOffer) {
             print("Creating answer for streamId: $id");
             final answer =
@@ -552,6 +558,8 @@ class AntHelper {
 
       final vp8Sdp = _preferVp8(s.sdp ?? '');
       final vp8Offer = RTCSessionDescription(vp8Sdp, s.type);
+      print('[WebRTC] offer video codecs: ${_videoCodecs(s.sdp ?? '')} '
+          '→ preferred: ${_videoCodecs(vp8Sdp).firstOrNull ?? "none"}');
       await pc.setLocalDescription(vp8Offer);
       final request = {
         'command': 'takeConfiguration',
@@ -600,6 +608,13 @@ class AntHelper {
     }).join('\r\n');
   }
 
+  /// Returns the video codec names present in an SDP, in order of appearance.
+  /// Matches `a=rtpmap:<pt> <Name>/90000` lines (video clock rate).
+  List<String> _videoCodecs(String sdp) =>
+      RegExp(r'^a=rtpmap:\d+ ([A-Za-z0-9]+)/90000', multiLine: true)
+          .allMatches(sdp)
+          .map((m) => m.group(1)!)
+          .toList();
 
   Future<void> _createAnswerAntMedia(
     String id,

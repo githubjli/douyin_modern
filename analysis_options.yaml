@@ -1,1 +1,6 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Vendored packages live here — analyzed separately by their own tooling.
+    - packages/**

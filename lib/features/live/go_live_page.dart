@@ -16,6 +16,28 @@ import 'domain/live_session.dart';
 
 enum _Phase { idle, preparing, ready, live, ending, ended }
 
+// ── Gift definitions ──────────────────────────────────────────────────────────
+
+class _GiftDef {
+  const _GiftDef({
+    required this.id,
+    required this.emoji,
+    required this.name,
+    required this.cost,
+  });
+  final int id;
+  final String emoji;
+  final String name;
+  final int cost; // Meow Credits
+}
+
+const List<_GiftDef> _kGifts = <_GiftDef>[
+  _GiftDef(id: 1, emoji: '🌹', name: 'Rose',    cost: 1),
+  _GiftDef(id: 2, emoji: '⭐', name: 'Star',    cost: 5),
+  _GiftDef(id: 3, emoji: '👑', name: 'Crown',   cost: 50),
+  _GiftDef(id: 4, emoji: '💎', name: 'Diamond', cost: 100),
+];
+
 class GoLivePage extends ConsumerStatefulWidget {
   const GoLivePage({super.key, this.skipAntMediaCheck = false});
 
@@ -40,8 +62,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   int _durationSeconds = 0;
   int _lastChatId = 0;
   int _startRetries = 0;
-  static const int _maxStartRetries = 5;
   static const int _maxMessages = 200;
+  bool _sendingGift = false;
 
   // Ant Media / WebRTC
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
@@ -304,6 +326,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   }
 
   // Called either directly (bypass) or from SDK publish_started callback.
+  // POST /api/live/{id}/start/ is now idempotent — any 200 response is success.
+  // Only 409 is a hard conflict. Other errors are retried up to maxStartRetry.
   Future<void> _startLive() async {
     final String? id = _session?.id;
     if (id == null || id.isEmpty) return;
@@ -316,7 +340,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       });
     }
     try {
-      final response = await ref.read(apiClientProvider).post<dynamic>(
+      await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveStart(id),
         queryParameters: widget.skipAntMediaCheck
             ? <String, dynamic>{'skip_ant_media': 'true'}
@@ -324,13 +348,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
         authenticated: true,
       );
       if (!mounted) return;
-      final dynamic data = response.data;
-
-      if (data is Map<String, dynamic> && data['next_action'] == 'retry_status') {
-        await _scheduleStartRetry();
-        return;
-      }
-
+      // Any 200 response (including already_started:true) → transition to live.
       _startRetries = 0;
       setState(() {
         _phase = _Phase.live;
@@ -340,63 +358,41 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       _startPolling();
     } on DioException catch (e) {
       if (!mounted) return;
-      final dynamic body = e.response?.data;
-      final String? nextAction = body is Map<String, dynamic>
-          ? body['next_action']?.toString()
-          : null;
       final int statusCode = e.response?.statusCode ?? 0;
-
-      if (statusCode == 409 || nextAction == 'retry_status') {
-        await _scheduleStartRetry();
-      } else if (_publishStarted) {
-        setState(() => _error = 'Connecting to server...');
-        await Future<void>.delayed(const Duration(seconds: 5));
-        if (mounted) unawaited(_startLive());
-      } else {
+      final dynamic body = e.response?.data;
+      if (statusCode == 409) {
+        // Hard conflict (session mismatch, expired, ended, failed) — stop retrying.
         _startRetries = 0;
         final String msg = body is Map<String, dynamic>
-            ? body['detail']?.toString() ?? 'Failed to start live.'
-            : 'Failed to start live. Please try again.';
+            ? body['detail']?.toString() ?? 'Stream conflict. Please try again.'
+            : 'Stream conflict. Please try again.';
         setState(() {
           _error = msg;
           _phase = _Phase.ready;
         });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      if (_publishStarted) {
-        setState(() => _error = 'Connecting to server...');
-        await Future<void>.delayed(const Duration(seconds: 5));
-        if (mounted) unawaited(_startLive());
       } else {
-        _startRetries = 0;
-        setState(() {
-          _error = 'Failed to start live. Please try again.';
-          _phase = _Phase.ready;
-        });
+        _handleStartRetry();
       }
+    } catch (_) {
+      if (!mounted) return;
+      _handleStartRetry();
     }
   }
 
-  // Shared retry logic for both the success-path next_action and 409 errors.
-  Future<void> _scheduleStartRetry() async {
+  // Retry _startLive() up to session.maxStartRetry times (default 20).
+  // Only used when a transient error occurs and _publishStarted may be true.
+  void _handleStartRetry() {
+    final int maxR = _session?.maxStartRetry ?? 20;
     _startRetries++;
-    if (_publishStarted) {
-      // Camera is live on Ant Media — retry silently without hiding the preview.
-      setState(() => _error = 'Connecting to server... ($_startRetries)');
-      await Future<void>.delayed(const Duration(seconds: 3));
-      if (mounted) unawaited(_startLive());
-    } else if (_startRetries <= _maxStartRetries) {
-      setState(() {
-        _error = 'Waiting for stream... (retry $_startRetries/$_maxStartRetries)';
-        _phase = _Phase.ready;
+    if (_startRetries <= maxR) {
+      setState(() => _error = 'Connecting to server... ($_startRetries/$maxR)');
+      Future<void>.delayed(const Duration(seconds: 3), () {
+        if (mounted) unawaited(_startLive());
       });
-      await Future<void>.delayed(const Duration(seconds: 3));
-      if (mounted) unawaited(_startLive());
     } else {
       _startRetries = 0;
       setState(() {
-        _error = 'Stream signal not received. Please try again.';
+        _error = 'Server not responding. Try ending and restarting.';
         _phase = _Phase.ready;
       });
     }
@@ -456,20 +452,30 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       final dynamic data = response.data;
       if (data is Map<String, dynamic> && mounted) {
         // Status response is flat — merge into existing session to preserve
-        // stream_id / websocket_url from quick-start
+        // stream_id / websocket_url from quick-start.
         final LiveSession current = _session!;
         final LiveSession updated = current.copyWith(
           effectiveStatus: data['effective_status']?.toString(),
           status: data['status']?.toString(),
           viewerCount: (data['viewer_count'] as num?)?.toInt(),
-          canStart: data['can_start'] == true,
-          canEnd: data['can_end'] == true,
+          canStart: data['can_start'] as bool?,
+          canEnd: data['can_end'] as bool?,
         );
         setState(() {
           _session = updated;
           if (updated.isEnded && _phase == _Phase.live) {
+            // Server ended the stream (timeout / admin action).
             _phase = _Phase.ended;
             _stopPolling();
+          } else if (updated.isFailed &&
+              (_phase == _Phase.live || _phase == _Phase.preparing)) {
+            // Server-side failure — surface error and let user retry / fresh-restart.
+            _phase = _Phase.ready;
+            _error = 'Stream failed. You can try again or start a fresh session.';
+            _stopPolling();
+            if (!widget.skipAntMediaCheck) {
+              AntMediaFlutter.anthelper?.close();
+            }
           }
         });
       }
@@ -532,6 +538,32 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     }
   }
 
+  // Send a gift to the live stream.
+  // client_request_id prevents duplicate charges on retry (idempotency key).
+  Future<void> _sendGift(int giftId, int quantity) async {
+    final String? id = _session?.id;
+    if (id == null || _sendingGift) return;
+    setState(() => _sendingGift = true);
+    try {
+      await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveGiftSend(id),
+        data: <String, dynamic>{
+          'gift_id': giftId,
+          'quantity': quantity,
+          'client_request_id':
+              DateTime.now().microsecondsSinceEpoch.toString(),
+        },
+        authenticated: true,
+      );
+      // Gift event will surface via the next chat poll (type: 'gift').
+      await _pollChat();
+    } catch (_) {
+      // Silent — gift may still have gone through; chat poll will confirm.
+    } finally {
+      if (mounted) setState(() => _sendingGift = false);
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   String _formatDuration(int seconds) {
@@ -560,6 +592,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           messages: _messages,
           chatController: _chatController,
           sendingMessage: _sendingMessage,
+          sendingGift: _sendingGift,
           durationSeconds: _durationSeconds,
           ending: _phase == _Phase.ending,
           localRenderer: _cameraReady ? _localRenderer : null,
@@ -567,6 +600,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           canSwitchCamera: _localStream != null,
           displayName: displayName,
           onSend: _sendMessage,
+          onSendGift: _sendGift,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
           formatDuration: _formatDuration,
@@ -800,6 +834,10 @@ class _PreparePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final LiveSession? s = session;
     final bool hasSession = s != null;
+    // In the ready phase, respect server's can_start flag.
+    // Default true for idle (no session yet) and when the field is absent.
+    final bool canGoLive =
+        phase == _Phase.idle || (s?.canStart ?? true);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -880,7 +918,7 @@ class _PreparePanel extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
         ],
         ElevatedButton(
-          onPressed: loading ? null : onStart,
+          onPressed: (loading || !canGoLive) ? null : onStart,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.brandGold,
             foregroundColor: Colors.black,
@@ -912,12 +950,14 @@ class _LiveView extends StatefulWidget {
     required this.messages,
     required this.chatController,
     required this.sendingMessage,
+    required this.sendingGift,
     required this.durationSeconds,
     required this.ending,
     required this.isFrontCamera,
     required this.canSwitchCamera,
     required this.displayName,
     required this.onSend,
+    required this.onSendGift,
     required this.onEnd,
     required this.onSwitchCamera,
     required this.formatDuration,
@@ -928,6 +968,7 @@ class _LiveView extends StatefulWidget {
   final List<LiveChatMessage> messages;
   final TextEditingController chatController;
   final bool sendingMessage;
+  final bool sendingGift;
   final RTCVideoRenderer? localRenderer;
   final bool isFrontCamera;
   final bool canSwitchCamera;
@@ -935,6 +976,7 @@ class _LiveView extends StatefulWidget {
   final int durationSeconds;
   final bool ending;
   final VoidCallback onSend;
+  final Future<void> Function(int giftId, int quantity) onSendGift;
   final VoidCallback onEnd;
   final VoidCallback onSwitchCamera;
   final String Function(int) formatDuration;
@@ -946,6 +988,23 @@ class _LiveView extends StatefulWidget {
 class _LiveViewState extends State<_LiveView> {
   final ScrollController _scrollController = ScrollController();
   bool _showEndConfirm = false;
+
+  /// Chat and gifts are disabled once the session is ended or failed.
+  bool get _isLiveActive =>
+      !widget.ending &&
+      widget.session?.effectiveStatus != 'ended' &&
+      widget.session?.effectiveStatus != 'failed';
+
+  void _showGiftPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _GiftPickerSheet(onSend: widget.onSendGift),
+    );
+  }
 
   @override
   void dispose() {
@@ -1103,16 +1162,20 @@ class _LiveViewState extends State<_LiveView> {
                             onTap: widget.onSwitchCamera,
                           ),
                         ),
-                      // End button
+                      // End button — gated by server can_end
                       GestureDetector(
-                        onTap: () => setState(() => _showEndConfirm = true),
+                        onTap: (widget.session?.canEnd ?? true)
+                            ? () => setState(() => _showEndConfirm = true)
+                            : null,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm,
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.redAccent.withAlpha(200),
+                            color: (widget.session?.canEnd ?? true)
+                                ? Colors.redAccent.withAlpha(200)
+                                : Colors.grey.withAlpha(80),
                             borderRadius:
                                 BorderRadius.circular(AppSpacing.radiusSm),
                           ),
@@ -1146,6 +1209,64 @@ class _LiveViewState extends State<_LiveView> {
                         itemCount: widget.messages.length,
                         itemBuilder: (BuildContext context, int index) {
                           final LiveChatMessage msg = widget.messages[index];
+
+                          // System message — centred hint text
+                          if (msg.isSystem) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                msg.message,
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          }
+
+                          // Gift message — gold-tinted bubble with gift icon
+                          if (msg.isGift) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.brandGold.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: RichText(
+                                  text: TextSpan(
+                                    children: <InlineSpan>[
+                                      const TextSpan(
+                                        text: '🎁 ',
+                                        style: TextStyle(fontSize: 13),
+                                      ),
+                                      TextSpan(
+                                        text: msg.senderName,
+                                        style: const TextStyle(
+                                          color: AppColors.brandGold,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: '  ${msg.message}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Default chat message
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: RichText(
@@ -1186,45 +1307,89 @@ class _LiveViewState extends State<_LiveView> {
                   ),
                   child: Row(
                     children: <Widget>[
+                      // Text field
                       Expanded(
                         child: Container(
                           height: 42,
                           decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(25),
+                            color: Colors.white.withAlpha(
+                                _isLiveActive ? 25 : 12),
                             borderRadius: BorderRadius.circular(21),
                             border: Border.all(color: Colors.white24),
                           ),
                           child: TextField(
                             controller: widget.chatController,
+                            enabled: _isLiveActive,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
                             ),
-                            decoration: const InputDecoration(
-                              hintText: 'Say something...',
-                              hintStyle: TextStyle(
+                            decoration: InputDecoration(
+                              hintText: _isLiveActive
+                                  ? 'Say something...'
+                                  : 'Live ended',
+                              hintStyle: const TextStyle(
                                 color: Colors.white38,
                                 fontSize: 14,
                               ),
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
+                              contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 11,
                               ),
                               isDense: true,
                             ),
-                            onSubmitted: (_) => widget.onSend(),
+                            onSubmitted: _isLiveActive
+                                ? (_) => widget.onSend()
+                                : null,
                           ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
+                      // Gift button
                       GestureDetector(
-                        onTap: widget.sendingMessage ? null : widget.onSend,
+                        onTap: (_isLiveActive && !widget.sendingGift)
+                            ? _showGiftPicker
+                            : null,
                         child: Container(
                           width: 42,
                           height: 42,
-                          decoration: const BoxDecoration(
-                            color: AppColors.brandGold,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(
+                                _isLiveActive ? 25 : 10),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: widget.sendingGift
+                              ? const Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.brandGold,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.card_giftcard_rounded,
+                                  color: _isLiveActive
+                                      ? AppColors.brandGold
+                                      : Colors.white24,
+                                  size: 20,
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      // Send button
+                      GestureDetector(
+                        onTap: (_isLiveActive && !widget.sendingMessage)
+                            ? widget.onSend
+                            : null,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: _isLiveActive
+                                ? AppColors.brandGold
+                                : Colors.grey.withAlpha(80),
                             shape: BoxShape.circle,
                           ),
                           child: widget.sendingMessage
@@ -1546,6 +1711,102 @@ class _SummaryRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Gift picker ───────────────────────────────────────────────────────────────
+
+class _GiftPickerSheet extends StatelessWidget {
+  const _GiftPickerSheet({required this.onSend});
+  final Future<void> Function(int giftId, int quantity) onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        // Handle + title
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.sm, 0),
+          child: Row(
+            children: <Widget>[
+              const Text('Send a Gift', style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              )),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close_rounded,
+                    color: AppColors.mutedOliveText),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+        // Gift grid
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
+          mainAxisSpacing: AppSpacing.sm,
+          crossAxisSpacing: AppSpacing.sm,
+          children: _kGifts
+              .map(
+                (gift) => _GiftTile(
+                  gift: gift,
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await onSend(gift.id, 1);
+                  },
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _GiftTile extends StatelessWidget {
+  const _GiftTile({required this.gift, required this.onTap});
+  final _GiftDef gift;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(color: AppColors.softBorder),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text(gift.emoji,
+                style: const TextStyle(fontSize: 28)),
+            const SizedBox(height: 4),
+            Text(gift.name,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text('${gift.cost} MC',
+                style: const TextStyle(
+                    color: AppColors.brandGold,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
       ),
     );
   }

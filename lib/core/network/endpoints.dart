@@ -99,6 +99,8 @@ class Endpoints {
 
   static String liveChatMessages(String id) => '/api/live/$id/chat/messages/';
 
+  static String liveGiftSend(String id) => '/api/live/$id/gifts/send/';
+
   // Drama interactions
   static String dramaFavorite(int id) => '/api/dramas/$id/favorite/';
 

@@ -59,6 +59,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   Timer? _statusTimer;
   Timer? _chatTimer;
   Timer? _durationTimer;
+  Timer? _thumbnailTimer;
   int _durationSeconds = 0;
   int _lastChatId = 0;
   int _startRetries = 0;
@@ -88,6 +89,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   void dispose() {
     _chatController.dispose();
     _stopPolling();
+    _thumbnailTimer?.cancel();
     _localRenderer.dispose();
     if (!widget.skipAntMediaCheck) {
       AntMediaFlutter.anthelper?.close();
@@ -418,7 +420,13 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     } catch (_) {
       // best-effort — session may already be closed server-side
     }
-    if (mounted) setState(() => _phase = _Phase.ended);
+    if (mounted) {
+      setState(() => _phase = _Phase.ended);
+      // If the backend is still generating the thumbnail, poll until it's ready.
+      if (_session?.isThumbnailPending ?? true) {
+        _startThumbnailPoll();
+      }
+    }
   }
 
   // ── Polling ────────────────────────────────────────────────────────────────
@@ -439,6 +447,24 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     _statusTimer?.cancel();
     _chatTimer?.cancel();
     _durationTimer?.cancel();
+  }
+
+  // After the live ends, poll /status/ every 5 s until thumbnail_capture_status
+  // is no longer 'pending' (or until 12 attempts = 60 s timeout).
+  void _startThumbnailPoll() {
+    _thumbnailTimer?.cancel();
+    int attempts = 0;
+    _thumbnailTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      attempts++;
+      await _pollStatus();
+      final String? ts = _session?.thumbnailCaptureStatus;
+      if (ts != null && ts != 'pending') {
+        _thumbnailTimer?.cancel();
+      } else if (attempts >= 12) {
+        // 60 s timeout — give up silently
+        _thumbnailTimer?.cancel();
+      }
+    });
   }
 
   Future<void> _pollStatus() async {

@@ -13,6 +13,11 @@ class LiveSession {
     this.canStart = true,
     this.canEnd = true,
     this.maxStartRetry = 20,
+    this.thumbnailUrl,
+    this.previewImageUrl,
+    this.snapshotUrl,
+    this.thumbnailCaptureStatus,
+    this.thumbnailCapturedAt,
   });
 
   // live.id — used for Django API: /api/live/{id}/start|end|status
@@ -38,6 +43,33 @@ class LiveSession {
   final bool canStart;            // Gate "Go Live" button
   final bool canEnd;              // Gate "End" button
   final int maxStartRetry;        // From publish_session.max_start_retry (default 20)
+
+  // ── Cover / thumbnail ──────────────────────────────────────────────────────
+  /// Backend ffmpeg-generated thumbnail (recommended primary).
+  final String? thumbnailUrl;
+
+  /// Ant Media real-time preview fallback.
+  final String? previewImageUrl;
+
+  /// Legacy compat alias for previewImageUrl.
+  final String? snapshotUrl;
+
+  /// pending | success | failed
+  final String? thumbnailCaptureStatus;
+
+  final String? thumbnailCapturedAt;
+
+  /// Priority: thumbnailUrl → previewImageUrl → snapshotUrl → null.
+  /// Skips empty strings.
+  String? get coverUrl {
+    if (thumbnailUrl != null && thumbnailUrl!.isNotEmpty) return thumbnailUrl;
+    if (previewImageUrl != null && previewImageUrl!.isNotEmpty) return previewImageUrl;
+    if (snapshotUrl != null && snapshotUrl!.isNotEmpty) return snapshotUrl;
+    return null;
+  }
+
+  bool get isThumbnailPending => thumbnailCaptureStatus == 'pending';
+  bool get isThumbnailReady   => thumbnailCaptureStatus == 'success';
 
   bool get isLive => effectiveStatus == 'live';
   bool get isWaitingForSignal => effectiveStatus == 'waiting_for_publisher';
@@ -96,6 +128,12 @@ class LiveSession {
       canStart: (live['can_start'] as bool?) ?? true,
       canEnd: (live['can_end'] as bool?) ?? true,
       maxStartRetry: maxStartRetry,
+      // Cover / thumbnail (may come from quick-start or status poll)
+      thumbnailUrl: live['thumbnail_url']?.toString(),
+      previewImageUrl: live['preview_image_url']?.toString(),
+      snapshotUrl: live['snapshot_url']?.toString(),
+      thumbnailCaptureStatus: live['thumbnail_capture_status']?.toString(),
+      thumbnailCapturedAt: live['thumbnail_captured_at']?.toString(),
     );
   }
 
@@ -105,6 +143,11 @@ class LiveSession {
     int? viewerCount,
     bool? canStart,
     bool? canEnd,
+    String? thumbnailUrl,
+    String? previewImageUrl,
+    String? snapshotUrl,
+    String? thumbnailCaptureStatus,
+    String? thumbnailCapturedAt,
   }) {
     return LiveSession(
       id: id,
@@ -120,6 +163,12 @@ class LiveSession {
       canStart: canStart ?? this.canStart,
       canEnd: canEnd ?? this.canEnd,
       maxStartRetry: maxStartRetry,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      previewImageUrl: previewImageUrl ?? this.previewImageUrl,
+      snapshotUrl: snapshotUrl ?? this.snapshotUrl,
+      thumbnailCaptureStatus:
+          thumbnailCaptureStatus ?? this.thumbnailCaptureStatus,
+      thumbnailCapturedAt: thumbnailCapturedAt ?? this.thumbnailCapturedAt,
     );
   }
 }

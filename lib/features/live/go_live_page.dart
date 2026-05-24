@@ -460,6 +460,12 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           viewerCount: (data['viewer_count'] as num?)?.toInt(),
           canStart: data['can_start'] as bool?,
           canEnd: data['can_end'] as bool?,
+          thumbnailUrl: data['thumbnail_url'] as String?,
+          previewImageUrl: data['preview_image_url'] as String?,
+          snapshotUrl: data['snapshot_url'] as String?,
+          thumbnailCaptureStatus:
+              data['thumbnail_capture_status'] as String?,
+          thumbnailCapturedAt: data['thumbnail_captured_at'] as String?,
         );
         setState(() {
           _session = updated;
@@ -1524,6 +1530,9 @@ class _EndedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String? cover = session?.coverUrl;
+    final bool thumbnailPending = session?.isThumbnailPending ?? false;
+
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
@@ -1533,12 +1542,53 @@ class _EndedView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               const Spacer(),
-              const Icon(
-                Icons.live_tv_rounded,
-                color: AppColors.brandGold,
-                size: 72,
-              ),
+
+              // ── Thumbnail / cover ──────────────────────────────────────
+              if (cover != null)
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusLg),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.network(
+                      cover,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _LiveEndedPlaceholder(
+                          pending: thumbnailPending),
+                    ),
+                  ),
+                )
+              else
+                _LiveEndedPlaceholder(pending: thumbnailPending),
+
               const SizedBox(height: AppSpacing.md),
+
+              // Thumbnail capture status hint
+              if (thumbnailPending)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: AppColors.brandGold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Generating thumbnail…',
+                        style: AppTextStyles.caption.copyWith(
+                            color: AppColors.mutedOliveText),
+                      ),
+                    ],
+                  ),
+                ),
+
               const Text(
                 'Live Ended',
                 style: AppTextStyles.sectionTitle,
@@ -1561,16 +1611,55 @@ class _EndedView extends StatelessWidget {
                   foregroundColor: Colors.black,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusMd),
                   ),
                 ),
                 child: const Text(
                   'Done',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style:
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveEndedPlaceholder extends StatelessWidget {
+  const _LiveEndedPlaceholder({required this.pending});
+  final bool pending;
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          border: Border.all(color: AppColors.softBorder),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(
+              Icons.live_tv_rounded,
+              color: pending ? AppColors.mutedOliveText : AppColors.brandGold,
+              size: 56,
+            ),
+            if (pending) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                'Cover pending…',
+                style: AppTextStyles.caption
+                    .copyWith(color: AppColors.mutedOliveText),
+              ),
+            ],
+          ],
         ),
       ),
     );

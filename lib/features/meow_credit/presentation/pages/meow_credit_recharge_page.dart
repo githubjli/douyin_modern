@@ -73,11 +73,21 @@ class _MeowCreditRechargePageState
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _savingQr = true);
     try {
-      // Resolve render object before any await.
+      // 1. Resolve render object synchronously (before any await).
       final RenderObject? ro = _qrKey.currentContext?.findRenderObject();
       if (ro is! RenderRepaintBoundary) throw Exception('QR not rendered');
 
-      // Request photo-library write access (may show system dialog).
+      // 2. Capture PNG while the widget is fully rendered.
+      //    Must happen BEFORE requestAccess() — the permission dialog briefly
+      //    suspends the app and a subsequent repaint can cause toImage() to
+      //    return blank or null.
+      final ui.Image image = await ro.toImage(pixelRatio: 3.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) throw Exception('Failed to capture QR');
+      final Uint8List bytes = byteData.buffer.asUint8List();
+
+      // 3. Request photo-library write access (may show system dialog).
       final bool hasAccess = await Gal.requestAccess();
       if (!hasAccess) {
         if (mounted) {
@@ -90,12 +100,7 @@ class _MeowCreditRechargePageState
         return;
       }
 
-      final ui.Image image = await ro.toImage(pixelRatio: 3.0);
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) throw Exception('Failed to capture QR');
-      final Uint8List bytes = byteData.buffer.asUint8List();
-
+      // 4. Save the already-captured bytes.
       await Gal.putImageBytes(
         bytes,
         name: 'meow_credit_qr_${DateTime.now().millisecondsSinceEpoch}',

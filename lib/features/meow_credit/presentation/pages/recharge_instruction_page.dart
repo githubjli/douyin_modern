@@ -94,7 +94,17 @@ class _RechargeInstructionPageState
     if (_savingAlbum) return;
     setState(() => _savingAlbum = true);
     try {
-      // Request photo-library write access before any capture work.
+      // 1. Capture PNG while the widget is fully rendered.
+      //    Must happen BEFORE requestAccess() — the permission dialog briefly
+      //    suspends the app and a subsequent repaint can cause toImage() to
+      //    return blank or null.
+      final Uint8List? png = await _captureQrPng(_qrKey);
+      if (png == null || png.isEmpty) {
+        if (mounted) _showMsg('Unable to save. Please try again.');
+        return;
+      }
+
+      // 2. Request photo-library write access (may show system dialog).
       final bool hasAccess = await Gal.requestAccess();
       if (!hasAccess) {
         if (mounted) {
@@ -104,11 +114,8 @@ class _RechargeInstructionPageState
         }
         return;
       }
-      final Uint8List? png = await _captureQrPng(_qrKey);
-      if (png == null || png.isEmpty) {
-        if (mounted) _showMsg('Unable to save. Please try again.');
-        return;
-      }
+
+      // 3. Save the already-captured bytes.
       await Gal.putImageBytes(
         png,
         name: 'credit_qr_${DateTime.now().millisecondsSinceEpoch}',

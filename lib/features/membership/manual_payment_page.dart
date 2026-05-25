@@ -158,8 +158,18 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
     if (_savingQrToAlbum) return;
     setState(() => _savingQrToAlbum = true);
     try {
-      // Request photo-library write access before saving.
-      // On iOS this triggers the system permission dialog on first use.
+      // 1. Capture PNG while the QR widget is fully rendered.
+      //    Must happen BEFORE requestAccess() — the permission dialog briefly
+      //    suspends the app and a subsequent repaint can cause toImage() to
+      //    return blank or null.
+      final Uint8List? png = await _captureQrPng(_qrKey);
+      if (!mounted) return;
+      if (png == null || png.isEmpty) {
+        _showMessage('Unable to capture QR. Please try again.');
+        return;
+      }
+
+      // 2. Request photo-library write access (may show system dialog).
       final bool hasAccess = await Gal.requestAccess();
       if (!mounted) return;
       if (!hasAccess) {
@@ -169,13 +179,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
         return;
       }
 
-      final Uint8List? png = await _captureQrPng(_qrKey);
-      if (!mounted) return;
-      if (png == null || png.isEmpty) {
-        _showMessage('Unable to capture QR. Please try again.');
-        return;
-      }
-
+      // 3. Save the already-captured bytes.
       await Gal.putImageBytes(
         png,
         name: 'payment_qr_${DateTime.now().millisecondsSinceEpoch}',

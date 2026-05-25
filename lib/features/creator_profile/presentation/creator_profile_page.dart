@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../drama_detail/drama_detail_page.dart';
+import '../../home/domain/home_models.dart';
+import '../../video_detail/video_detail_page.dart';
 import '../data/creator_profile_repository.dart';
 import '../domain/public_creator_profile.dart';
 
@@ -48,10 +51,10 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
 
   // ── Data ───────────────────────────────────────────────────────────────────
 
-  Future<void> _loadAll() async {
+  Future<void> _loadAll({bool showSpinner = true}) async {
     if (!mounted) return;
     setState(() {
-      _loading = true;
+      if (showSpinner) _loading = true;
       _error = null;
     });
     try {
@@ -195,9 +198,18 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
           body: TabBarView(
             controller: _tabController,
             children: <Widget>[
-              _VideosTab(videos: _videos),
-              _DramasTab(dramas: _dramas),
-              _LivesTab(lives: _lives),
+              _VideosTab(
+                videos: _videos,
+                onRefresh: () => _loadAll(showSpinner: false),
+              ),
+              _DramasTab(
+                dramas: _dramas,
+                onRefresh: () => _loadAll(showSpinner: false),
+              ),
+              _LivesTab(
+                lives: _lives,
+                onRefresh: () => _loadAll(showSpinner: false),
+              ),
             ],
           ),
         ),
@@ -464,26 +476,46 @@ class _StatItem extends StatelessWidget {
 
 // ── Videos tab — 3-column grid ─────────────────────────────────────────────────
 
-class _VideosTab extends StatelessWidget {
-  const _VideosTab({required this.videos});
+class _VideosTab extends StatefulWidget {
+  const _VideosTab({required this.videos, required this.onRefresh});
 
   final List<PublicCreatorVideo> videos;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_VideosTab> createState() => _VideosTabState();
+}
+
+class _VideosTabState extends State<_VideosTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    if (videos.isEmpty) {
-      return const _EmptyTab(icon: Icons.videocam_off_rounded, label: 'No videos yet');
+    super.build(context);
+    if (widget.videos.isEmpty) {
+      return _EmptyTab(
+        icon: Icons.videocam_off_rounded,
+        label: 'No videos yet',
+        onRefresh: widget.onRefresh,
+      );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.all(1),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 9 / 16,
+    return RefreshIndicator(
+      color: AppColors.brandGold,
+      onRefresh: widget.onRefresh,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(1),
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 2,
+          mainAxisSpacing: 2,
+          childAspectRatio: 9 / 16,
+        ),
+        itemCount: widget.videos.length,
+        itemBuilder: (_, int i) => _VideoThumb(video: widget.videos[i]),
       ),
-      itemCount: videos.length,
-      itemBuilder: (_, int i) => _VideoThumb(video: videos[i]),
     );
   }
 }
@@ -493,11 +525,33 @@ class _VideoThumb extends StatelessWidget {
 
   final PublicCreatorVideo video;
 
+  void _open(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VideoDetailPage(
+          video: HomeVideoItem(
+            id: video.id.toString(),
+            title: video.title,
+            subtitle: '',
+            thumbnailUrl: video.thumbnailUrl,
+            accessType: video.accessType,
+            isLocked: video.isLocked,
+            viewCount: video.viewCount,
+            createdAt: video.createdAt,
+          ),
+          loadRemoteDetail: true,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: <Widget>[
+    return GestureDetector(
+      onTap: () => _open(context),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
         // Thumbnail
         _Thumbnail(url: video.thumbnailUrl),
 
@@ -536,36 +590,54 @@ class _VideoThumb extends StatelessWidget {
             right: 4,
             child: _VipBadge(),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 // ── Dramas tab — 2-column grid ─────────────────────────────────────────────────
 
-class _DramasTab extends StatelessWidget {
-  const _DramasTab({required this.dramas});
+class _DramasTab extends StatefulWidget {
+  const _DramasTab({required this.dramas, required this.onRefresh});
 
   final List<PublicCreatorDrama> dramas;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_DramasTab> createState() => _DramasTabState();
+}
+
+class _DramasTabState extends State<_DramasTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    if (dramas.isEmpty) {
-      return const _EmptyTab(
+    super.build(context);
+    if (widget.dramas.isEmpty) {
+      return _EmptyTab(
         icon: Icons.movie_creation_outlined,
         label: 'No dramas yet',
+        onRefresh: widget.onRefresh,
       );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.all(AppSpacing.xs),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: AppSpacing.xs,
-        mainAxisSpacing: AppSpacing.xs,
-        childAspectRatio: 2 / 3,
+    return RefreshIndicator(
+      color: AppColors.brandGold,
+      onRefresh: widget.onRefresh,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(AppSpacing.xs),
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: AppSpacing.xs,
+          mainAxisSpacing: AppSpacing.xs,
+          childAspectRatio: 2 / 3,
+        ),
+        itemCount: widget.dramas.length,
+        itemBuilder: (_, int i) => _DramaTile(drama: widget.dramas[i]),
       ),
-      itemCount: dramas.length,
-      itemBuilder: (_, int i) => _DramaTile(drama: dramas[i]),
     );
   }
 }
@@ -575,11 +647,31 @@ class _DramaTile extends StatelessWidget {
 
   final PublicCreatorDrama drama;
 
+  void _open(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DramaDetailPage(
+          drama: HomeDramaItem(
+            id: drama.id.toString(),
+            title: drama.title,
+            subtitle: drama.episodeCount > 0
+                ? '${drama.episodeCount} episodes'
+                : '',
+            coverUrl: drama.coverUrl,
+            totalEpisodes: drama.episodeCount,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      child: Stack(
+    return GestureDetector(
+      onTap: () => _open(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
           _Thumbnail(url: drama.coverUrl),
@@ -635,7 +727,8 @@ class _DramaTile extends StatelessWidget {
               right: 6,
               child: _VipBadge(),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -643,24 +736,41 @@ class _DramaTile extends StatelessWidget {
 
 // ── Live tab — list ────────────────────────────────────────────────────────────
 
-class _LivesTab extends StatelessWidget {
-  const _LivesTab({required this.lives});
+class _LivesTab extends StatefulWidget {
+  const _LivesTab({required this.lives, required this.onRefresh});
 
   final List<PublicCreatorLive> lives;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_LivesTab> createState() => _LivesTabState();
+}
+
+class _LivesTabState extends State<_LivesTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    if (lives.isEmpty) {
-      return const _EmptyTab(
+    super.build(context);
+    if (widget.lives.isEmpty) {
+      return _EmptyTab(
         icon: Icons.live_tv_outlined,
         label: 'No live history',
+        onRefresh: widget.onRefresh,
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      itemCount: lives.length,
-      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-      itemBuilder: (_, int i) => _LiveTile(live: lives[i]),
+    return RefreshIndicator(
+      color: AppColors.brandGold,
+      onRefresh: widget.onRefresh,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: widget.lives.length,
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+        itemBuilder: (_, int i) => _LiveTile(live: widget.lives[i]),
+      ),
     );
   }
 }
@@ -672,14 +782,18 @@ class _LiveTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+    return GestureDetector(
+      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Live detail/watch page coming soon.')),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
           // Thumbnail — 16:9
           ClipRRect(
             borderRadius: const BorderRadius.only(
@@ -757,7 +871,8 @@ class _LiveTile extends StatelessWidget {
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -823,15 +938,22 @@ class _VipBadge extends StatelessWidget {
 }
 
 /// Centred empty-state for a tab.
+/// Wraps in [RefreshIndicator] when [onRefresh] is provided so the user can
+/// still pull-to-refresh even when there is no content yet.
 class _EmptyTab extends StatelessWidget {
-  const _EmptyTab({required this.icon, required this.label});
+  const _EmptyTab({
+    required this.icon,
+    required this.label,
+    this.onRefresh,
+  });
 
   final IconData icon;
   final String label;
+  final Future<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    final Widget inner = Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -845,6 +967,20 @@ class _EmptyTab extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    final Future<void> Function()? refresh = onRefresh;
+    if (refresh == null) return inner;
+    // Wrap in a scrollable so RefreshIndicator can be triggered.
+    return RefreshIndicator(
+      color: AppColors.brandGold,
+      onRefresh: refresh,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.4,
+          child: inner,
+        ),
       ),
     );
   }

@@ -158,21 +158,46 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
     if (_savingQrToAlbum) return;
     setState(() => _savingQrToAlbum = true);
     try {
-      final Uint8List? png = await _captureQrPng(_qrKey);
-      if (png == null || png.isEmpty) {
-        if (!mounted) return;
-        _showMessage('Unable to save. Please try again.');
+      // Request photo-library write access before saving.
+      // On iOS this triggers the system permission dialog on first use.
+      final bool hasAccess = await Gal.requestAccess();
+      if (!mounted) return;
+      if (!hasAccess) {
+        _showMessage(
+          'Photo access denied. Enable it in Settings → Privacy → Photos.',
+        );
         return;
       }
+
+      final Uint8List? png = await _captureQrPng(_qrKey);
+      if (!mounted) return;
+      if (png == null || png.isEmpty) {
+        _showMessage('Unable to capture QR. Please try again.');
+        return;
+      }
+
       await Gal.putImageBytes(
         png,
         name: 'payment_qr_${DateTime.now().millisecondsSinceEpoch}',
       );
       if (!mounted) return;
-      _showMessage('QR saved to Photos');
+      _showMessage('QR saved — check "Recents" in your Photos app');
+    } on GalException catch (e) {
+      if (!mounted) return;
+      switch (e.type) {
+        case GalExceptionType.accessDenied:
+          _showMessage(
+            'Photo access denied. Enable it in Settings → Privacy → Photos.',
+          );
+        case GalExceptionType.notEnoughSpace:
+          _showMessage('Not enough storage space to save QR.');
+        case GalExceptionType.notSupportedFormat:
+        case GalExceptionType.unexpected:
+          _showMessage('Unable to save QR. Please try again.');
+      }
     } catch (_) {
       if (!mounted) return;
-      _showMessage('Unable to save to Photos. Please try again.');
+      _showMessage('Unable to save QR. Please try again.');
     } finally {
       if (mounted) setState(() => _savingQrToAlbum = false);
     }

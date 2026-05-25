@@ -147,13 +147,12 @@ class _MeowCreditRechargePageState
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {});
-      if (e.statusCode == 409) {
-        messenger.showSnackBar(
-            const SnackBar(content: Text('This transaction ID has already been used.')));
-      } else {
-        messenger.showSnackBar(
-            const SnackBar(content: Text('Submission failed. Please try again.')));
-      }
+      final String msg = e.statusCode == 409
+          ? 'This transaction ID has already been submitted.'
+          : (e.message.isNotEmpty
+              ? e.message
+              : 'Submission failed. Please try again.');
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (!mounted) return;
       setState(() {});

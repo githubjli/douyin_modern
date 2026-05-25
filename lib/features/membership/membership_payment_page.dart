@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
-
-import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gal/gal.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -178,12 +176,23 @@ class _PaymentBodyState extends ConsumerState<_PaymentBody> {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     ref.read(paymentPageProvider.notifier).setSavingQr(value: true);
     try {
+      // Use injected saver (tests) or the real Gal-backed saver.
       final bool saved =
-          await (widget.qrCodeSaver ?? _writeQrPng)(_qrKey);
+          await (widget.qrCodeSaver ?? _saveQrToAlbum)(_qrKey);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(
-        content: Text(saved ? 'QR saved' : 'Unable to save QR. Please try again.'),
+        content: Text(
+          saved
+              ? "QR saved — check 'Recents' in your Photos app"
+              : 'Unable to save QR. Please try again.',
+        ),
       ));
+    } on GalException catch (e) {
+      if (!mounted) return;
+      final String msg = e.type == GalExceptionType.accessDenied
+          ? 'Photo access denied. Enable it in Settings → Privacy → Photos.'
+          : 'Unable to save QR. Please try again.';
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -964,24 +973,28 @@ class _VerifyNowSection extends StatelessWidget {
   }
 }
 
-Future<bool> _writeQrPng(GlobalKey qrKey) async {
-  final BuildContext? context = qrKey.currentContext;
-  if (context == null) return false;
-  final RenderObject? renderObject = context.findRenderObject();
-  if (renderObject is! RenderRepaintBoundary) return false;
+/// Captures [qrKey]'s widget as PNG and saves it to the photo library.
+/// Returns true on success, false if permission is denied or capture fails.
+/// Throws [GalException] for storage / unexpected errors (caller handles).
+Future<bool> _saveQrToAlbum(GlobalKey qrKey) async {
+  // Resolve render object synchronously before any await.
+  final RenderObject? ro = qrKey.currentContext?.findRenderObject();
+  if (ro is! RenderRepaintBoundary) return false;
 
-  final ui.Image image = await renderObject.toImage(pixelRatio: 3);
-  final ByteData? byteData = await image.toByteData(
-    format: ui.ImageByteFormat.png,
+  // Request photo-library write access (may show system dialog).
+  final bool hasAccess = await Gal.requestAccess();
+  if (!hasAccess) return false;
+
+  final ui.Image image = await ro.toImage(pixelRatio: 3);
+  final ByteData? byteData =
+      await image.toByteData(format: ui.ImageByteFormat.png);
+  final Uint8List? png = byteData?.buffer.asUint8List();
+  if (png == null || png.isEmpty) return false;
+
+  await Gal.putImageBytes(
+    png,
+    name: 'membership_qr_${DateTime.now().millisecondsSinceEpoch}',
   );
-  final Uint8List? pngBytes = byteData?.buffer.asUint8List();
-  if (pngBytes == null || pngBytes.isEmpty) return false;
-
-  final Directory dir = await getApplicationDocumentsDirectory();
-  final String filePath = '${dir.path}'
-      '/membership_payment_qr_${DateTime.now().millisecondsSinceEpoch}.png';
-  final File file = File(filePath);
-  await file.writeAsBytes(pngBytes, flush: true);
   return true;
 }
 

@@ -53,6 +53,21 @@ class Endpoints {
   static String creatorFollow(int creatorId) =>
       '/api/creators/$creatorId/follow/';
 
+  static String creatorUnfollow(int creatorId) =>
+      '/api/creators/$creatorId/follow/';
+
+  // Public creator profile
+  static String publicCreatorProfile(int id) => '/api/public/creators/$id/';
+
+  static String publicCreatorVideos(int id) =>
+      '/api/public/creators/$id/videos/';
+
+  static String publicCreatorDramas(int id) =>
+      '/api/public/creators/$id/dramas/';
+
+  static String publicCreatorLives(int id) =>
+      '/api/public/creators/$id/lives/';
+
   static const String dramas = '/api/dramas/';
 
   static String dramaDetail(int id) => '/api/dramas/$id/';

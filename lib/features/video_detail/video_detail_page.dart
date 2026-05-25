@@ -14,6 +14,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
+import '../creator_profile/presentation/creator_profile_page.dart';
 import '../home/domain/home_models.dart';
 import 'application/video_detail_notifier.dart';
 
@@ -426,6 +427,15 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
               isSignedIn: isSignedIn,
               onFollow: () =>
                   unawaited(ref.read(videoDetailProvider.notifier).toggleFollow()),
+              onCreatorTap: interaction.creatorId != null
+                  ? () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CreatorProfilePage(
+                            creatorId: interaction.creatorId!,
+                          ),
+                        ),
+                      )
+                  : null,
             ),
             const SizedBox(height: AppSpacing.xs),
             _VideoActionRow(
@@ -929,12 +939,14 @@ class _AuthorFollowRow extends StatelessWidget {
     required this.interaction,
     required this.isSignedIn,
     required this.onFollow,
+    this.onCreatorTap,
   });
 
   final HomeVideoItem video;
   final VideoInteractionState interaction;
   final bool isSignedIn;
   final VoidCallback onFollow;
+  final VoidCallback? onCreatorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -948,29 +960,37 @@ class _AuthorFollowRow extends StatelessWidget {
 
     return Row(
       children: <Widget>[
-        ClipRRect(
-          borderRadius: BorderRadius.circular(99),
-          child: _OwnerAvatar(avatarUrl: video.ownerAvatarUrl, size: 40),
+        GestureDetector(
+          onTap: onCreatorTap,
+          behavior: HitTestBehavior.opaque,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: _OwnerAvatar(avatarUrl: video.ownerAvatarUrl, size: 40),
+          ),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                _ownerLabel(video),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _videoDetailCreatorNameStyle,
-              ),
-              const SizedBox(height: AppSpacing.xxs),
-              Text(
-                meta,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _videoDetailCreatorMetaStyle,
-              ),
-            ],
+          child: GestureDetector(
+            onTap: onCreatorTap,
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  _ownerLabel(video),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _videoDetailCreatorNameStyle,
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _videoDetailCreatorMetaStyle,
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),

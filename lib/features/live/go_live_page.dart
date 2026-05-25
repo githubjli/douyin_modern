@@ -59,7 +59,6 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   Timer? _statusTimer;
   Timer? _chatTimer;
   Timer? _durationTimer;
-  Timer? _thumbnailTimer;
   int _durationSeconds = 0;
   int _lastChatId = 0;
   int _startRetries = 0;
@@ -89,7 +88,6 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   void dispose() {
     _chatController.dispose();
     _stopPolling();
-    _thumbnailTimer?.cancel();
     _localRenderer.dispose();
     if (!widget.skipAntMediaCheck) {
       AntMediaFlutter.anthelper?.close();
@@ -420,13 +418,10 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     } catch (_) {
       // best-effort — session may already be closed server-side
     }
-    if (mounted) {
-      setState(() => _phase = _Phase.ended);
-      // If the backend is still generating the thumbnail, poll until it's ready.
-      if (_session?.isThumbnailPending ?? true) {
-        _startThumbnailPoll();
-      }
-    }
+    // One-shot status refresh to pick up the latest thumbnail_url.
+    // If the thumbnail isn't ready yet, _EndedView shows a static placeholder.
+    if (mounted) await _pollStatus();
+    if (mounted) setState(() => _phase = _Phase.ended);
   }
 
   // ── Polling ────────────────────────────────────────────────────────────────
@@ -447,24 +442,6 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     _statusTimer?.cancel();
     _chatTimer?.cancel();
     _durationTimer?.cancel();
-  }
-
-  // After the live ends, poll /status/ every 5 s until thumbnail_capture_status
-  // is no longer 'pending' (or until 12 attempts = 60 s timeout).
-  void _startThumbnailPoll() {
-    _thumbnailTimer?.cancel();
-    int attempts = 0;
-    _thumbnailTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      attempts++;
-      await _pollStatus();
-      final String? ts = _session?.thumbnailCaptureStatus;
-      if (ts != null && ts != 'pending') {
-        _thumbnailTimer?.cancel();
-      } else if (attempts >= 12) {
-        // 60 s timeout — give up silently
-        _thumbnailTimer?.cancel();
-      }
-    });
   }
 
   Future<void> _pollStatus() async {
@@ -1557,7 +1534,6 @@ class _EndedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String? cover = session?.coverUrl;
-    final bool thumbnailPending = session?.isThumbnailPending ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -1572,48 +1548,21 @@ class _EndedView extends StatelessWidget {
               // ── Thumbnail / cover ──────────────────────────────────────
               if (cover != null)
                 ClipRRect(
-                  borderRadius:
-                      BorderRadius.circular(AppSpacing.radiusLg),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
                     child: Image.network(
                       cover,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _LiveEndedPlaceholder(
-                          pending: thumbnailPending),
+                      errorBuilder: (_, __, ___) =>
+                          const _LiveEndedPlaceholder(),
                     ),
                   ),
                 )
               else
-                _LiveEndedPlaceholder(pending: thumbnailPending),
+                const _LiveEndedPlaceholder(),
 
               const SizedBox(height: AppSpacing.md),
-
-              // Thumbnail capture status hint
-              if (thumbnailPending)
-                Padding(
-                  padding:
-                      const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: AppColors.brandGold,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Generating thumbnail…',
-                        style: AppTextStyles.caption.copyWith(
-                            color: AppColors.mutedOliveText),
-                      ),
-                    ],
-                  ),
-                ),
 
               const Text(
                 'Live Ended',
@@ -1656,8 +1605,7 @@ class _EndedView extends StatelessWidget {
 }
 
 class _LiveEndedPlaceholder extends StatelessWidget {
-  const _LiveEndedPlaceholder({required this.pending});
-  final bool pending;
+  const _LiveEndedPlaceholder();
 
   @override
   Widget build(BuildContext context) {
@@ -1669,23 +1617,10 @@ class _LiveEndedPlaceholder extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
           border: Border.all(color: AppColors.softBorder),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(
-              Icons.live_tv_rounded,
-              color: pending ? AppColors.mutedOliveText : AppColors.brandGold,
-              size: 56,
-            ),
-            if (pending) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(
-                'Cover pending…',
-                style: AppTextStyles.caption
-                    .copyWith(color: AppColors.mutedOliveText),
-              ),
-            ],
-          ],
+        child: const Icon(
+          Icons.live_tv_rounded,
+          color: AppColors.brandGold,
+          size: 56,
         ),
       ),
     );

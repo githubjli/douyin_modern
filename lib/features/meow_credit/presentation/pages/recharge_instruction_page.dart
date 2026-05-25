@@ -17,6 +17,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/back_nav_header.dart';
 import '../../../../app/widgets/gold_button.dart';
 import '../../../../app/widgets/gold_outline_button.dart';
+import '../../../../core/network/api_error.dart';
 import '../../data/meow_credit_repository.dart';
 import '../../domain/meow_credit_wallet.dart';
 import 'recharge_status_page.dart';
@@ -172,12 +173,20 @@ class _RechargeInstructionPageState
           ),
         ),
       );
-    } catch (e) {
+    } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().contains('ApiError')
-            ? e.toString().replaceFirst(RegExp(r'^ApiError\([^)]+\): '), '')
-            : 'Submission failed. Check your txid and try again.';
+        _error = e.statusCode == 409
+            ? 'This transaction ID has already been submitted.'
+            : (e.message.isNotEmpty
+                ? e.message
+                : 'Submission failed. Check your txid and try again.');
+        _submitting = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Submission failed. Check your txid and try again.';
         _submitting = false;
       });
     }

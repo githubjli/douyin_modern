@@ -1,3 +1,17 @@
+/// Wrapper for a paginated API response page.
+class PagedResult<T> {
+  const PagedResult({required this.items, this.nextUrl});
+
+  final List<T> items;
+
+  /// Full URL for the next page, or `null` when this is the last page.
+  final String? nextUrl;
+
+  bool get hasMore => nextUrl != null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Creator profile returned by GET /api/public/creators/{id}/
 class PublicCreatorProfile {
   const PublicCreatorProfile({

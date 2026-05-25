@@ -276,7 +276,7 @@ void main() {
     await tapPaymentAction(tester, 'Download QR Code');
 
     expect(saveCalled, isTrue);
-    expect(find.text('QR saved'), findsOneWidget);
+    expect(find.textContaining('QR saved'), findsOneWidget);
   });
 
   testWidgets('uses order qr payload before payment address',

@@ -23,6 +23,8 @@ dependencies:
   ant_media_flutter: ^1.5.4
   flutter_webrtc: ^1.4.1
   country_picker: ^2.0.26
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

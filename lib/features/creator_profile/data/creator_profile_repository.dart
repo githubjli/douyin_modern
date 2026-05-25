@@ -20,25 +20,37 @@ class CreatorProfileRepository {
     return PublicCreatorProfile.fromJson(data);
   }
 
-  Future<List<PublicCreatorVideo>> getVideos(int creatorId) async {
+  /// [url] is the full `next` URL from a previous page; omit for first page.
+  Future<PagedResult<PublicCreatorVideo>> getVideos(
+    int creatorId, {
+    String? url,
+  }) async {
     final response = await _client.get<dynamic>(
-      Endpoints.publicCreatorVideos(creatorId),
+      url ?? Endpoints.publicCreatorVideos(creatorId),
     );
-    return _parsePagedList(response.data, PublicCreatorVideo.fromJson);
+    return _parsePagedResult(response.data, PublicCreatorVideo.fromJson);
   }
 
-  Future<List<PublicCreatorDrama>> getDramas(int creatorId) async {
+  /// [url] is the full `next` URL from a previous page; omit for first page.
+  Future<PagedResult<PublicCreatorDrama>> getDramas(
+    int creatorId, {
+    String? url,
+  }) async {
     final response = await _client.get<dynamic>(
-      Endpoints.publicCreatorDramas(creatorId),
+      url ?? Endpoints.publicCreatorDramas(creatorId),
     );
-    return _parsePagedList(response.data, PublicCreatorDrama.fromJson);
+    return _parsePagedResult(response.data, PublicCreatorDrama.fromJson);
   }
 
-  Future<List<PublicCreatorLive>> getLives(int creatorId) async {
+  /// [url] is the full `next` URL from a previous page; omit for first page.
+  Future<PagedResult<PublicCreatorLive>> getLives(
+    int creatorId, {
+    String? url,
+  }) async {
     final response = await _client.get<dynamic>(
-      Endpoints.publicCreatorLives(creatorId),
+      url ?? Endpoints.publicCreatorLives(creatorId),
     );
-    return _parsePagedList(response.data, PublicCreatorLive.fromJson);
+    return _parsePagedResult(response.data, PublicCreatorLive.fromJson);
   }
 
   /// POST /api/creators/{id}/follow/
@@ -67,17 +79,25 @@ class CreatorProfileRepository {
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
-  static List<T> _parsePagedList<T>(
+  static PagedResult<T> _parsePagedResult<T>(
     dynamic data,
     T Function(Map<String, dynamic>) fromJson,
   ) {
     List<dynamic> items = const <dynamic>[];
+    String? nextUrl;
+
     if (data is Map<String, dynamic>) {
       items = data['results'] as List<dynamic>? ?? <dynamic>[];
+      final dynamic n = data['next'];
+      if (n is String && n.isNotEmpty) nextUrl = n;
     } else if (data is List) {
       items = data;
     }
-    return items.whereType<Map<String, dynamic>>().map(fromJson).toList();
+
+    return PagedResult<T>(
+      items: items.whereType<Map<String, dynamic>>().map(fromJson).toList(),
+      nextUrl: nextUrl,
+    );
   }
 }
 

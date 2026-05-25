@@ -27,10 +27,6 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
   late final CreatorProfileRepository _repo;
 
   PublicCreatorProfile? _profile;
-  List<PublicCreatorVideo> _videos = const <PublicCreatorVideo>[];
-  List<PublicCreatorDrama> _dramas = const <PublicCreatorDrama>[];
-  List<PublicCreatorLive> _lives = const <PublicCreatorLive>[];
-
   bool _loading = true;
   String? _error;
   bool _followLoading = false;
@@ -40,7 +36,7 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _repo = ref.read(creatorProfileRepositoryProvider);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAll());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
   @override
@@ -51,35 +47,18 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
 
   // ── Data ───────────────────────────────────────────────────────────────────
 
-  Future<void> _loadAll({bool showSpinner = true}) async {
+  /// Only loads the profile header.  Tab content is managed per-tab.
+  Future<void> _loadProfile() async {
     if (!mounted) return;
     setState(() {
-      if (showSpinner) _loading = true;
+      _loading = true;
       _error = null;
     });
     try {
-      // Fire all four requests in parallel.
-      final profileFuture = _repo.getProfile(widget.creatorId);
-      final videosFuture = _repo.getVideos(widget.creatorId);
-      final dramasFuture = _repo.getDramas(widget.creatorId);
-      final livesFuture = _repo.getLives(widget.creatorId);
-      await Future.wait(<Future<dynamic>>[
-        profileFuture,
-        videosFuture,
-        dramasFuture,
-        livesFuture,
-      ]);
-      // All futures are resolved — await again to get typed values (no I/O cost).
-      final PublicCreatorProfile profile = await profileFuture;
-      final List<PublicCreatorVideo> videos = await videosFuture;
-      final List<PublicCreatorDrama> dramas = await dramasFuture;
-      final List<PublicCreatorLive> lives = await livesFuture;
+      final profile = await _repo.getProfile(widget.creatorId);
       if (!mounted) return;
       setState(() {
         _profile = profile;
-        _videos = videos;
-        _dramas = dramas;
-        _lives = lives;
         _loading = false;
       });
     } catch (e) {
@@ -144,7 +123,7 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextButton(
-                  onPressed: _loadAll,
+                  onPressed: _loadProfile,
                   child: const Text(
                     'Retry',
                     style: TextStyle(color: AppColors.brandGold),
@@ -160,59 +139,50 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: NestedScrollView(
-          headerSliverBuilder: (BuildContext ctx, bool innerScrolled) =>
-              <Widget>[
-            SliverToBoxAdapter(
-              child: _ProfileHeader(
-                profile: _profile!,
-                onBack: () => Navigator.of(context).maybePop(),
-                onFollow: _toggleFollow,
-                followLoading: _followLoading,
-              ),
+        headerSliverBuilder: (BuildContext ctx, bool innerScrolled) =>
+            <Widget>[
+          SliverToBoxAdapter(
+            child: _ProfileHeader(
+              profile: _profile!,
+              onBack: () => Navigator.of(context).maybePop(),
+              onFollow: _toggleFollow,
+              followLoading: _followLoading,
             ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _StickyTabBar(
-                TabBar(
-                  controller: _tabController,
-                  labelColor: AppColors.brandGold,
-                  unselectedLabelColor: AppColors.mutedOliveText,
-                  indicatorColor: AppColors.brandGold,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  labelStyle: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                  unselectedLabelStyle: AppTextStyles.body.copyWith(
-                    fontSize: 13,
-                  ),
-                  tabs: const <Widget>[
-                    Tab(text: 'Videos'),
-                    Tab(text: 'Dramas'),
-                    Tab(text: 'Live'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          body: TabBarView(
-            controller: _tabController,
-            children: <Widget>[
-              _VideosTab(
-                videos: _videos,
-                onRefresh: () => _loadAll(showSpinner: false),
-              ),
-              _DramasTab(
-                dramas: _dramas,
-                onRefresh: () => _loadAll(showSpinner: false),
-              ),
-              _LivesTab(
-                lives: _lives,
-                onRefresh: () => _loadAll(showSpinner: false),
-              ),
-            ],
           ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickyTabBar(
+              TabBar(
+                controller: _tabController,
+                labelColor: AppColors.brandGold,
+                unselectedLabelColor: AppColors.mutedOliveText,
+                indicatorColor: AppColors.brandGold,
+                indicatorSize: TabBarIndicatorSize.label,
+                labelStyle: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: AppTextStyles.body.copyWith(
+                  fontSize: 13,
+                ),
+                tabs: const <Widget>[
+                  Tab(text: 'Videos'),
+                  Tab(text: 'Dramas'),
+                  Tab(text: 'Live'),
+                ],
+              ),
+            ),
+          ),
+        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: <Widget>[
+            _VideosTab(creatorId: widget.creatorId, repo: _repo),
+            _DramasTab(creatorId: widget.creatorId, repo: _repo),
+            _LivesTab(creatorId: widget.creatorId, repo: _repo),
+          ],
         ),
+      ),
     );
   }
 }
@@ -425,7 +395,9 @@ class _FollowButton extends StatelessWidget {
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color: isFollowing ? AppColors.brandGold : AppColors.warmBackground,
+                  color: isFollowing
+                      ? AppColors.brandGold
+                      : AppColors.warmBackground,
                 ),
               )
             else
@@ -474,13 +446,13 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-// ── Videos tab — 3-column grid ─────────────────────────────────────────────────
+// ── Videos tab ─────────────────────────────────────────────────────────────────
 
 class _VideosTab extends StatefulWidget {
-  const _VideosTab({required this.videos, required this.onRefresh});
+  const _VideosTab({required this.creatorId, required this.repo});
 
-  final List<PublicCreatorVideo> videos;
-  final Future<void> Function() onRefresh;
+  final int creatorId;
+  final CreatorProfileRepository repo;
 
   @override
   State<_VideosTab> createState() => _VideosTabState();
@@ -488,22 +460,85 @@ class _VideosTab extends StatefulWidget {
 
 class _VideosTabState extends State<_VideosTab>
     with AutomaticKeepAliveClientMixin {
+  List<PublicCreatorVideo> _items = const <PublicCreatorVideo>[];
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _nextUrl;
+  String? _error;
+
   @override
   bool get wantKeepAlive => true;
 
   @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? url}) async {
+    try {
+      final result = await widget.repo.getVideos(widget.creatorId, url: url);
+      if (!mounted) return;
+      setState(() {
+        _items = url == null ? result.items : <PublicCreatorVideo>[..._items, ...result.items];
+        _nextUrl = result.nextUrl;
+        _loading = false;
+        _loadingMore = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        // Only overwrite error on initial load; keep existing items on load-more failure.
+        if (url == null) _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final String? next = _nextUrl;
+    if (next == null || _loadingMore || _loading) return;
+    setState(() => _loadingMore = true);
+    await _fetch(url: next);
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _items = const <PublicCreatorVideo>[];
+      _nextUrl = null;
+      _loading = true;
+      _error = null;
+    });
+    await _fetch();
+  }
+
+  @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (widget.videos.isEmpty) {
+
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.brandGold),
+      );
+    }
+
+    if (_error != null) {
+      return _TabError(error: _error!, onRetry: _refresh);
+    }
+
+    if (_items.isEmpty) {
       return _EmptyTab(
         icon: Icons.videocam_off_rounded,
         label: 'No videos yet',
-        onRefresh: widget.onRefresh,
+        onRefresh: _refresh,
       );
     }
+
     return RefreshIndicator(
       color: AppColors.brandGold,
-      onRefresh: widget.onRefresh,
+      onRefresh: _refresh,
       child: GridView.builder(
         padding: const EdgeInsets.all(1),
         physics: const AlwaysScrollableScrollPhysics(),
@@ -513,12 +548,246 @@ class _VideosTabState extends State<_VideosTab>
           mainAxisSpacing: 2,
           childAspectRatio: 9 / 16,
         ),
-        itemCount: widget.videos.length,
-        itemBuilder: (_, int i) => _VideoThumb(video: widget.videos[i]),
+        itemCount: _items.length + (_nextUrl != null ? 1 : 0),
+        itemBuilder: (_, int i) {
+          if (i == _items.length) {
+            _loadMore();
+            return const _LoadMoreIndicator();
+          }
+          return _VideoThumb(video: _items[i]);
+        },
       ),
     );
   }
 }
+
+// ── Dramas tab ─────────────────────────────────────────────────────────────────
+
+class _DramasTab extends StatefulWidget {
+  const _DramasTab({required this.creatorId, required this.repo});
+
+  final int creatorId;
+  final CreatorProfileRepository repo;
+
+  @override
+  State<_DramasTab> createState() => _DramasTabState();
+}
+
+class _DramasTabState extends State<_DramasTab>
+    with AutomaticKeepAliveClientMixin {
+  List<PublicCreatorDrama> _items = const <PublicCreatorDrama>[];
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _nextUrl;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? url}) async {
+    try {
+      final result = await widget.repo.getDramas(widget.creatorId, url: url);
+      if (!mounted) return;
+      setState(() {
+        _items = url == null ? result.items : <PublicCreatorDrama>[..._items, ...result.items];
+        _nextUrl = result.nextUrl;
+        _loading = false;
+        _loadingMore = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        if (url == null) _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final String? next = _nextUrl;
+    if (next == null || _loadingMore || _loading) return;
+    setState(() => _loadingMore = true);
+    await _fetch(url: next);
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _items = const <PublicCreatorDrama>[];
+      _nextUrl = null;
+      _loading = true;
+      _error = null;
+    });
+    await _fetch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.brandGold),
+      );
+    }
+
+    if (_error != null) {
+      return _TabError(error: _error!, onRetry: _refresh);
+    }
+
+    if (_items.isEmpty) {
+      return _EmptyTab(
+        icon: Icons.movie_creation_outlined,
+        label: 'No dramas yet',
+        onRefresh: _refresh,
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.brandGold,
+      onRefresh: _refresh,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(AppSpacing.xs),
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: AppSpacing.xs,
+          mainAxisSpacing: AppSpacing.xs,
+          childAspectRatio: 2 / 3,
+        ),
+        itemCount: _items.length + (_nextUrl != null ? 1 : 0),
+        itemBuilder: (_, int i) {
+          if (i == _items.length) {
+            _loadMore();
+            return const _LoadMoreIndicator();
+          }
+          return _DramaTile(drama: _items[i]);
+        },
+      ),
+    );
+  }
+}
+
+// ── Lives tab ──────────────────────────────────────────────────────────────────
+
+class _LivesTab extends StatefulWidget {
+  const _LivesTab({required this.creatorId, required this.repo});
+
+  final int creatorId;
+  final CreatorProfileRepository repo;
+
+  @override
+  State<_LivesTab> createState() => _LivesTabState();
+}
+
+class _LivesTabState extends State<_LivesTab>
+    with AutomaticKeepAliveClientMixin {
+  List<PublicCreatorLive> _items = const <PublicCreatorLive>[];
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _nextUrl;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? url}) async {
+    try {
+      final result = await widget.repo.getLives(widget.creatorId, url: url);
+      if (!mounted) return;
+      setState(() {
+        _items = url == null ? result.items : <PublicCreatorLive>[..._items, ...result.items];
+        _nextUrl = result.nextUrl;
+        _loading = false;
+        _loadingMore = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        if (url == null) _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final String? next = _nextUrl;
+    if (next == null || _loadingMore || _loading) return;
+    setState(() => _loadingMore = true);
+    await _fetch(url: next);
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _items = const <PublicCreatorLive>[];
+      _nextUrl = null;
+      _loading = true;
+      _error = null;
+    });
+    await _fetch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.brandGold),
+      );
+    }
+
+    if (_error != null) {
+      return _TabError(error: _error!, onRetry: _refresh);
+    }
+
+    if (_items.isEmpty) {
+      return _EmptyTab(
+        icon: Icons.live_tv_outlined,
+        label: 'No live history',
+        onRefresh: _refresh,
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.brandGold,
+      onRefresh: _refresh,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _items.length + (_nextUrl != null ? 1 : 0),
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+        itemBuilder: (_, int i) {
+          if (i == _items.length) {
+            _loadMore();
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: _LoadMoreIndicator(),
+            );
+          }
+          return _LiveTile(live: _items[i]);
+        },
+      ),
+    );
+  }
+}
+
+// ── Tile widgets ───────────────────────────────────────────────────────────────
 
 class _VideoThumb extends StatelessWidget {
   const _VideoThumb({required this.video});
@@ -552,91 +821,45 @@ class _VideoThumb extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-        // Thumbnail
-        _Thumbnail(url: video.thumbnailUrl),
+          // Thumbnail
+          _Thumbnail(url: video.thumbnailUrl),
 
-        // Bottom gradient + title
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: <Color>[Color(0xCC000000), Colors.transparent],
+          // Bottom gradient + title
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: <Color>[Color(0xCC000000), Colors.transparent],
+                ),
               ),
-            ),
-            child: Text(
-              video.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                height: 1.3,
+              child: Text(
+                video.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
+                ),
               ),
             ),
           ),
-        ),
 
-        // VIP badge
-        if (video.isPremium)
-          const Positioned(
-            top: 4,
-            right: 4,
-            child: _VipBadge(),
-          ),
+          // VIP badge
+          if (video.isPremium)
+            const Positioned(
+              top: 4,
+              right: 4,
+              child: _VipBadge(),
+            ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Dramas tab — 2-column grid ─────────────────────────────────────────────────
-
-class _DramasTab extends StatefulWidget {
-  const _DramasTab({required this.dramas, required this.onRefresh});
-
-  final List<PublicCreatorDrama> dramas;
-  final Future<void> Function() onRefresh;
-
-  @override
-  State<_DramasTab> createState() => _DramasTabState();
-}
-
-class _DramasTabState extends State<_DramasTab>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    if (widget.dramas.isEmpty) {
-      return _EmptyTab(
-        icon: Icons.movie_creation_outlined,
-        label: 'No dramas yet',
-        onRefresh: widget.onRefresh,
-      );
-    }
-    return RefreshIndicator(
-      color: AppColors.brandGold,
-      onRefresh: widget.onRefresh,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(AppSpacing.xs),
-        physics: const AlwaysScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: AppSpacing.xs,
-          mainAxisSpacing: AppSpacing.xs,
-          childAspectRatio: 2 / 3,
-        ),
-        itemCount: widget.dramas.length,
-        itemBuilder: (_, int i) => _DramaTile(drama: widget.dramas[i]),
       ),
     );
   }
@@ -672,104 +895,63 @@ class _DramaTile extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
         child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          _Thumbnail(url: drama.coverUrl),
+          fit: StackFit.expand,
+          children: <Widget>[
+            _Thumbnail(url: drama.coverUrl),
 
-          // Bottom overlay: title + episode count
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: <Color>[Color(0xDD000000), Colors.transparent],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    drama.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
-                    ),
+            // Bottom overlay: title + episode count
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: <Color>[Color(0xDD000000), Colors.transparent],
                   ),
-                  if (drama.episodeCount > 0) ...<Widget>[
-                    const SizedBox(height: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
                     Text(
-                      '${drama.episodeCount} eps',
+                      drama.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xCCFFFFFF),
-                        fontSize: 10,
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
                       ),
                     ),
+                    if (drama.episodeCount > 0) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        '${drama.episodeCount} eps',
+                        style: const TextStyle(
+                          color: Color(0xCCFFFFFF),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
 
-          // VIP badge
-          if (drama.isPremium)
-            const Positioned(
-              top: 6,
-              right: 6,
-              child: _VipBadge(),
-            ),
+            // VIP badge
+            if (drama.isPremium)
+              const Positioned(
+                top: 6,
+                right: 6,
+                child: _VipBadge(),
+              ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Live tab — list ────────────────────────────────────────────────────────────
-
-class _LivesTab extends StatefulWidget {
-  const _LivesTab({required this.lives, required this.onRefresh});
-
-  final List<PublicCreatorLive> lives;
-  final Future<void> Function() onRefresh;
-
-  @override
-  State<_LivesTab> createState() => _LivesTabState();
-}
-
-class _LivesTabState extends State<_LivesTab>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    if (widget.lives.isEmpty) {
-      return _EmptyTab(
-        icon: Icons.live_tv_outlined,
-        label: 'No live history',
-        onRefresh: widget.onRefresh,
-      );
-    }
-    return RefreshIndicator(
-      color: AppColors.brandGold,
-      onRefresh: widget.onRefresh,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: widget.lives.length,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-        itemBuilder: (_, int i) => _LiveTile(live: widget.lives[i]),
       ),
     );
   }
@@ -794,83 +976,83 @@ class _LiveTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-          // Thumbnail — 16:9
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(AppSpacing.radiusSm),
-              bottomLeft: Radius.circular(AppSpacing.radiusSm),
-            ),
-            child: SizedBox(
-              width: 120,
-              height: 68,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  _Thumbnail(url: live.coverUrl),
-                  if (live.isLive)
-                    Positioned(
-                      top: 4,
-                      left: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'LIVE',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
+            // Thumbnail — 16:9
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppSpacing.radiusSm),
+                bottomLeft: Radius.circular(AppSpacing.radiusSm),
+              ),
+              child: SizedBox(
+                width: 120,
+                height: 68,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: <Widget>[
+                    _Thumbnail(url: live.coverUrl),
+                    if (live.isLive)
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
 
-          // Info
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xs),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    live.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.body.copyWith(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
+            // Info
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      live.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Row(
-                    children: <Widget>[
-                      const Icon(
-                        Icons.remove_red_eye_outlined,
-                        size: 12,
-                        color: AppColors.mutedOliveText,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        _formatCount(live.viewerCount),
-                        style: AppTextStyles.caption.copyWith(fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: AppSpacing.xxs),
+                    Row(
+                      children: <Widget>[
+                        const Icon(
+                          Icons.remove_red_eye_outlined,
+                          size: 12,
+                          color: AppColors.mutedOliveText,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          _formatCount(live.viewerCount),
+                          style: AppTextStyles.caption.copyWith(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           ],
         ),
       ),
@@ -971,7 +1153,6 @@ class _EmptyTab extends StatelessWidget {
     );
     final Future<void> Function()? refresh = onRefresh;
     if (refresh == null) return inner;
-    // Wrap in a scrollable so RefreshIndicator can be triggered.
     return RefreshIndicator(
       color: AppColors.brandGold,
       onRefresh: refresh,
@@ -980,6 +1161,71 @@ class _EmptyTab extends StatelessWidget {
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.4,
           child: inner,
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-tab error state with a Retry button.
+class _TabError extends StatelessWidget {
+  const _TabError({required this.error, required this.onRetry});
+
+  final String error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.wifi_off_rounded,
+              size: 40,
+              color: AppColors.mutedOliveText,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Failed to load',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.cocoaText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text(
+                'Retry',
+                style: TextStyle(color: AppColors.brandGold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small centred spinner shown at the bottom of a list while loading more.
+class _LoadMoreIndicator extends StatelessWidget {
+  const _LoadMoreIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.sm),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            color: AppColors.brandGold,
+            strokeWidth: 2,
+          ),
         ),
       ),
     );

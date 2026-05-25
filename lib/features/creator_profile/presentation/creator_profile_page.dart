@@ -1,5 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -343,7 +345,7 @@ class _Avatar extends StatelessWidget {
       radius: radius,
       backgroundColor: AppColors.softBorder,
       backgroundImage: trimmed != null && trimmed.isNotEmpty
-          ? NetworkImage(trimmed)
+          ? CachedNetworkImageProvider(trimmed)
           : null,
       child: trimmed == null || trimmed.isEmpty
           ? Icon(
@@ -519,9 +521,7 @@ class _VideosTabState extends State<_VideosTab>
     super.build(context);
 
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.brandGold),
-      );
+      return const _VideosSkeleton();
     }
 
     if (_error != null) {
@@ -633,9 +633,7 @@ class _DramasTabState extends State<_DramasTab>
     super.build(context);
 
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.brandGold),
-      );
+      return const _DramasSkeleton();
     }
 
     if (_error != null) {
@@ -747,9 +745,7 @@ class _LivesTabState extends State<_LivesTab>
     super.build(context);
 
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.brandGold),
-      );
+      return const _LivesSkeleton();
     }
 
     if (_error != null) {
@@ -1080,10 +1076,11 @@ class _Thumbnail extends StatelessWidget {
         ),
       );
     }
-    return Image.network(
-      trimmed,
+    return CachedNetworkImage(
+      imageUrl: trimmed,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const ColoredBox(
+      placeholder: (_, __) => const ColoredBox(color: Color(0xFF343332)),
+      errorWidget: (_, __, ___) => const ColoredBox(
         color: Color(0xFF343332),
         child: Center(
           child: Icon(Icons.broken_image_outlined,
@@ -1225,6 +1222,99 @@ class _LoadMoreIndicator extends StatelessWidget {
           child: CircularProgressIndicator(
             color: AppColors.brandGold,
             strokeWidth: 2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shimmer skeletons ──────────────────────────────────────────────────────────
+
+/// Warm-dark shimmer palette consistent with the app's colour scheme.
+const Color _shimmerBase = AppColors.cardBackground;      // 0xFF2B2A29
+const Color _shimmerHighlight = Color(0xFF3C3A38);        // warm grey, clearly lighter
+
+/// 3-column skeleton matching the Videos grid layout (9 cells = 3 full rows).
+class _VideosSkeleton extends StatelessWidget {
+  const _VideosSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: _shimmerBase,
+      highlightColor: _shimmerHighlight,
+      child: GridView.count(
+        padding: const EdgeInsets.all(1),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 3,
+        crossAxisSpacing: 2,
+        mainAxisSpacing: 2,
+        childAspectRatio: 9 / 16,
+        children: List<Widget>.generate(
+          9,
+          (_) => const ColoredBox(color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+/// 2-column skeleton matching the Dramas grid layout (6 cells = 3 full rows).
+class _DramasSkeleton extends StatelessWidget {
+  const _DramasSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: _shimmerBase,
+      highlightColor: _shimmerHighlight,
+      child: GridView.count(
+        padding: const EdgeInsets.all(AppSpacing.xs),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpacing.xs,
+        mainAxisSpacing: AppSpacing.xs,
+        childAspectRatio: 2 / 3,
+        children: List<Widget>.generate(
+          6,
+          (_) => ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: const ColoredBox(color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// List skeleton matching the Lives list layout (4 rows).
+class _LivesSkeleton extends StatelessWidget {
+  const _LivesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: _shimmerBase,
+      highlightColor: _shimmerHighlight,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List<Widget>.generate(
+            4,
+            (_) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Container(
+                height: 68 + AppSpacing.xs * 2,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+              ),
+            ),
           ),
         ),
       ),

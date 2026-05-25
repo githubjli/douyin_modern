@@ -1,11 +1,10 @@
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:gal/gal.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -74,18 +73,43 @@ class _MeowCreditRechargePageState
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _savingQr = true);
     try {
-      final boundary =
-          _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) throw Exception('QR not rendered');
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      // Resolve render object before any await.
+      final RenderObject? ro = _qrKey.currentContext?.findRenderObject();
+      if (ro is! RenderRepaintBoundary) throw Exception('QR not rendered');
+
+      // Request photo-library write access (may show system dialog).
+      final bool hasAccess = await Gal.requestAccess();
+      if (!hasAccess) {
+        if (mounted) {
+          messenger.showSnackBar(const SnackBar(
+            content: Text(
+              'Photo access denied. Enable it in Settings → Privacy → Photos.',
+            ),
+          ));
+        }
+        return;
+      }
+
+      final ui.Image image = await ro.toImage(pixelRatio: 3.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) throw Exception('Failed to capture QR');
-      final bytes = byteData.buffer.asUint8List();
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/meow_credit_qr.png');
-      await file.writeAsBytes(bytes);
+      final Uint8List bytes = byteData.buffer.asUint8List();
+
+      await Gal.putImageBytes(
+        bytes,
+        name: 'meow_credit_qr_${DateTime.now().millisecondsSinceEpoch}',
+      );
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('QR saved')));
+      messenger.showSnackBar(const SnackBar(
+        content: Text("QR saved — check 'Recents' in your Photos app"),
+      ));
+    } on GalException catch (e) {
+      if (!mounted) return;
+      final String msg = e.type == GalExceptionType.accessDenied
+          ? 'Photo access denied. Enable it in Settings → Privacy → Photos.'
+          : 'Unable to save QR. Please try again.';
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (!mounted) return;
       messenger.showSnackBar(

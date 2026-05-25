@@ -94,16 +94,34 @@ class _RechargeInstructionPageState
     if (_savingAlbum) return;
     setState(() => _savingAlbum = true);
     try {
+      // Request photo-library write access before any capture work.
+      final bool hasAccess = await Gal.requestAccess();
+      if (!hasAccess) {
+        if (mounted) {
+          _showMsg(
+            'Photo access denied. Enable it in Settings → Privacy → Photos.',
+          );
+        }
+        return;
+      }
       final Uint8List? png = await _captureQrPng(_qrKey);
       if (png == null || png.isEmpty) {
-        _showMsg('Unable to save. Please try again.');
+        if (mounted) _showMsg('Unable to save. Please try again.');
         return;
       }
       await Gal.putImageBytes(
         png,
         name: 'credit_qr_${DateTime.now().millisecondsSinceEpoch}',
       );
-      if (mounted) _showMsg('QR saved to Photos');
+      if (mounted) _showMsg("QR saved — check 'Recents' in your Photos app");
+    } on GalException catch (e) {
+      if (mounted) {
+        _showMsg(
+          e.type == GalExceptionType.accessDenied
+              ? 'Photo access denied. Enable it in Settings → Privacy → Photos.'
+              : 'Unable to save to Photos. Please try again.',
+        );
+      }
     } catch (_) {
       if (mounted) _showMsg('Unable to save to Photos. Please try again.');
     } finally {

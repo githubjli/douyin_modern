@@ -540,13 +540,13 @@ class _VideosTabState extends State<_VideosTab>
       color: AppColors.brandGold,
       onRefresh: _refresh,
       child: GridView.builder(
-        padding: const EdgeInsets.all(1),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         physics: const AlwaysScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          crossAxisSpacing: 2,
-          mainAxisSpacing: 2,
-          childAspectRatio: 9 / 16,
+          crossAxisSpacing: AppSpacing.sm,
+          mainAxisSpacing: AppSpacing.sm,
+          childAspectRatio: 0.6,
         ),
         itemCount: _items.length + (_nextUrl != null ? 1 : 0),
         itemBuilder: (_, int i) {
@@ -814,48 +814,73 @@ class _VideoThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => _open(context),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          // Thumbnail
-          _Thumbnail(url: video.thumbnailUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            // Thumbnail
+            _Thumbnail(url: video.thumbnailUrl),
 
-          // Bottom gradient + title
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+            // Gradient overlay
+            Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: <Color>[Color(0xCC000000), Colors.transparent],
-                ),
-              ),
-              child: Text(
-                video.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  height: 1.3,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x0D000000),
+                    Color(0x55000000),
+                    Color(0xB3000000),
+                  ],
+                  stops: <double>[0.2, 0.6, 1.0],
                 ),
               ),
             ),
-          ),
 
-          // VIP badge
-          if (video.isPremium)
-            const Positioned(
-              top: 4,
-              right: 4,
-              child: _VipBadge(),
+            // Badge — top-left, matches _InfoBadge in video_detail
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: _ContentBadge(
+                label: video.isPremium ? 'VIP' : 'Video',
+              ),
             ),
-        ],
+
+            // Bottom: title + views
+            Positioned(
+              left: AppSpacing.xs,
+              right: AppSpacing.xs,
+              bottom: AppSpacing.xs,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    '${_formatCount(video.viewCount)} views',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -889,63 +914,69 @@ class _DramaTile extends StatelessWidget {
     return GestureDetector(
       onTap: () => _open(context),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
             _Thumbnail(url: drama.coverUrl),
 
-            // Bottom overlay: title + episode count
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: <Color>[Color(0xDD000000), Colors.transparent],
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      drama.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                    ),
-                    if (drama.episodeCount > 0) ...<Widget>[
-                      const SizedBox(height: 2),
-                      Text(
-                        '${drama.episodeCount} eps',
-                        style: const TextStyle(
-                          color: Color(0xCCFFFFFF),
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
+            // Gradient overlay
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x0D000000),
+                    Color(0x55000000),
+                    Color(0xDD000000),
                   ],
+                  stops: <double>[0.2, 0.6, 1.0],
                 ),
               ),
             ),
 
-            // VIP badge
-            if (drama.isPremium)
-              const Positioned(
-                top: 6,
-                right: 6,
-                child: _VipBadge(),
+            // Badge — top-left, matches _InfoBadge style
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: _ContentBadge(
+                label: drama.isPremium ? 'VIP' : 'Drama',
               ),
+            ),
+
+            // Bottom: title + episode count
+            Positioned(
+              left: AppSpacing.xs,
+              right: AppSpacing.xs,
+              bottom: AppSpacing.xs,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    drama.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                  if (drama.episodeCount > 0) ...<Widget>[
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      '${drama.episodeCount} eps',
+                      style: AppTextStyles.caption.copyWith(
+                        color: Colors.white54,
+                        fontSize: 10,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1091,26 +1122,29 @@ class _Thumbnail extends StatelessWidget {
   }
 }
 
-/// Gold crown badge for premium / VIP content.
-class _VipBadge extends StatelessWidget {
-  const _VipBadge();
+/// Content-type badge (VIP / Video / Drama / LIVE) matching the style used by
+/// [_InfoBadge] in video_detail_page and [_PortalCard] in home_page:
+/// semi-transparent dark background + [AppColors.softBorder] border + gold text.
+class _ContentBadge extends StatelessWidget {
+  const _ContentBadge({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.brandGold,
-        borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 2,
       ),
-      child: const Text(
-        'VIP',
-        style: TextStyle(
-          color: Color(0xFF1A1400),
-          fontSize: 8,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
-        ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground.withValues(alpha: 0.75),
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(color: AppColors.brandGold),
       ),
     );
   }
@@ -1245,16 +1279,19 @@ class _VideosSkeleton extends StatelessWidget {
       baseColor: _shimmerBase,
       highlightColor: _shimmerHighlight,
       child: GridView.count(
-        padding: const EdgeInsets.all(1),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisCount: 3,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 9 / 16,
+        crossAxisSpacing: AppSpacing.sm,
+        mainAxisSpacing: AppSpacing.sm,
+        childAspectRatio: 0.6,
         children: List<Widget>.generate(
           9,
-          (_) => const ColoredBox(color: Colors.white),
+          (_) => ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            child: const ColoredBox(color: Colors.white),
+          ),
         ),
       ),
     );
@@ -1281,7 +1318,7 @@ class _DramasSkeleton extends StatelessWidget {
         children: List<Widget>.generate(
           6,
           (_) => ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
             child: const ColoredBox(color: Colors.white),
           ),
         ),

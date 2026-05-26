@@ -36,4 +36,3 @@ flutter test
 - Do not rename Dart package unless explicitly requested.
 - Do not add native splash unless explicitly requested.
 - Do not change `video_player` playback lifecycle unless explicitly requested.
-- Do not add backend APIs yet; backend integration is planned later via `githubjli/django-auth-core`.

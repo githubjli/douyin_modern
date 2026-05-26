@@ -116,6 +116,10 @@ class Endpoints {
 
   static String liveGiftSend(String id) => '/api/live/$id/gifts/send/';
 
+  /// Viewer-safe playback config: WebRTC params + HLS fallback.
+  /// Returns 409 for failed streams, 503 when no playback URL is available.
+  static String liveWatchConfig(String id) => '/api/live/$id/watch-config/';
+
   // Drama interactions
   static String dramaFavorite(int id) => '/api/dramas/$id/favorite/';
 

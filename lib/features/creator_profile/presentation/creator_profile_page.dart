@@ -241,6 +241,12 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mirrors the _AuthorFollowRow meta pattern from VideoDetailPage.
+    final String meta = <String>[
+      if (profile.isCreator) 'Creator',
+      '${_formatCount(profile.followerCount)} followers',
+    ].join(' · ');
+
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -267,12 +273,46 @@ class _ProfileHeader extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
 
-          // Avatar row
+          // ── Compact creator row — matches _AuthorFollowRow in VideoDetailPage ──
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
+              // Avatar: 40 px diameter, same as video-card author avatar
               _Avatar(url: profile.avatarUrl, radius: 20),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.sm),
+
+              // Name + meta
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      profile.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.cocoaText,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.mutedOliveText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+
+              // Follow button (OutlinedButton — matches _FollowButton in VideoDetailPage)
               _FollowButton(
                 isFollowing: profile.viewerIsFollowing,
                 loading: followLoading,
@@ -280,24 +320,17 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Display name
-          Text(
-            profile.displayName,
-            style: AppTextStyles.sectionTitle,
-          ),
 
           // Bio
           if (profile.bio != null && profile.bio!.isNotEmpty) ...<Widget>[
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               profile.bio!,
-              maxLines: 3,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.body.copyWith(
                 color: AppColors.mutedOliveText,
-                fontSize: 13,
+                fontSize: 12,
                 height: 1.4,
               ),
             ),
@@ -307,20 +340,9 @@ class _ProfileHeader extends StatelessWidget {
           // Stats row
           Row(
             children: <Widget>[
-              _StatItem(
-                value: profile.followerCount,
-                label: 'Followers',
-              ),
+              _StatItem(value: profile.videoCount, label: 'Videos'),
               const SizedBox(width: AppSpacing.xl),
-              _StatItem(
-                value: profile.videoCount,
-                label: 'Videos',
-              ),
-              const SizedBox(width: AppSpacing.xl),
-              _StatItem(
-                value: profile.likeCount,
-                label: 'Likes',
-              ),
+              _StatItem(value: profile.likeCount, label: 'Likes'),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -359,6 +381,7 @@ class _Avatar extends StatelessWidget {
 }
 
 // ── Follow button ──────────────────────────────────────────────────────────────
+// Matches the OutlinedButton style used by _FollowButton in VideoDetailPage.
 
 class _FollowButton extends StatelessWidget {
   const _FollowButton({
@@ -373,50 +396,37 @@ class _FollowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: loading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        decoration: BoxDecoration(
-          color: isFollowing ? Colors.transparent : AppColors.brandGold,
-          border: Border.all(
-            color: isFollowing
-                ? AppColors.brandGold.withValues(alpha: 0.55)
-                : AppColors.brandGold,
-          ),
-          borderRadius: BorderRadius.circular(999),
+    final Color accent =
+        isFollowing ? AppColors.mutedOliveText : AppColors.brandGold;
+    final Color border =
+        isFollowing ? AppColors.softBorder : AppColors.brandGold;
+
+    return OutlinedButton(
+      onPressed: loading ? null : onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: accent,
+        side: BorderSide(color: border),
+        minimumSize: const Size(0, 30),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xxs,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            if (loading)
-              SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: isFollowing
-                      ? AppColors.brandGold
-                      : AppColors.warmBackground,
-                ),
-              )
-            else
-              Text(
-                isFollowing ? 'Following' : 'Follow',
-                style: AppTextStyles.body.copyWith(
-                  color: isFollowing
-                      ? AppColors.brandGold
-                      : AppColors.warmBackground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
-                ),
-              ),
-          ],
+        visualDensity: VisualDensity.compact,
+        textStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
+      child: loading
+          ? SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: accent,
+              ),
+            )
+          : Text(isFollowing ? 'Following' : 'Follow'),
     );
   }
 }

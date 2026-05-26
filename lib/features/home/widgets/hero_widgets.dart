@@ -25,9 +25,7 @@ class _NewsHeroCarousel extends StatelessWidget {
           final dynamic selectedItem = items[index];
           VoidCallback? onTap;
           if (selectedItem is HomeLiveItem) {
-            onTap = selectedItem.ownerId != null
-                ? () => _openCreatorProfile(context, selectedItem.ownerId!)
-                : () => _showLiveComingSoon(context);
+            onTap = () => _openLiveItem(context, selectedItem);
           } else if (selectedItem is HomeVideoItem) {
             onTap = () =>
                 _openVideoDetail(context, selectedItem, videoRecommendations);
@@ -103,9 +101,7 @@ class _LiveChannelHero extends StatelessWidget {
         compactOverlay: true,
         onTap: selectedItem == null
             ? null
-            : selectedItem.ownerId != null
-                ? () => _openCreatorProfile(context, selectedItem.ownerId!)
-                : () => _showLiveComingSoon(context),
+            : () => _openLiveItem(context, selectedItem),
       ),
     );
   }

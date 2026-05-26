@@ -6,6 +6,8 @@ import 'package:shimmer/shimmer.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../../core/network/api_error.dart';
+import '../../auth/application/auth_providers.dart';
 import '../../drama_detail/drama_detail_page.dart';
 import '../../home/domain/home_models.dart';
 import '../../video_detail/video_detail_page.dart';
@@ -88,11 +90,16 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
         );
         _followLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _followLoading = false);
+      // 400 typically means "you can't follow yourself" from the backend.
+      final String message =
+          (e is ApiError && e.statusCode == 400)
+              ? 'You can\'t follow yourself.'
+              : 'Failed to update follow status.';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update follow status.')),
+        SnackBar(content: Text(message)),
       );
     }
   }
@@ -138,6 +145,13 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
       );
     }
 
+    // Hide the Follow button when the viewer is looking at their own profile.
+    // AuthSession.userId is a String (e.g. "42"), profile.id is an int.
+    final String? sessionUserId =
+        ref.watch(authControllerProvider).session?.userId;
+    final bool isOwnProfile =
+        sessionUserId != null && sessionUserId == _profile!.id.toString();
+
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: NestedScrollView(
@@ -149,6 +163,7 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
               onBack: () => Navigator.of(context).maybePop(),
               onFollow: _toggleFollow,
               followLoading: _followLoading,
+              isOwnProfile: isOwnProfile,
             ),
           ),
           SliverPersistentHeader(
@@ -232,12 +247,16 @@ class _ProfileHeader extends StatelessWidget {
     required this.onBack,
     required this.onFollow,
     required this.followLoading,
+    this.isOwnProfile = false,
   });
 
   final PublicCreatorProfile profile;
   final VoidCallback onBack;
   final VoidCallback onFollow;
   final bool followLoading;
+
+  /// When true the viewer IS this creator — the Follow button is hidden.
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -273,11 +292,12 @@ class _ProfileHeader extends StatelessWidget {
             children: <Widget>[
               _Avatar(url: profile.avatarUrl, radius: 20),
               const Spacer(),
-              _FollowButton(
-                isFollowing: profile.viewerIsFollowing,
-                loading: followLoading,
-                onTap: onFollow,
-              ),
+              if (!isOwnProfile)
+                _FollowButton(
+                  isFollowing: profile.viewerIsFollowing,
+                  loading: followLoading,
+                  onTap: onFollow,
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

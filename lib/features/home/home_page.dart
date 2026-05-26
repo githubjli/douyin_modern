@@ -5,6 +5,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../shop/shop_page.dart';
 import '../../core/network/api_client.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
@@ -100,7 +101,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     'Videos',
     'Short Drama',
     'Live',
-    'Shop',
   ];
 
   @override
@@ -249,9 +249,6 @@ class _HomePageState extends ConsumerState<HomePage> {
       2 => _videoChannelContent(data),
       3 => _dramaChannelContent(data),
       4 => _liveChannelContent(data),
-      5 => const <Widget>[
-          _ChannelEmptyCard(message: 'Shop is coming soon'),
-        ],
       _ => <Widget>[
           _HeroCarousel(
             items: heroItems,

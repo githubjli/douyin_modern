@@ -244,9 +244,9 @@ class _PriceRow extends StatelessWidget {
       runSpacing: AppSpacing.xs,
       children: <Widget>[
         if (mp != null)
-          _PriceChip(label: '$mp MP', primary: true),
+          _PriceChip(label: 'Pay with MeowPoints: $mp', primary: true),
         if (mc != null)
-          _PriceChip(label: '$mc MC', primary: mp == null),
+          _PriceChip(label: 'Pay with MeowCredit: $mc', primary: mp == null),
       ],
     );
   }
@@ -548,7 +548,7 @@ class _BuyBarState extends State<_BuyBar> {
           children: <Widget>[
             Expanded(
               child: _BuyButton(
-                label: '$mp MP',
+                label: 'Buy with MeowPoints',
                 onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowPoints),
                 filled: true,
                 loading: _loading,
@@ -557,7 +557,7 @@ class _BuyBarState extends State<_BuyBar> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: _BuyButton(
-                label: '$mc MC',
+                label: 'Buy with MeowCredit',
                 onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowCredit),
                 filled: false,
               ),
@@ -571,7 +571,7 @@ class _BuyBarState extends State<_BuyBar> {
       return _BarShell(
         padding: padding,
         child: _BuyButton(
-          label: 'Buy  ·  $mp MP',
+          label: 'Buy with MeowPoints',
           onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowPoints),
           filled: true,
           loading: _loading,
@@ -583,7 +583,7 @@ class _BuyBarState extends State<_BuyBar> {
       return _BarShell(
         padding: padding,
         child: _BuyButton(
-          label: 'Buy  ·  $mc MC',
+          label: 'Buy with MeowCredit',
           onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowCredit),
           filled: true,
           loading: _loading,

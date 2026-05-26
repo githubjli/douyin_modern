@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -161,38 +163,17 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       leading: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.of(context).pop(),
-        child: Center(
-          child: SizedBox(
-            width: 32,
-            height: 32,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground.withValues(alpha: 0.54),
-                border: Border.all(color: AppColors.softBorder),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: AppColors.brandGold,
-                size: 18,
-              ),
-            ),
-          ),
-        ),
+        child: const Center(child: _GlassIconButton(icon: Icons.arrow_back_rounded)),
       ),
       actions: <Widget>[
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cart coming soon.')),
-          ),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            child: Icon(
-              Icons.shopping_cart_outlined,
-              color: AppColors.cocoaText,
-              size: 24,
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.sm),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cart coming soon.')),
             ),
+            child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
           ),
         ),
       ],
@@ -734,6 +715,34 @@ class _BuyButton extends StatelessWidget {
                 ),
               )
             : Text(label),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Overlay controls (frosted glass)
+// ---------------------------------------------------------------------------
+
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(
+            color: Color(0x33000000),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
       ),
     );
   }

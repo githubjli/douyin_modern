@@ -10,6 +10,7 @@ import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../creator_profile/presentation/creator_profile_page.dart';
 import '../drama_detail/drama_detail_page.dart';
+import '../live/live_watch_page.dart';
 import '../video_detail/video_detail_page.dart';
 import 'data/mock_home_repository.dart';
 import 'data/remote_home_repository.dart';
@@ -1093,14 +1094,17 @@ void _openCreatorProfile(BuildContext context, int creatorId) {
 }
 
 /// Routes a live-card tap based on stream status:
-/// - Actively live  → live room page (placeholder snackbar until page is built)
-/// - Ended          → brief "stream ended" snackbar, then creator profile page
+/// - Actively live  → LiveWatchPage (WebRTC primary, HLS fallback)
+/// - Ended          → brief snackbar + creator profile page
 /// - Ready          → creator profile page directly
 void _openLiveItem(BuildContext context, HomeLiveItem item) {
   final String status = _liveStatus(item);
   if (status == 'live') {
-    // TODO: replace with navigation to the live-room page once it is built.
-    _showLiveComingSoon(context);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LiveWatchPage(item: item),
+      ),
+    );
     return;
   }
   final int? ownerId = item.ownerId;

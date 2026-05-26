@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,17 +35,25 @@ class ProductDetailPage extends ConsumerStatefulWidget {
 class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   late final ShopRepository _repo;
   late ShopProduct _product;
+  ShopPaymentAsset? _selectedAsset;
 
   int _activeImageIndex = 0;
   bool _detailLoading = true;
 
   late final PageController _imageController;
 
+  ShopPaymentAsset? _defaultAsset(ShopProduct p) {
+    if (p.meowPointsPrice != null) return ShopPaymentAsset.meowPoints;
+    if (p.meowCreditPrice != null) return ShopPaymentAsset.meowCredit;
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
     _imageController = PageController();
     _product = widget.product;
+    _selectedAsset = _defaultAsset(widget.product);
     _repo = widget.repository ??
         (widget.useRemote
             ? RemoteShopRepository(apiClient: ref.read(apiClientProvider))
@@ -64,6 +74,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       setState(() {
         _product = full;
         _detailLoading = false;
+        _selectedAsset = _defaultAsset(full);
       });
     } catch (e, st) {
       debugPrint('[ProductDetail] loadDetail error: $e\n$st');
@@ -102,7 +113,12 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        _PriceRow(product: _product),
+                        _PriceRow(
+                          product: _product,
+                          selectedAsset: _selectedAsset,
+                          onSelect: (ShopPaymentAsset a) =>
+                              setState(() => _selectedAsset = a),
+                        ),
                         const SizedBox(height: AppSpacing.xs),
                         _ProductTitle(name: _product.name),
                         const SizedBox(height: AppSpacing.sm),
@@ -132,6 +148,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             product: _product,
             repo: _repo,
             isAuthenticated: isAuthenticated,
+            selectedAsset: _selectedAsset,
           ),
         ],
       ),
@@ -146,38 +163,17 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       leading: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.of(context).pop(),
-        child: Center(
-          child: SizedBox(
-            width: 32,
-            height: 32,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground.withValues(alpha: 0.54),
-                border: Border.all(color: AppColors.softBorder),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: AppColors.brandGold,
-                size: 18,
-              ),
-            ),
-          ),
-        ),
+        child: const Center(child: _GlassIconButton(icon: Icons.arrow_back_rounded)),
       ),
       actions: <Widget>[
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cart coming soon.')),
-          ),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            child: Icon(
-              Icons.shopping_cart_outlined,
-              color: AppColors.cocoaText,
-              size: 24,
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.sm),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cart coming soon.')),
             ),
+            child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
           ),
         ),
       ],
@@ -223,8 +219,15 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 // ---------------------------------------------------------------------------
 
 class _PriceRow extends StatelessWidget {
-  const _PriceRow({required this.product});
+  const _PriceRow({
+    required this.product,
+    this.selectedAsset,
+    this.onSelect,
+  });
+
   final ShopProduct product;
+  final ShopPaymentAsset? selectedAsset;
+  final ValueChanged<ShopPaymentAsset>? onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -232,49 +235,78 @@ class _PriceRow extends StatelessWidget {
     final String? mc = product.meowCreditPrice;
 
     if (mp == null && mc == null) {
-      return _PriceChip(label: product.price, primary: true);
+      return _PriceChip(label: product.price, selected: true);
     }
 
     return Wrap(
-      spacing: AppSpacing.md,
+      spacing: AppSpacing.sm,
       runSpacing: AppSpacing.xs,
       children: <Widget>[
         if (mp != null)
-          _PriceChip(label: 'Pay with MeowPoints: $mp', primary: true),
+          _PriceChip(
+            label: 'MeowPoints: $mp',
+            selected: selectedAsset == ShopPaymentAsset.meowPoints,
+            onTap: () => onSelect?.call(ShopPaymentAsset.meowPoints),
+          ),
         if (mc != null)
-          _PriceChip(label: 'Pay with MeowCredit: $mc', primary: mp == null),
+          _PriceChip(
+            label: 'MeowCredit: $mc',
+            selected: selectedAsset == ShopPaymentAsset.meowCredit,
+            onTap: () => onSelect?.call(ShopPaymentAsset.meowCredit),
+          ),
       ],
     );
   }
 }
 
 class _PriceChip extends StatelessWidget {
-  const _PriceChip({required this.label, required this.primary});
+  const _PriceChip({required this.label, required this.selected, this.onTap});
+
   final String label;
-  final bool primary;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: primary
-            ? AppColors.brandGold.withValues(alpha: 0.15)
-            : AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        border: Border.all(
-          color: primary ? AppColors.brandGold : AppColors.softBorder,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.sectionTitle.copyWith(
-          color: primary ? AppColors.brandGold : AppColors.cocoaText,
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.brandGold.withValues(alpha: 0.15)
+              : AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          border: Border.all(
+            color: selected ? AppColors.brandGold : AppColors.softBorder,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (selected) ...<Widget>[
+              const Icon(
+                Icons.check_circle_rounded,
+                color: AppColors.brandGold,
+                size: 14,
+              ),
+              const SizedBox(width: AppSpacing.xxs),
+            ],
+            Text(
+              label,
+              style: AppTextStyles.sectionTitle.copyWith(
+                color: selected ? AppColors.brandGold : AppColors.mutedOliveText,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -449,11 +481,13 @@ class _BuyBar extends ConsumerStatefulWidget {
     required this.product,
     required this.repo,
     required this.isAuthenticated,
+    required this.selectedAsset,
   });
 
   final ShopProduct product;
   final ShopRepository repo;
   final bool isAuthenticated;
+  final ShopPaymentAsset? selectedAsset;
 
   @override
   ConsumerState<_BuyBar> createState() => _BuyBarState();
@@ -532,8 +566,6 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
   @override
   Widget build(BuildContext context) {
     final bool outOfStock = widget.product.stock <= 0;
-    final String? mp = widget.product.meowPointsPrice;
-    final String? mc = widget.product.meowCreditPrice;
     final EdgeInsets padding = EdgeInsets.fromLTRB(
       AppSpacing.md,
       AppSpacing.sm,
@@ -565,103 +597,49 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
       );
     }
 
+    final ShopPaymentAsset? asset = widget.selectedAsset;
+
+    if (asset == null) {
+      // Fiat-only product: MP/MC pricing not configured in the backend.
+      return _BarShell(
+        padding: padding,
+        child: _BuyButton(
+          label: 'Buy  ·  ${widget.product.price}',
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Platform currency pricing not available for this product.',
+              ),
+            ),
+          ),
+          filled: true,
+        ),
+      );
+    }
+
     final int? mpBalance = ref.watch(meowPointsWalletProvider).valueOrNull?.balance;
     final int? mcBalance = ref.watch(meowCreditWalletProvider).valueOrNull?.balance;
 
-    final bool hasMp = mp != null;
-    final bool hasMc = mc != null;
+    final bool isMp = asset == ShopPaymentAsset.meowPoints;
+    final bool ok = isMp ? _mpSufficient(mpBalance) : _mcSufficient(mcBalance);
+    final String priceStr = isMp
+        ? (widget.product.meowPointsPrice ?? '')
+        : (widget.product.meowCreditPrice ?? '');
+    final String unit = isMp ? 'MP' : 'MC';
 
-    if (hasMp && hasMc) {
-      final bool mpOk = _mpSufficient(mpBalance);
-      final bool mcOk = _mcSufficient(mcBalance);
-      return _BarShell(
-        padding: padding,
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: _BuyButton(
-                label: mpOk ? 'Buy with MeowPoints' : 'Need $mp MP',
-                onPressed: (_loading || !mpOk)
-                    ? null
-                    : () => _confirmAndBuy(
-                          ShopPaymentAsset.meowPoints,
-                          mpBalance: mpBalance,
-                          mcBalance: mcBalance,
-                        ),
-                filled: true,
-                loading: _loading,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _BuyButton(
-                label: mcOk ? 'Buy with MeowCredit' : 'Need $mc MC',
-                onPressed: (_loading || !mcOk)
-                    ? null
-                    : () => _confirmAndBuy(
-                          ShopPaymentAsset.meowCredit,
-                          mpBalance: mpBalance,
-                          mcBalance: mcBalance,
-                        ),
-                filled: false,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (hasMp) {
-      final bool mpOk = _mpSufficient(mpBalance);
-      return _BarShell(
-        padding: padding,
-        child: _BuyButton(
-          label: mpOk ? 'Buy with MeowPoints' : 'Need $mp MP',
-          onPressed: (_loading || !mpOk)
-              ? null
-              : () => _confirmAndBuy(
-                    ShopPaymentAsset.meowPoints,
-                    mpBalance: mpBalance,
-                    mcBalance: mcBalance,
-                  ),
-          filled: true,
-          loading: _loading,
-        ),
-      );
-    }
-
-    if (hasMc) {
-      final bool mcOk = _mcSufficient(mcBalance);
-      return _BarShell(
-        padding: padding,
-        child: _BuyButton(
-          label: mcOk ? 'Buy with MeowCredit' : 'Need $mc MC',
-          onPressed: (_loading || !mcOk)
-              ? null
-              : () => _confirmAndBuy(
-                    ShopPaymentAsset.meowCredit,
-                    mpBalance: mpBalance,
-                    mcBalance: mcBalance,
-                  ),
-          filled: true,
-          loading: _loading,
-        ),
-      );
-    }
-
-    // Fiat-only product: MP/MC pricing not configured in the backend.
     return _BarShell(
       padding: padding,
       child: _BuyButton(
-        label: 'Buy  ·  ${widget.product.price}',
-        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Platform currency pricing not available for this product.',
-            ),
-          ),
-        ),
+        label: ok ? 'Buy with ${asset.displayName}' : 'Need $priceStr $unit',
+        onPressed: (_loading || !ok)
+            ? null
+            : () => _confirmAndBuy(
+                  asset,
+                  mpBalance: mpBalance,
+                  mcBalance: mcBalance,
+                ),
         filled: true,
+        loading: _loading,
       ),
     );
   }
@@ -737,6 +715,34 @@ class _BuyButton extends StatelessWidget {
                 ),
               )
             : Text(label),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Overlay controls (frosted glass)
+// ---------------------------------------------------------------------------
+
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(
+            color: Color(0x33000000),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
       ),
     );
   }

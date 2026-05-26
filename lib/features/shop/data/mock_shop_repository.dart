@@ -1,4 +1,5 @@
 import '../domain/shop_models.dart';
+import '../domain/shop_order_models.dart';
 import '../domain/shop_repository.dart';
 
 class MockShopRepository implements ShopRepository {
@@ -43,6 +44,8 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 2, name: 'Drink', slug: 'drink'),
       soldCount: 120,
       stock: 55,
+      meowPointsPrice: '1200',
+      meowCreditPrice: '12',
     ),
     ShopProduct(
       id: 1002,
@@ -51,6 +54,8 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 2, name: 'Drink', slug: 'drink'),
       soldCount: 43,
       stock: 8,
+      meowPointsPrice: '990',
+      meowCreditPrice: '10',
     ),
     ShopProduct(
       id: 1003,
@@ -61,6 +66,8 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 1, name: 'Food', slug: 'food'),
       soldCount: 210,
       stock: 200,
+      meowPointsPrice: '650',
+      meowCreditPrice: '7',
     ),
     ShopProduct(
       id: 1004,
@@ -69,6 +76,7 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 2, name: 'Drink', slug: 'drink'),
       soldCount: 88,
       stock: 30,
+      meowPointsPrice: '450',
     ),
     ShopProduct(
       id: 1005,
@@ -79,6 +87,8 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 4, name: 'Electronics', slug: 'electronics'),
       soldCount: 512,
       stock: 12,
+      meowPointsPrice: '4900',
+      meowCreditPrice: '49',
     ),
     ShopProduct(
       id: 1006,
@@ -87,6 +97,8 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 3, name: 'Beauty', slug: 'beauty'),
       soldCount: 67,
       stock: 40,
+      meowPointsPrice: '2200',
+      meowCreditPrice: '22',
     ),
     ShopProduct(
       id: 1007,
@@ -96,6 +108,8 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 1, name: 'Food', slug: 'food'),
       soldCount: 155,
       stock: 100,
+      meowPointsPrice: '780',
+      meowCreditPrice: '8',
     ),
     ShopProduct(
       id: 1008,
@@ -105,6 +119,7 @@ class MockShopRepository implements ShopRepository {
       category: ShopCategory(id: 4, name: 'Electronics', slug: 'electronics'),
       soldCount: 29,
       stock: 60,
+      meowCreditPrice: '15',
     ),
   ];
 
@@ -167,6 +182,27 @@ class MockShopRepository implements ShopRepository {
           'Perfect for everyday use.',
       images: found.thumbnailUrl != null ? <String>[found.thumbnailUrl!] : const <String>[],
       specs: _specsFor(found),
+      meowPointsPrice: found.meowPointsPrice,
+      meowCreditPrice: found.meowCreditPrice,
+    );
+  }
+
+  @override
+  Future<ShopOrder> createOrder({
+    required int productId,
+    required int quantity,
+    required ShopPaymentAsset paymentAsset,
+    int? shippingAddressId,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    return ShopOrder(
+      orderNo: 'MOCK-${DateTime.now().millisecondsSinceEpoch}',
+      status: 'paid',
+      paymentAsset: paymentAsset.apiValue,
+      unitPriceSnapshot: '0',
+      totalAmountSnapshot: '0',
+      platformFeeAmount: '0',
+      sellerReceivableAmount: '0',
     );
   }
 

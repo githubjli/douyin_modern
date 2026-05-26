@@ -47,6 +47,8 @@ class ShopProduct {
     this.description,
     this.images = const <String>[],
     this.specs = const <ShopProductSpec>[],
+    this.meowPointsPrice,
+    this.meowCreditPrice,
   });
 
   final int id;
@@ -61,6 +63,8 @@ class ShopProduct {
   final String? description;
   final List<String> images;
   final List<ShopProductSpec> specs;
+  final String? meowPointsPrice;
+  final String? meowCreditPrice;
 }
 
 class ShopProductPage {

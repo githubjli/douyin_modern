@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
-import '../../core/network/api_client.dart';
+import '../../core/network/api_error.dart';
+import '../auth/application/auth_providers.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
+import 'domain/shop_order_models.dart';
 import 'domain/shop_repository.dart';
 
-class ProductDetailPage extends StatefulWidget {
+class ProductDetailPage extends ConsumerStatefulWidget {
   const ProductDetailPage({
     super.key,
     required this.product,
@@ -22,10 +25,10 @@ class ProductDetailPage extends StatefulWidget {
   final bool useRemote;
 
   @override
-  State<ProductDetailPage> createState() => _ProductDetailPageState();
+  ConsumerState<ProductDetailPage> createState() => _ProductDetailPageState();
 }
 
-class _ProductDetailPageState extends State<ProductDetailPage> {
+class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   late final ShopRepository _repo;
   late ShopProduct _product;
 
@@ -41,7 +44,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     _product = widget.product;
     _repo = widget.repository ??
         (widget.useRemote
-            ? RemoteShopRepository(apiClient: ApiClient())
+            ? RemoteShopRepository(apiClient: ref.read(apiClientProvider))
             : const MockShopRepository());
     _loadDetail();
   }
@@ -80,6 +83,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   @override
   Widget build(BuildContext context) {
     final List<String> images = _images;
+    final bool isAuthenticated = ref.watch(authControllerProvider).isSignedIn;
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -121,7 +125,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               ],
             ),
           ),
-          _AddToCartBar(product: _product),
+          _BuyBar(
+            product: _product,
+            repo: _repo,
+            isAuthenticated: isAuthenticated,
+          ),
         ],
       ),
     );
@@ -217,31 +225,62 @@ class _PriceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: <Widget>[
-        Text(
-          '\$${product.price}',
-          style: AppTextStyles.sectionTitle.copyWith(
-            color: AppColors.brandGold,
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-          ),
+    final String? mp = product.meowPointsPrice;
+    final String? mc = product.meowCreditPrice;
+
+    if (mp == null && mc == null) {
+      return Text(
+        product.price,
+        style: AppTextStyles.sectionTitle.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 26,
+          fontWeight: FontWeight.w700,
         ),
-        if (product.originalPrice != null) ...<Widget>[
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            '\$${product.originalPrice}',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.mutedOliveText,
-              fontSize: 14,
-              decoration: TextDecoration.lineThrough,
-              decorationColor: AppColors.mutedOliveText,
-            ),
-          ),
-        ],
+      );
+    }
+
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.xs,
+      children: <Widget>[
+        if (mp != null)
+          _PriceChip(label: '$mp MP', primary: true),
+        if (mc != null)
+          _PriceChip(label: '$mc MC', primary: mp == null),
       ],
+    );
+  }
+}
+
+class _PriceChip extends StatelessWidget {
+  const _PriceChip({required this.label, required this.primary});
+  final String label;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: primary
+            ? AppColors.brandGold.withValues(alpha: 0.15)
+            : AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        border: Border.all(
+          color: primary ? AppColors.brandGold : AppColors.softBorder,
+        ),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.sectionTitle.copyWith(
+          color: primary ? AppColors.brandGold : AppColors.cocoaText,
+          fontSize: primary ? 22 : 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -406,34 +445,188 @@ class _SpecRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Add to cart bar
+// Buy bar
 // ---------------------------------------------------------------------------
 
-class _AddToCartBar extends StatelessWidget {
-  const _AddToCartBar({required this.product});
+class _BuyBar extends StatefulWidget {
+  const _BuyBar({
+    required this.product,
+    required this.repo,
+    required this.isAuthenticated,
+  });
+
   final ShopProduct product;
+  final ShopRepository repo;
+  final bool isAuthenticated;
+
+  @override
+  State<_BuyBar> createState() => _BuyBarState();
+}
+
+class _BuyBarState extends State<_BuyBar> {
+  bool _loading = false;
+
+  Future<void> _buy(ShopPaymentAsset asset) async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final ShopOrder order = await widget.repo.createOrder(
+        productId: widget.product.id,
+        quantity: 1,
+        paymentAsset: asset,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Order #${order.orderNo} placed! ${order.statusText}.',
+          ),
+          backgroundColor: AppColors.cardBackground,
+        ),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: AppColors.cardBackground,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to place order. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool outOfStock = product.stock <= 0;
+    final bool outOfStock = widget.product.stock <= 0;
+    final String? mp = widget.product.meowPointsPrice;
+    final String? mc = widget.product.meowCreditPrice;
+    final EdgeInsets padding = EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.sm,
+      AppSpacing.md,
+      AppSpacing.sm + MediaQuery.of(context).padding.bottom,
+    );
+
+    if (outOfStock) {
+      return _BarShell(
+        padding: padding,
+        child: const _BuyButton(
+          label: 'Out of Stock',
+          onPressed: null,
+          filled: false,
+        ),
+      );
+    }
+
+    if (!widget.isAuthenticated) {
+      return _BarShell(
+        padding: padding,
+        child: _BuyButton(
+          label: 'Sign in to Purchase',
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please sign in to make a purchase.')),
+          ),
+          filled: true,
+        ),
+      );
+    }
+
+    final bool hasMp = mp != null;
+    final bool hasMc = mc != null;
+
+    if (hasMp && hasMc) {
+      return _BarShell(
+        padding: padding,
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: _BuyButton(
+                label: '$mp MP',
+                onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowPoints),
+                filled: true,
+                loading: _loading,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _BuyButton(
+                label: '$mc MC',
+                onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowCredit),
+                filled: false,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (hasMp) {
+      return _BarShell(
+        padding: padding,
+        child: _BuyButton(
+          label: 'Buy  ·  $mp MP',
+          onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowPoints),
+          filled: true,
+          loading: _loading,
+        ),
+      );
+    }
+
+    if (hasMc) {
+      return _BarShell(
+        padding: padding,
+        child: _BuyButton(
+          label: 'Buy  ·  $mc MC',
+          onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowCredit),
+          filled: true,
+          loading: _loading,
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+class _BarShell extends StatelessWidget {
+  const _BarShell({required this.padding, required this.child});
+  final EdgeInsets padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       color: AppColors.cardBackground,
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.sm + MediaQuery.of(context).padding.bottom,
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: ElevatedButton(
-          onPressed: outOfStock
-              ? null
-              : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cart coming soon.')),
-                  ),
-          style: ElevatedButton.styleFrom(
+      padding: padding,
+      child: SizedBox(height: 48, child: child),
+    );
+  }
+}
+
+class _BuyButton extends StatelessWidget {
+  const _BuyButton({
+    required this.label,
+    required this.onPressed,
+    required this.filled,
+    this.loading = false,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool filled;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final ButtonStyle style = filled
+        ? ElevatedButton.styleFrom(
             backgroundColor: AppColors.brandGold,
             foregroundColor: AppColors.warmBackground,
             disabledBackgroundColor: AppColors.softBorder,
@@ -441,9 +634,37 @@ class _AddToCartBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
             ),
             textStyle: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700),
-          ),
-          child: Text(outOfStock ? 'Out of Stock' : 'Add to Cart'),
-        ),
+          )
+        : ElevatedButton.styleFrom(
+            backgroundColor: AppColors.cardBackground,
+            foregroundColor: AppColors.brandGold,
+            disabledBackgroundColor: AppColors.softBorder,
+            elevation: 0,
+            side: const BorderSide(color: AppColors.brandGold),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            textStyle: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700),
+          );
+
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: style,
+        child: loading
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: filled
+                      ? AppColors.warmBackground
+                      : AppColors.brandGold,
+                ),
+              )
+            : Text(label),
       ),
     );
   }

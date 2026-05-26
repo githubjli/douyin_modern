@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../domain/shop_models.dart';
+import '../domain/shop_order_models.dart';
 import '../domain/shop_repository.dart';
 
 class RemoteShopRepository implements ShopRepository {
@@ -115,8 +116,46 @@ class RemoteShopRepository implements ShopRepository {
       description: m['description'] as String?,
       images: images,
       specs: specs,
+      meowPointsPrice: m['meow_points_price'] as String?,
+      meowCreditPrice: m['meow_credit_price'] as String?,
     );
   }
+
+  @override
+  Future<ShopOrder> createOrder({
+    required int productId,
+    required int quantity,
+    required ShopPaymentAsset paymentAsset,
+    int? shippingAddressId,
+  }) async {
+    final Map<String, dynamic> body = <String, dynamic>{
+      'product_id': productId,
+      'quantity': quantity,
+      'payment_asset': paymentAsset.apiValue,
+      if (shippingAddressId != null) 'shipping_address_id': shippingAddressId,
+    };
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.shopOrders,
+      data: body,
+      authenticated: true,
+    );
+    final dynamic raw = response.data;
+    if (raw is! Map<String, dynamic>) {
+      throw Exception('Invalid order response');
+    }
+    return _mapOrder(raw);
+  }
+
+  ShopOrder _mapOrder(Map<String, dynamic> m) => ShopOrder(
+        orderNo: m['order_no'] as String? ?? '',
+        status: m['status'] as String? ?? '',
+        paymentAsset: m['payment_asset'] as String? ?? '',
+        unitPriceSnapshot: m['unit_price_snapshot'] as String? ?? '0',
+        totalAmountSnapshot: m['total_amount_snapshot'] as String? ?? '0',
+        platformFeeAmount: m['platform_fee_amount'] as String? ?? '0',
+        sellerReceivableAmount: m['seller_receivable_amount'] as String? ?? '0',
+        paidAt: m['paid_at'] as String?,
+      );
 
   ShopProductPage _mapProductPage(Map<String, dynamic> m, int page, int pageSize) {
     final List<dynamic> results =

@@ -160,6 +160,11 @@ class Endpoints {
 
   static String shopProductDetail(int id) => '/api/shop/products/$id/';
 
+  static const String shopOrders = '/api/product-orders/';
+
+  static String shopOrderDetail(String orderNo) =>
+      '/api/product-orders/$orderNo/';
+
   // ── Creator Studio ────────────────────────────────────────────────────────
   static const String creatorVideos     = '/api/creator/videos/';
   static const String creatorLiveStreams = '/api/creator/live-streams/';

@@ -17,6 +17,7 @@ class VideoInteractionState {
     this.giftCount = 0,
     this.shareCount = 0,
     this.creatorId,
+    this.isCreator = false,
     this.subscriberCount,
     this.isFollowing = false,
   });
@@ -27,6 +28,12 @@ class VideoInteractionState {
   final int giftCount;
   final int shareCount;
   final int? creatorId;
+
+  /// True when the video owner has a public Creator Profile on the backend.
+  /// Populated from `creator.is_creator` in the video-detail API response.
+  /// Only show the creator-profile navigation tap when this is true.
+  final bool isCreator;
+
   final int? subscriberCount;
   final bool isFollowing;
 
@@ -37,6 +44,7 @@ class VideoInteractionState {
     int? giftCount,
     int? shareCount,
     int? creatorId,
+    bool? isCreator,
     int? subscriberCount,
     bool? isFollowing,
   }) {
@@ -47,6 +55,7 @@ class VideoInteractionState {
       giftCount: giftCount ?? this.giftCount,
       shareCount: shareCount ?? this.shareCount,
       creatorId: creatorId ?? this.creatorId,
+      isCreator: isCreator ?? this.isCreator,
       subscriberCount: subscriberCount ?? this.subscriberCount,
       isFollowing: isFollowing ?? this.isFollowing,
     );
@@ -372,6 +381,13 @@ VideoInteractionState _mapInteraction(
   final int? creatorId = creator is Map<String, dynamic>
       ? _int(creator['id'])
       : current.creatorId;
+  // is_creator: true means the owner has a public Creator Profile page.
+  // If the field is absent we keep the previous value (safe for incremental
+  // updates) rather than defaulting to true/false.
+  final bool? isCreatorFromResponse = creator is Map<String, dynamic>
+      ? _bool(creator['is_creator'])
+      : null;
+  final bool isCreator = isCreatorFromResponse ?? current.isCreator;
   final int? subscriberCount = creator is Map<String, dynamic>
       ? (_int(creator['subscriber_count']) ?? _int(data['owner_subscriber_count']))
       : _int(data['owner_subscriber_count']) ?? current.subscriberCount;
@@ -388,6 +404,7 @@ VideoInteractionState _mapInteraction(
     giftCount: _int(data['gift_count']) ?? current.giftCount,
     shareCount: _int(data['share_count']) ?? current.shareCount,
     creatorId: creatorId ?? current.creatorId,
+    isCreator: isCreator,
     subscriberCount: subscriberCount,
     isFollowing: isFollowing,
   );

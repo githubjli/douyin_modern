@@ -427,7 +427,11 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
               isSignedIn: isSignedIn,
               onFollow: () =>
                   unawaited(ref.read(videoDetailProvider.notifier).toggleFollow()),
-              onCreatorTap: interaction.creatorId != null
+              // Only navigate when the owner has a registered Creator Profile.
+              // interaction.isCreator is populated from creator.is_creator in
+              // the video-detail API response; it defaults to false so the tap
+              // is hidden until the backend confirms the creator exists.
+              onCreatorTap: interaction.isCreator && interaction.creatorId != null
                   ? () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => CreatorProfilePage(

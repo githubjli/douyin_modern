@@ -6,6 +6,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../../core/network/api_error.dart';
 import '../../drama_detail/drama_detail_page.dart';
 import '../../home/domain/home_models.dart';
 import '../../video_detail/video_detail_page.dart';
@@ -65,6 +66,18 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
       });
     } catch (e) {
       if (!mounted) return;
+      // 404 means this user hasn't set up a Creator Profile on the backend.
+      // Pop immediately and show an explanatory snackbar rather than leaving
+      // the user on a dead-end error screen.
+      if (e is ApiError && e.statusCode == 404) {
+        Navigator.of(context).maybePop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This creator doesn\'t have a public profile yet.'),
+          ),
+        );
+        return;
+      }
       setState(() {
         _loading = false;
         _error = e.toString();

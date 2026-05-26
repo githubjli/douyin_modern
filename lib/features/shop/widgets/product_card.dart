@@ -104,6 +104,18 @@ class _CardPrice extends StatelessWidget {
     final String? mp = product.meowPointsPrice;
     final String? mc = product.meowCreditPrice;
 
+    if (mp != null && mc != null) {
+      return Text(
+        '$mp MP  ·  $mc MC',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
     if (mp != null) {
       return Text(
         '$mp MP',

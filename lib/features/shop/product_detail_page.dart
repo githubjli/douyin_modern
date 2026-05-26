@@ -6,6 +6,8 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_error.dart';
 import '../auth/application/auth_providers.dart';
+import '../meow_credit/application/meow_credit_providers.dart';
+import '../meow_points/application/meow_points_providers.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
@@ -448,7 +450,7 @@ class _SpecRow extends StatelessWidget {
 // Buy bar
 // ---------------------------------------------------------------------------
 
-class _BuyBar extends StatefulWidget {
+class _BuyBar extends ConsumerStatefulWidget {
   const _BuyBar({
     required this.product,
     required this.repo,
@@ -460,10 +462,10 @@ class _BuyBar extends StatefulWidget {
   final bool isAuthenticated;
 
   @override
-  State<_BuyBar> createState() => _BuyBarState();
+  ConsumerState<_BuyBar> createState() => _BuyBarState();
 }
 
-class _BuyBarState extends State<_BuyBar> {
+class _BuyBarState extends ConsumerState<_BuyBar> {
   bool _loading = false;
 
   Future<void> _buy(ShopPaymentAsset asset) async {
@@ -502,6 +504,37 @@ class _BuyBarState extends State<_BuyBar> {
     }
   }
 
+  bool _mpSufficient(int? balance) {
+    final int? cost = int.tryParse(widget.product.meowPointsPrice ?? '');
+    if (cost == null || balance == null) return true;
+    return balance >= cost;
+  }
+
+  bool _mcSufficient(int? balance) {
+    final int? cost = int.tryParse(widget.product.meowCreditPrice ?? '');
+    if (cost == null || balance == null) return true;
+    return balance >= cost;
+  }
+
+  Future<void> _confirmAndBuy(
+    ShopPaymentAsset asset, {
+    int? mpBalance,
+    int? mcBalance,
+  }) async {
+    final bool? confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PurchaseConfirmSheet(
+        product: widget.product,
+        asset: asset,
+        mpBalance: mpBalance,
+        mcBalance: mcBalance,
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _buy(asset);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool outOfStock = widget.product.stock <= 0;
@@ -538,18 +571,29 @@ class _BuyBarState extends State<_BuyBar> {
       );
     }
 
+    final int? mpBalance = ref.watch(meowPointsWalletProvider).valueOrNull?.balance;
+    final int? mcBalance = ref.watch(meowCreditWalletProvider).valueOrNull?.balance;
+
     final bool hasMp = mp != null;
     final bool hasMc = mc != null;
 
     if (hasMp && hasMc) {
+      final bool mpOk = _mpSufficient(mpBalance);
+      final bool mcOk = _mcSufficient(mcBalance);
       return _BarShell(
         padding: padding,
         child: Row(
           children: <Widget>[
             Expanded(
               child: _BuyButton(
-                label: 'Buy with MeowPoints',
-                onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowPoints),
+                label: mpOk ? 'Buy with MeowPoints' : 'Need $mp MP',
+                onPressed: (_loading || !mpOk)
+                    ? null
+                    : () => _confirmAndBuy(
+                          ShopPaymentAsset.meowPoints,
+                          mpBalance: mpBalance,
+                          mcBalance: mcBalance,
+                        ),
                 filled: true,
                 loading: _loading,
               ),
@@ -557,8 +601,14 @@ class _BuyBarState extends State<_BuyBar> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: _BuyButton(
-                label: 'Buy with MeowCredit',
-                onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowCredit),
+                label: mcOk ? 'Buy with MeowCredit' : 'Need $mc MC',
+                onPressed: (_loading || !mcOk)
+                    ? null
+                    : () => _confirmAndBuy(
+                          ShopPaymentAsset.meowCredit,
+                          mpBalance: mpBalance,
+                          mcBalance: mcBalance,
+                        ),
                 filled: false,
               ),
             ),
@@ -568,11 +618,18 @@ class _BuyBarState extends State<_BuyBar> {
     }
 
     if (hasMp) {
+      final bool mpOk = _mpSufficient(mpBalance);
       return _BarShell(
         padding: padding,
         child: _BuyButton(
-          label: 'Buy with MeowPoints',
-          onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowPoints),
+          label: mpOk ? 'Buy with MeowPoints' : 'Need $mp MP',
+          onPressed: (_loading || !mpOk)
+              ? null
+              : () => _confirmAndBuy(
+                    ShopPaymentAsset.meowPoints,
+                    mpBalance: mpBalance,
+                    mcBalance: mcBalance,
+                  ),
           filled: true,
           loading: _loading,
         ),
@@ -580,11 +637,18 @@ class _BuyBarState extends State<_BuyBar> {
     }
 
     if (hasMc) {
+      final bool mcOk = _mcSufficient(mcBalance);
       return _BarShell(
         padding: padding,
         child: _BuyButton(
-          label: 'Buy with MeowCredit',
-          onPressed: _loading ? null : () => _buy(ShopPaymentAsset.meowCredit),
+          label: mcOk ? 'Buy with MeowCredit' : 'Need $mc MC',
+          onPressed: (_loading || !mcOk)
+              ? null
+              : () => _confirmAndBuy(
+                    ShopPaymentAsset.meowCredit,
+                    mpBalance: mpBalance,
+                    mcBalance: mcBalance,
+                  ),
           filled: true,
           loading: _loading,
         ),
@@ -755,6 +819,153 @@ class _ProductImagePlaceholder extends StatelessWidget {
           color: AppColors.mutedOliveText,
           size: 60,
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Purchase confirmation sheet
+// ---------------------------------------------------------------------------
+
+class _PurchaseConfirmSheet extends StatelessWidget {
+  const _PurchaseConfirmSheet({
+    required this.product,
+    required this.asset,
+    this.mpBalance,
+    this.mcBalance,
+  });
+
+  final ShopProduct product;
+  final ShopPaymentAsset asset;
+  final int? mpBalance;
+  final int? mcBalance;
+
+  String get _priceStr => asset == ShopPaymentAsset.meowPoints
+      ? '${product.meowPointsPrice} MP'
+      : '${product.meowCreditPrice} MC';
+
+  String get _balanceStr {
+    if (asset == ShopPaymentAsset.meowPoints) {
+      return mpBalance != null ? '$mpBalance MP' : '—';
+    }
+    return mcBalance != null ? '$mcBalance MC' : '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md, 0, AppSpacing.md, AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.softBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Confirm Purchase',
+            style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _ConfirmRow(label: 'Product', value: product.name),
+          _ConfirmRow(label: 'Payment', value: asset.displayName),
+          _ConfirmRow(label: 'Amount', value: _priceStr),
+          _ConfirmRow(label: 'Balance', value: _balanceStr),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.softBorder),
+                      foregroundColor: AppColors.cocoaText,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      ),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brandGold,
+                      foregroundColor: AppColors.warmBackground,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      ),
+                      textStyle: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    child: const Text('Confirm'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfirmRow extends StatelessWidget {
+  const _ConfirmRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.mutedOliveText,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.cocoaText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -33,11 +33,25 @@ class _ShopBannerCard extends StatelessWidget {
 
   final ShopBanner banner;
 
+  void _onTap(BuildContext context) {
+    final String url = banner.targetUrl.trim();
+    if (url.isEmpty) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Opening: $url'),
+        backgroundColor: AppColors.cardBackground,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-      child: Stack(
+    return GestureDetector(
+      onTap: () => _onTap(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
           _ShopBannerCover(imageUrl: banner.imageUrl),
@@ -87,6 +101,7 @@ class _ShopBannerCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

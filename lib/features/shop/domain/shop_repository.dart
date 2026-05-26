@@ -1,4 +1,5 @@
 import 'shop_models.dart';
+import 'shop_order_models.dart';
 
 abstract class ShopRepository {
   Future<List<ShopBanner>> getBanners();
@@ -10,4 +11,10 @@ abstract class ShopRepository {
     String? query,
   });
   Future<ShopProduct> getProductDetail(int id);
+  Future<ShopOrder> createOrder({
+    required int productId,
+    required int quantity,
+    required ShopPaymentAsset paymentAsset,
+    int? shippingAddressId, // TODO: required once address management is built
+  });
 }

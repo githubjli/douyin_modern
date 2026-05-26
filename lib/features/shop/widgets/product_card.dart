@@ -74,32 +74,7 @@ class _ProductCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: <Widget>[
-                          Text(
-                            '\$${product.price}',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.brandGold,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (product.originalPrice != null) ...<Widget>[
-                            const SizedBox(width: 4),
-                            Text(
-                              '\$${product.originalPrice}',
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.mutedOliveText,
-                                fontSize: 10,
-                                decoration: TextDecoration.lineThrough,
-                                decorationColor: AppColors.mutedOliveText,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                      _CardPrice(product: product),
                       const SizedBox(height: 2),
                       Text(
                         '${product.soldCount} sold',
@@ -115,6 +90,46 @@ class _ProductCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CardPrice extends StatelessWidget {
+  const _CardPrice({required this.product});
+  final ShopProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? mp = product.meowPointsPrice;
+    final String? mc = product.meowCreditPrice;
+
+    if (mp != null) {
+      return Text(
+        '$mp MP',
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+    if (mc != null) {
+      return Text(
+        '$mc MC',
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.brandGold,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+    return Text(
+      product.price,
+      style: AppTextStyles.caption.copyWith(
+        color: AppColors.brandGold,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
       ),
     );
   }

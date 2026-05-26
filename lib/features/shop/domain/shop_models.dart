@@ -26,6 +26,13 @@ class ShopCategory {
   final String slug;
 }
 
+class ShopProductSpec {
+  const ShopProductSpec({required this.name, required this.value});
+
+  final String name;
+  final String value;
+}
+
 class ShopProduct {
   const ShopProduct({
     required this.id,
@@ -39,6 +46,7 @@ class ShopProduct {
     this.category,
     this.description,
     this.images = const <String>[],
+    this.specs = const <ShopProductSpec>[],
   });
 
   final int id;
@@ -52,6 +60,7 @@ class ShopProduct {
   final int stock;
   final String? description;
   final List<String> images;
+  final List<ShopProductSpec> specs;
 }
 
 class ShopProductPage {

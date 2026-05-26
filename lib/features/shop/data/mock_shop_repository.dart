@@ -148,4 +148,56 @@ class MockShopRepository implements ShopRepository {
       pageSize: pageSize,
     );
   }
+
+  @override
+  Future<ShopProduct> getProductDetail(int id) async {
+    final ShopProduct? found = _products.where((ShopProduct p) => p.id == id).firstOrNull;
+    if (found == null) throw Exception('Product $id not found');
+    return ShopProduct(
+      id: found.id,
+      name: found.name,
+      price: found.price,
+      originalPrice: found.originalPrice,
+      thumbnailUrl: found.thumbnailUrl,
+      badge: found.badge,
+      category: found.category,
+      soldCount: found.soldCount,
+      stock: found.stock,
+      description: 'High-quality ${found.name.toLowerCase()} crafted with premium materials. '
+          'Perfect for everyday use.',
+      images: found.thumbnailUrl != null ? <String>[found.thumbnailUrl!] : const <String>[],
+      specs: _specsFor(found),
+    );
+  }
+
+  List<ShopProductSpec> _specsFor(ShopProduct p) {
+    final String slug = p.category?.slug ?? '';
+    return switch (slug) {
+      'clothes' || 'beauty' => const <ShopProductSpec>[
+          ShopProductSpec(name: 'Material', value: 'Cotton 100%'),
+          ShopProductSpec(name: 'Size', value: 'S / M / L / XL'),
+          ShopProductSpec(name: 'Color', value: 'Multiple'),
+          ShopProductSpec(name: 'Care', value: 'Machine washable'),
+        ],
+      'electronics' => const <ShopProductSpec>[
+          ShopProductSpec(name: 'Connectivity', value: 'Bluetooth 5.3'),
+          ShopProductSpec(name: 'Battery', value: 'Up to 8 hours'),
+          ShopProductSpec(name: 'Warranty', value: '1 year'),
+        ],
+      'food' => const <ShopProductSpec>[
+          ShopProductSpec(name: 'Weight', value: '200 g'),
+          ShopProductSpec(name: 'Storage', value: 'Cool & dry place'),
+          ShopProductSpec(name: 'Shelf life', value: '12 months'),
+        ],
+      'drink' => const <ShopProductSpec>[
+          ShopProductSpec(name: 'Volume', value: '500 ml'),
+          ShopProductSpec(name: 'Sugar', value: 'Low sugar'),
+          ShopProductSpec(name: 'Storage', value: 'Refrigerate after opening'),
+        ],
+      _ => const <ShopProductSpec>[
+          ShopProductSpec(name: 'Condition', value: 'Brand new'),
+          ShopProductSpec(name: 'Origin', value: 'Imported'),
+        ],
+    };
+  }
 }

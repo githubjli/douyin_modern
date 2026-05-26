@@ -3,25 +3,47 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../core/network/api_client.dart';
+import 'data/mock_shop_repository.dart';
+import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
+import 'domain/shop_repository.dart';
 
 class ProductDetailPage extends StatefulWidget {
-  const ProductDetailPage({super.key, required this.product});
+  const ProductDetailPage({
+    super.key,
+    required this.product,
+    this.repository,
+    this.useRemote = true,
+  });
 
   final ShopProduct product;
+  final ShopRepository? repository;
+  final bool useRemote;
 
   @override
   State<ProductDetailPage> createState() => _ProductDetailPageState();
 }
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
+  late final ShopRepository _repo;
+  late ShopProduct _product;
+
   int _activeImageIndex = 0;
+  bool _detailLoading = true;
+
   late final PageController _imageController;
 
   @override
   void initState() {
     super.initState();
     _imageController = PageController();
+    _product = widget.product;
+    _repo = widget.repository ??
+        (widget.useRemote
+            ? RemoteShopRepository(apiClient: ApiClient())
+            : const MockShopRepository());
+    _loadDetail();
   }
 
   @override
@@ -30,22 +52,33 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     super.dispose();
   }
 
+  Future<void> _loadDetail() async {
+    try {
+      final ShopProduct full = await _repo.getProductDetail(_product.id);
+      if (!mounted) return;
+      setState(() {
+        _product = full;
+        _detailLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _detailLoading = false);
+    }
+  }
+
   List<String> get _images {
     final List<String> all = <String>[];
-    if (widget.product.thumbnailUrl?.trim().isNotEmpty == true) {
-      all.add(widget.product.thumbnailUrl!.trim());
+    final String? thumb = _product.thumbnailUrl?.trim();
+    if (thumb != null && thumb.isNotEmpty) all.add(thumb);
+    for (final String img in _product.images) {
+      final String t = img.trim();
+      if (t.isNotEmpty && !all.contains(t)) all.add(t);
     }
-    for (final String img in widget.product.images) {
-      if (img.trim().isNotEmpty && !all.contains(img.trim())) {
-        all.add(img.trim());
-      }
-    }
-    return all.isEmpty ? const <String>[] : all;
+    return all;
   }
 
   @override
   Widget build(BuildContext context) {
-    final ShopProduct product = widget.product;
     final List<String> images = _images;
 
     return Scaffold(
@@ -55,22 +88,31 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           Expanded(
             child: CustomScrollView(
               slivers: <Widget>[
-                _buildAppBar(context, images),
+                _buildImageSliver(context, images),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        _PriceRow(product: product),
+                        _PriceRow(product: _product),
                         const SizedBox(height: AppSpacing.xs),
-                        _ProductName(product: product),
+                        _ProductTitle(name: _product.name),
                         const SizedBox(height: AppSpacing.sm),
-                        _MetaRow(product: product),
+                        _MetaRow(product: _product),
                         const SizedBox(height: AppSpacing.md),
-                        _Divider(),
+                        _SectionDivider(),
                         const SizedBox(height: AppSpacing.md),
-                        _DescriptionSection(product: product),
+                        _DescriptionSection(
+                          description: _product.description,
+                          loading: _detailLoading,
+                        ),
+                        if (!_detailLoading && _product.specs.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: AppSpacing.md),
+                          _SectionDivider(),
+                          const SizedBox(height: AppSpacing.md),
+                          _SpecsSection(specs: _product.specs),
+                        ],
                         const SizedBox(height: AppSpacing.xl),
                       ],
                     ),
@@ -79,26 +121,52 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               ],
             ),
           ),
-          _AddToCartBar(product: product),
+          _AddToCartBar(product: _product),
         ],
       ),
     );
   }
 
-  Widget _buildAppBar(BuildContext context, List<String> images) {
+  Widget _buildImageSliver(BuildContext context, List<String> images) {
     return SliverAppBar(
       backgroundColor: AppColors.warmBackground,
       expandedHeight: 300,
       pinned: true,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios, color: AppColors.cocoaText, size: 20),
-        onPressed: () => Navigator.of(context).pop(),
+      leading: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).pop(),
+        child: Center(
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground.withValues(alpha: 0.54),
+                border: Border.all(color: AppColors.softBorder),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: AppColors.brandGold,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
       ),
       actions: <Widget>[
-        IconButton(
-          icon: const Icon(Icons.shopping_cart_outlined, color: AppColors.cocoaText, size: 24),
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Cart coming soon.')),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Icon(
+              Icons.shopping_cart_outlined,
+              color: AppColors.cocoaText,
+              size: 24,
+            ),
           ),
         ),
       ],
@@ -113,7 +181,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     itemCount: images.length,
                     onPageChanged: (int i) =>
                         setState(() => _activeImageIndex = i),
-                    itemBuilder: (_, int i) => _ProductDetailImage(url: images[i]),
+                    itemBuilder: (_, int i) =>
+                        _ProductDetailImage(url: images[i]),
                   ),
             if (images.length > 1)
               Positioned(
@@ -125,20 +194,22 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   activeIndex: _activeImageIndex,
                 ),
               ),
-            if (product.badge != null)
+            if (_product.badge != null)
               Positioned(
                 top: AppSpacing.xl + AppSpacing.md,
                 left: AppSpacing.sm,
-                child: _BadgeChip(badge: product.badge!),
+                child: _BadgeChip(badge: _product.badge!),
               ),
           ],
         ),
       ),
     );
   }
-
-  ShopProduct get product => widget.product;
 }
+
+// ---------------------------------------------------------------------------
+// Info widgets
+// ---------------------------------------------------------------------------
 
 class _PriceRow extends StatelessWidget {
   const _PriceRow({required this.product});
@@ -175,18 +246,15 @@ class _PriceRow extends StatelessWidget {
   }
 }
 
-class _ProductName extends StatelessWidget {
-  const _ProductName({required this.product});
-  final ShopProduct product;
+class _ProductTitle extends StatelessWidget {
+  const _ProductTitle({required this.name});
+  final String name;
 
   @override
   Widget build(BuildContext context) {
     return Text(
-      product.name,
-      style: AppTextStyles.cardTitle.copyWith(
-        fontSize: 18,
-        height: 1.3,
-      ),
+      name,
+      style: AppTextStyles.cardTitle.copyWith(fontSize: 18, height: 1.3),
     );
   }
 }
@@ -197,59 +265,149 @@ class _MetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final StringBuffer meta = StringBuffer();
-    if (product.category != null) meta.write(product.category!.name);
-    if (product.category != null) meta.write('  ·  ');
-    meta.write('${product.soldCount} sold');
-    if (product.stock > 0) {
-      meta.write('  ·  ${product.stock} in stock');
-    } else {
-      meta.write('  ·  Out of stock');
-    }
+    final List<String> parts = <String>[
+      if (product.category != null) product.category!.name,
+      '${product.soldCount} sold',
+      product.stock > 0 ? '${product.stock} in stock' : 'Out of stock',
+    ];
     return Text(
-      meta.toString(),
+      parts.join('  ·  '),
       style: AppTextStyles.caption.copyWith(color: AppColors.mutedOliveText),
     );
   }
 }
 
-class _Divider extends StatelessWidget {
+class _SectionDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) =>
+      Container(height: 1, color: AppColors.softBorder);
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.text});
+  final String text;
+
   @override
   Widget build(BuildContext context) {
-    return Container(height: 1, color: AppColors.softBorder);
+    return Text(
+      text.toUpperCase(),
+      style: AppTextStyles.caption.copyWith(
+        color: AppColors.mutedOliveText,
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.8,
+      ),
+    );
   }
 }
 
 class _DescriptionSection extends StatelessWidget {
-  const _DescriptionSection({required this.product});
-  final ShopProduct product;
+  const _DescriptionSection({required this.description, required this.loading});
+  final String? description;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          'Description',
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.cocoaText,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        const _SectionLabel(text: 'Description'),
         const SizedBox(height: AppSpacing.xs),
-        Text(
-          product.description?.trim().isNotEmpty == true
-              ? product.description!
-              : 'No description available.',
-          style: AppTextStyles.body.copyWith(
-            color: AppColors.mutedOliveText,
-            height: 1.6,
+        if (loading)
+          const SizedBox(
+            height: 14,
+            width: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.5,
+              color: AppColors.mutedOliveText,
+            ),
+          )
+        else
+          Text(
+            description?.trim().isNotEmpty == true
+                ? description!.trim()
+                : 'No description available.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.mutedOliveText,
+              height: 1.6,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SpecsSection extends StatelessWidget {
+  const _SpecsSection({required this.specs});
+  final List<ShopProductSpec> specs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const _SectionLabel(text: 'Specifications'),
+        const SizedBox(height: AppSpacing.xs),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(color: AppColors.softBorder),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: specs.length,
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, thickness: 1, color: AppColors.softBorder),
+            itemBuilder: (_, int i) => _SpecRow(spec: specs[i]),
           ),
         ),
       ],
     );
   }
 }
+
+class _SpecRow extends StatelessWidget {
+  const _SpecRow({required this.spec});
+  final ShopProductSpec spec;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 110,
+            child: Text(
+              spec.name,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.mutedOliveText,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              spec.value,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.cocoaText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Add to cart bar
+// ---------------------------------------------------------------------------
 
 class _AddToCartBar extends StatelessWidget {
   const _AddToCartBar({required this.product});
@@ -291,6 +449,10 @@ class _AddToCartBar extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Image helpers
+// ---------------------------------------------------------------------------
+
 class _BadgeChip extends StatelessWidget {
   const _BadgeChip({required this.badge});
   final String badge;
@@ -328,15 +490,18 @@ class _ImageDots extends StatelessWidget {
     final int selected = activeIndex.clamp(0, count - 1).toInt();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(count, (int i) => Container(
-        margin: const EdgeInsets.symmetric(horizontal: 3),
-        width: i == selected ? 12 : 6,
-        height: 6,
-        decoration: BoxDecoration(
-          color: i == selected ? AppColors.brandGold : AppColors.softBorder,
-          borderRadius: BorderRadius.circular(99),
+      children: List<Widget>.generate(
+        count,
+        (int i) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: i == selected ? 12 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: i == selected ? AppColors.brandGold : AppColors.softBorder,
+            borderRadius: BorderRadius.circular(99),
+          ),
         ),
-      )),
+      ),
     );
   }
 }
@@ -364,7 +529,11 @@ class _ProductImagePlaceholder extends StatelessWidget {
     return Container(
       color: const Color(0xFF332E27),
       child: const Center(
-        child: Icon(Icons.inventory_2_outlined, color: AppColors.mutedOliveText, size: 60),
+        child: Icon(
+          Icons.inventory_2_outlined,
+          color: AppColors.mutedOliveText,
+          size: 60,
+        ),
       ),
     );
   }

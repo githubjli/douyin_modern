@@ -9,4 +9,5 @@ abstract class ShopRepository {
     String? category,
     String? query,
   });
+  Future<ShopProduct> getProductDetail(int id);
 }

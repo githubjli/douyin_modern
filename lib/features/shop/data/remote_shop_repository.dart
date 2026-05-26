@@ -74,12 +74,34 @@ class RemoteShopRepository implements ShopRepository {
         slug: m['slug'] as String? ?? '',
       );
 
+  @override
+  Future<ShopProduct> getProductDetail(int id) async {
+    final response =
+        await _apiClient.get<dynamic>(Endpoints.shopProductDetail(id));
+    final dynamic raw = response.data;
+    if (raw is! Map<String, dynamic>) {
+      throw Exception('Invalid product detail response');
+    }
+    return _mapProduct(raw);
+  }
+
   ShopProduct _mapProduct(Map<String, dynamic> m) {
     final dynamic cat = m['category'];
     final dynamic imgs = m['images'];
+    final dynamic rawSpecs = m['specs'];
     final List<String> images = imgs is List
         ? imgs.whereType<String>().toList()
         : const <String>[];
+    final List<ShopProductSpec> specs = rawSpecs is List
+        ? rawSpecs
+            .whereType<Map<String, dynamic>>()
+            .map((Map<String, dynamic> s) => ShopProductSpec(
+                  name: s['name'] as String? ?? '',
+                  value: s['value'] as String? ?? '',
+                ))
+            .where((ShopProductSpec s) => s.name.isNotEmpty)
+            .toList()
+        : const <ShopProductSpec>[];
     return ShopProduct(
       id: m['id'] as int? ?? 0,
       name: m['name'] as String? ?? '',
@@ -92,6 +114,7 @@ class RemoteShopRepository implements ShopRepository {
       stock: m['stock'] as int? ?? 0,
       description: m['description'] as String?,
       images: images,
+      specs: specs,
     );
   }
 

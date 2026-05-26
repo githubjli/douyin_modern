@@ -18,7 +18,7 @@ class _ProductCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Expanded(
-                flex: 10,
+                flex: 12,
                 child: Stack(
                   fit: StackFit.expand,
                   children: <Widget>[
@@ -56,7 +56,7 @@ class _ProductCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                flex: 10,
+                flex: 8,
                 child: Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   child: Column(

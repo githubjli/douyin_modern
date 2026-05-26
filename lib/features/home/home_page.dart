@@ -212,9 +212,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       onSignInPressed: widget.onSignInPressed,
       onSubscribePressed: widget.onSubscribePressed,
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: <Widget>[
+        child: RefreshIndicator(
+          color: AppColors.brandGold,
+          backgroundColor: AppColors.cardBackground,
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: <Widget>[
             const _HomeTopRow(),
             const SizedBox(height: AppSpacing.md),
             _ChannelNav(
@@ -231,6 +235,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             const SizedBox(height: AppSpacing.md),
             ..._channelContent(data, heroItems),
           ],
+        ),
         ),
       ),
     );

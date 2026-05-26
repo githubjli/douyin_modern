@@ -1094,19 +1094,29 @@ void _openCreatorProfile(BuildContext context, int creatorId) {
 
 /// Routes a live-card tap based on stream status:
 /// - Actively live  → live room page (placeholder snackbar until page is built)
-/// - Ended / ready  → creator profile page (if ownerId known)
+/// - Ended          → brief "stream ended" snackbar, then creator profile page
+/// - Ready          → creator profile page directly
 void _openLiveItem(BuildContext context, HomeLiveItem item) {
-  if (_liveStatus(item) == 'live') {
+  final String status = _liveStatus(item);
+  if (status == 'live') {
     // TODO: replace with navigation to the live-room page once it is built.
     _showLiveComingSoon(context);
     return;
   }
   final int? ownerId = item.ownerId;
-  if (ownerId != null) {
-    _openCreatorProfile(context, ownerId);
-  } else {
+  if (ownerId == null) {
     _showLiveComingSoon(context);
+    return;
   }
+  if (status == 'ended') {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This stream has ended.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+  _openCreatorProfile(context, ownerId);
 }
 
 String? _resolveImageUrl(dynamic item) {

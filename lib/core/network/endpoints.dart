@@ -149,6 +149,11 @@ class Endpoints {
   static const String libraryGiftsSent     = '/api/account/library/gifts/sent/';
   static const String libraryGiftsReceived = '/api/account/library/gifts/received/';
 
+  // ── Shop ─────────────────────────────────────────────────────────────────
+  static const String shopBanners = '/api/shop/banners/';
+  static const String shopCategories = '/api/shop/categories/';
+  static const String shopProducts = '/api/shop/products/';
+
   // ── Creator Studio ────────────────────────────────────────────────────────
   static const String creatorVideos     = '/api/creator/videos/';
   static const String creatorLiveStreams = '/api/creator/live-streams/';

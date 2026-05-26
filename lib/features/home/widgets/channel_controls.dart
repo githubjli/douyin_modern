@@ -45,6 +45,17 @@ class _HomeTopRow extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         const Expanded(child: _SearchPill()),
         const SizedBox(width: AppSpacing.sm),
+        GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const ShopPage()),
+          ),
+          child: const Icon(
+            Icons.shopping_bag_outlined,
+            color: AppColors.cocoaText,
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         const Icon(Icons.add_circle, color: AppColors.brandGold, size: 26),
       ],
     );

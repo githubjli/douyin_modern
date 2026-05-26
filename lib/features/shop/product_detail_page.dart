@@ -273,7 +273,7 @@ class _PriceChip extends StatelessWidget {
         label,
         style: AppTextStyles.sectionTitle.copyWith(
           color: primary ? AppColors.brandGold : AppColors.cocoaText,
-          fontSize: primary ? 22 : 16,
+          fontSize: 16,
           fontWeight: FontWeight.w700,
         ),
       ),

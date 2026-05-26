@@ -65,7 +65,8 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         _product = full;
         _detailLoading = false;
       });
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[ProductDetail] loadDetail error: $e\n$st');
       if (!mounted) return;
       setState(() => _detailLoading = false);
     }

@@ -25,7 +25,9 @@ class _NewsHeroCarousel extends StatelessWidget {
           final dynamic selectedItem = items[index];
           VoidCallback? onTap;
           if (selectedItem is HomeLiveItem) {
-            onTap = () => _showLiveComingSoon(context);
+            onTap = selectedItem.ownerId != null
+                ? () => _openCreatorProfile(context, selectedItem.ownerId!)
+                : () => _showLiveComingSoon(context);
           } else if (selectedItem is HomeVideoItem) {
             onTap = () =>
                 _openVideoDetail(context, selectedItem, videoRecommendations);
@@ -99,7 +101,11 @@ class _LiveChannelHero extends StatelessWidget {
         badgeOverride:
             selectedItem == null ? 'Ready' : _liveBadgeLabel(selectedItem),
         compactOverlay: true,
-        onTap: selectedItem == null ? null : () => _showLiveComingSoon(context),
+        onTap: selectedItem == null
+            ? null
+            : selectedItem.ownerId != null
+                ? () => _openCreatorProfile(context, selectedItem.ownerId!)
+                : () => _showLiveComingSoon(context),
       ),
     );
   }

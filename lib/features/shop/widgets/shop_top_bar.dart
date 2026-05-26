@@ -37,13 +37,48 @@ class _ShopTopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.xs),
-        GestureDetector(
-          onTap: onCartTap,
-          child: const Icon(
-            Icons.shopping_cart_outlined,
-            color: AppColors.cocoaText,
-            size: 24,
-          ),
+        Consumer(
+          builder: (_, WidgetRef ref, __) {
+            final int count = ref
+                .watch(cartCountProvider)
+                .maybeWhen(data: (int n) => n, orElse: () => 0);
+            return GestureDetector(
+              onTap: onCartTap,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  const Icon(
+                    Icons.shopping_cart_outlined,
+                    color: AppColors.cocoaText,
+                    size: 24,
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brandGold,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          count > 99 ? '99' : '$count',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.warmBackground,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );

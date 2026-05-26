@@ -172,4 +172,11 @@ class Endpoints {
 
   static String creatorDramaEpisodes(int dramaId) =>
       '/api/creator/dramas/$dramaId/episodes/';
+
+  // ── Cart (Saved Products / Wishlist) ─────────────────────────────────────
+  static const String cartCount = '/api/cart/count/';
+  static const String cartItems = '/api/cart/items/';
+
+  static String cartItemDelete(int savedItemId) =>
+      '/api/cart/items/$savedItemId/';
 }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../cart/application/cart_providers.dart';
+import '../cart/cart_page.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
@@ -233,8 +236,10 @@ class _ShopPageState extends State<ShopPage> {
                 searchController: _searchController,
                 onSearchSubmitted: _search,
                 onSearchCleared: _clearSearch,
-                onCartTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cart coming soon.')),
+                onCartTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CartPage(),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),

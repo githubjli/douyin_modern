@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
@@ -116,9 +116,23 @@ class RemoteShopRepository implements ShopRepository {
       description: m['description'] as String?,
       images: images,
       specs: specs,
-      meowPointsPrice: m['meow_points_price'] as String?,
-      meowCreditPrice: m['meow_credit_price'] as String?,
+      meowPointsPrice: _asDecimalString(m['meow_points_price']),
+      meowCreditPrice: _asDecimalString(m['meow_credit_price']),
     );
+  }
+
+  /// Safely converts a backend price value to a string.
+  /// Handles String ("20.00"), double (20.0), int (20), and null.
+  static String? _asDecimalString(dynamic v) {
+    if (v == null) return null;
+    if (v is String) return v.isEmpty ? null : v;
+    if (v is num) {
+      if (kDebugMode) {
+        debugPrint('[Shop] price field returned as num ($v) — expected String');
+      }
+      return v.toString();
+    }
+    return null;
   }
 
   @override
@@ -132,7 +146,7 @@ class RemoteShopRepository implements ShopRepository {
       'product_id': productId,
       'quantity': quantity,
       'payment_asset': paymentAsset.apiValue,
-      if (shippingAddressId != null) 'shipping_address_id': shippingAddressId,
+      'shipping_address_id': shippingAddressId,
     };
     final response = await _apiClient.post<dynamic>(
       Endpoints.shopOrders,

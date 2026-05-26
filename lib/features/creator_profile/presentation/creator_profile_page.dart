@@ -271,7 +271,7 @@ class _ProfileHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
-              _Avatar(url: profile.avatarUrl, radius: 40),
+              _Avatar(url: profile.avatarUrl, radius: 20),
               const Spacer(),
               _FollowButton(
                 isFollowing: profile.viewerIsFollowing,
@@ -554,7 +554,7 @@ class _VideosTabState extends State<_VideosTab>
             _loadMore();
             return const _LoadMoreIndicator();
           }
-          return _VideoThumb(video: _items[i]);
+          return _VideoThumb(video: _items[i], allVideos: _items);
         },
       ),
     );
@@ -652,13 +652,13 @@ class _DramasTabState extends State<_DramasTab>
       color: AppColors.brandGold,
       onRefresh: _refresh,
       child: GridView.builder(
-        padding: const EdgeInsets.all(AppSpacing.xs),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         physics: const AlwaysScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: AppSpacing.xs,
-          mainAxisSpacing: AppSpacing.xs,
-          childAspectRatio: 2 / 3,
+          crossAxisCount: 3,
+          crossAxisSpacing: AppSpacing.sm,
+          mainAxisSpacing: AppSpacing.sm,
+          childAspectRatio: 0.51,
         ),
         itemCount: _items.length + (_nextUrl != null ? 1 : 0),
         itemBuilder: (_, int i) {
@@ -763,18 +763,20 @@ class _LivesTabState extends State<_LivesTab>
     return RefreshIndicator(
       color: AppColors.brandGold,
       onRefresh: _refresh,
-      child: ListView.separated(
+      child: GridView.builder(
         padding: const EdgeInsets.all(AppSpacing.sm),
         physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: AppSpacing.sm,
+          mainAxisSpacing: AppSpacing.sm,
+          childAspectRatio: 0.6,
+        ),
         itemCount: _items.length + (_nextUrl != null ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
         itemBuilder: (_, int i) {
           if (i == _items.length) {
             _loadMore();
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: _LoadMoreIndicator(),
-            );
+            return const _LoadMoreIndicator();
           }
           return _LiveTile(live: _items[i]);
         },
@@ -786,24 +788,35 @@ class _LivesTabState extends State<_LivesTab>
 // ── Tile widgets ───────────────────────────────────────────────────────────────
 
 class _VideoThumb extends StatelessWidget {
-  const _VideoThumb({required this.video});
+  const _VideoThumb({required this.video, this.allVideos = const <PublicCreatorVideo>[]});
 
   final PublicCreatorVideo video;
+  final List<PublicCreatorVideo> allVideos;
+
+  static HomeVideoItem _toHomeVideoItem(PublicCreatorVideo v) => HomeVideoItem(
+        id: v.id.toString(),
+        title: v.title,
+        subtitle: '',
+        thumbnailUrl: v.thumbnailUrl,
+        accessType: v.accessType,
+        isLocked: v.isLocked,
+        viewCount: v.viewCount,
+        createdAt: v.createdAt,
+      );
 
   void _open(BuildContext context) {
+    // Build a recommendations list from all sibling videos, excluding the
+    // current one so the user sees the rest of the creator's content.
+    final List<HomeVideoItem> recommendations = allVideos
+        .where((PublicCreatorVideo v) => v.id != video.id)
+        .map(_toHomeVideoItem)
+        .toList();
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => VideoDetailPage(
-          video: HomeVideoItem(
-            id: video.id.toString(),
-            title: video.title,
-            subtitle: '',
-            thumbnailUrl: video.thumbnailUrl,
-            accessType: video.accessType,
-            isLocked: video.isLocked,
-            viewCount: video.viewCount,
-            createdAt: video.createdAt,
-          ),
+          video: _toHomeVideoItem(video),
+          recommendations: recommendations,
           loadRemoteDetail: true,
         ),
       ),
@@ -989,95 +1002,105 @@ class _LiveTile extends StatelessWidget {
 
   final PublicCreatorLive live;
 
+  /// Badge label matching home-page `_liveBadgeLabel` logic.
+  String get _badgeLabel {
+    final String s = live.effectiveStatus.toLowerCase().trim();
+    if (s == 'live' || s == 'active' || s == 'streaming' || s == 'started') {
+      return 'LIVE';
+    }
+    if (s == 'ended' || s == 'end' || s == 'finished' || s == 'closed' || s == 'offline') {
+      return 'Ended';
+    }
+    return 'Ready';
+  }
+
+  bool get _isLive => _badgeLabel == 'LIVE';
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Live detail/watch page coming soon.')),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        child: Stack(
+          fit: StackFit.expand,
           children: <Widget>[
-            // Thumbnail — 16:9
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppSpacing.radiusSm),
-                bottomLeft: Radius.circular(AppSpacing.radiusSm),
-              ),
-              child: SizedBox(
-                width: 120,
-                height: 68,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: <Widget>[
-                    _Thumbnail(url: live.coverUrl),
-                    if (live.isLive)
-                      Positioned(
-                        top: 4,
-                        left: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
+            // Cover image
+            _Thumbnail(url: live.coverUrl),
+
+            // 3-stop gradient overlay — same as home _PortalCard
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0x0D000000),
+                    Color(0x55000000),
+                    Color(0xB3000000),
                   ],
+                  stops: <double>[0.2, 0.6, 1.0],
                 ),
               ),
             ),
 
-            // Info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      live.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.body.copyWith(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Row(
-                      children: <Widget>[
-                        const Icon(
-                          Icons.remove_red_eye_outlined,
-                          size: 12,
-                          color: AppColors.mutedOliveText,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          _formatCount(live.viewerCount),
-                          style: AppTextStyles.caption.copyWith(fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ],
+            // Badge — top-left: gold bg for LIVE, dark bg for Ended/Ready
+            Positioned(
+              top: AppSpacing.xs,
+              left: AppSpacing.xs,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: 2,
                 ),
+                decoration: BoxDecoration(
+                  color: _isLive
+                      ? AppColors.brandGold
+                      : AppColors.cardBackground.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  border: Border.all(color: AppColors.softBorder),
+                ),
+                child: Text(
+                  _badgeLabel,
+                  style: AppTextStyles.caption.copyWith(
+                    color: _isLive ? AppColors.warmBackground : AppColors.brandGold,
+                  ),
+                ),
+              ),
+            ),
+
+            // Bottom: title + viewer count
+            Positioned(
+              left: AppSpacing.xs,
+              right: AppSpacing.xs,
+              bottom: AppSpacing.xs,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    live.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    '${_formatCount(live.viewerCount)} watching',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1298,7 +1321,7 @@ class _VideosSkeleton extends StatelessWidget {
   }
 }
 
-/// 2-column skeleton matching the Dramas grid layout (6 cells = 3 full rows).
+/// 3-column skeleton matching the Dramas grid layout (9 cells = 3 full rows).
 class _DramasSkeleton extends StatelessWidget {
   const _DramasSkeleton();
 
@@ -1308,15 +1331,15 @@ class _DramasSkeleton extends StatelessWidget {
       baseColor: _shimmerBase,
       highlightColor: _shimmerHighlight,
       child: GridView.count(
-        padding: const EdgeInsets.all(AppSpacing.xs),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: AppSpacing.xs,
-        mainAxisSpacing: AppSpacing.xs,
-        childAspectRatio: 2 / 3,
+        crossAxisCount: 3,
+        crossAxisSpacing: AppSpacing.sm,
+        mainAxisSpacing: AppSpacing.sm,
+        childAspectRatio: 0.51,
         children: List<Widget>.generate(
-          6,
+          9,
           (_) => ClipRRect(
             borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
             child: const ColoredBox(color: Colors.white),
@@ -1327,7 +1350,7 @@ class _DramasSkeleton extends StatelessWidget {
   }
 }
 
-/// List skeleton matching the Lives list layout (4 rows).
+/// 3-column portrait grid skeleton matching the Lives grid layout (9 cells = 3 full rows).
 class _LivesSkeleton extends StatelessWidget {
   const _LivesSkeleton();
 
@@ -1336,22 +1359,19 @@ class _LivesSkeleton extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: _shimmerBase,
       highlightColor: _shimmerHighlight,
-      child: Padding(
+      child: GridView.count(
         padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: List<Widget>.generate(
-            4,
-            (_) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Container(
-                height: 68 + AppSpacing.xs * 2,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                ),
-              ),
-            ),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 3,
+        crossAxisSpacing: AppSpacing.sm,
+        mainAxisSpacing: AppSpacing.sm,
+        childAspectRatio: 0.6,
+        children: List<Widget>.generate(
+          9,
+          (_) => ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            child: const ColoredBox(color: Colors.white),
           ),
         ),
       ),

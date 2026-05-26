@@ -231,14 +231,7 @@ class _PriceRow extends StatelessWidget {
     final String? mc = product.meowCreditPrice;
 
     if (mp == null && mc == null) {
-      return Text(
-        product.price,
-        style: AppTextStyles.sectionTitle.copyWith(
-          color: AppColors.brandGold,
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
-        ),
-      );
+      return _PriceChip(label: product.price, primary: true);
     }
 
     return Wrap(
@@ -655,7 +648,21 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
       );
     }
 
-    return const SizedBox.shrink();
+    // Fiat-only product: MP/MC pricing not configured in the backend.
+    return _BarShell(
+      padding: padding,
+      child: _BuyButton(
+        label: 'Buy  ·  ${widget.product.price}',
+        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Platform currency pricing not available for this product.',
+            ),
+          ),
+        ),
+        filled: true,
+      ),
+    );
   }
 }
 

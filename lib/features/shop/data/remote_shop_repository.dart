@@ -146,7 +146,7 @@ class RemoteShopRepository implements ShopRepository {
       'product_id': productId,
       'quantity': quantity,
       'payment_asset': paymentAsset.apiValue,
-      if (shippingAddressId != null) 'shipping_address_id': shippingAddressId,
+      'shipping_address_id': shippingAddressId,
     };
     final response = await _apiClient.post<dynamic>(
       Endpoints.shopOrders,

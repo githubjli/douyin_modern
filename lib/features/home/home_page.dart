@@ -1080,7 +1080,7 @@ void _openVideoDetail(
 
 void _showLiveComingSoon(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Live detail/watch page coming soon.')),
+    const SnackBar(content: Text('Live room page coming soon.')),
   );
 }
 
@@ -1090,6 +1090,23 @@ void _openCreatorProfile(BuildContext context, int creatorId) {
       builder: (_) => CreatorProfilePage(creatorId: creatorId),
     ),
   );
+}
+
+/// Routes a live-card tap based on stream status:
+/// - Actively live  → live room page (placeholder snackbar until page is built)
+/// - Ended / ready  → creator profile page (if ownerId known)
+void _openLiveItem(BuildContext context, HomeLiveItem item) {
+  if (_liveStatus(item) == 'live') {
+    // TODO: replace with navigation to the live-room page once it is built.
+    _showLiveComingSoon(context);
+    return;
+  }
+  final int? ownerId = item.ownerId;
+  if (ownerId != null) {
+    _openCreatorProfile(context, ownerId);
+  } else {
+    _showLiveComingSoon(context);
+  }
 }
 
 String? _resolveImageUrl(dynamic item) {

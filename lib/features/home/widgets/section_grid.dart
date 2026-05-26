@@ -57,7 +57,9 @@ class _SectionGrid extends StatelessWidget {
               : item is HomeVideoItem
                   ? () => _openVideoDetail(context, item, videoRecommendations)
                   : (useLiveMetadata || useNewsMetadata) && item is HomeLiveItem
-                      ? () => _showLiveComingSoon(context)
+                      ? item.ownerId != null
+                          ? () => _openCreatorProfile(context, item.ownerId!)
+                          : () => _showLiveComingSoon(context)
                       : null,
         );
       },

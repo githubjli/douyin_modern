@@ -220,11 +220,16 @@ class RemoteHomeRepository implements HomeRepository {
     final String? thumb = _str(m['thumbnail_url']) ??
         _str(m['preview_image_url']) ??
         _str(m['snapshot_url']);
+    // owner_id may arrive as a top-level field or nested inside owner/creator.
+    final int? ownerId = _int(m['owner_id']) ??
+        _nestedInt(m['owner'], 'id') ??
+        _nestedInt(m['creator'], 'id');
 
     return HomeLiveItem(
       id: _str(m['id']) ?? title,
       title: title,
       subtitle: '$owner · $viewers watching',
+      ownerId: ownerId,
       ownerName: owner,
       ownerAvatarUrl: _str(m['owner_avatar_url']),
       status: _str(m['status']),
@@ -269,6 +274,13 @@ class RemoteHomeRepository implements HomeRepository {
   String? _nestedStr(dynamic value, String key) {
     if (value is Map<String, dynamic>) {
       return _str(value[key]);
+    }
+    return null;
+  }
+
+  int? _nestedInt(dynamic value, String key) {
+    if (value is Map<String, dynamic>) {
+      return _int(value[key]);
     }
     return null;
   }

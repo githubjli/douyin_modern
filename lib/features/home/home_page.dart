@@ -8,6 +8,7 @@ import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
+import '../creator_profile/presentation/creator_profile_page.dart';
 import '../drama_detail/drama_detail_page.dart';
 import '../video_detail/video_detail_page.dart';
 import 'data/mock_home_repository.dart';
@@ -1080,6 +1081,14 @@ void _openVideoDetail(
 void _showLiveComingSoon(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('Live detail/watch page coming soon.')),
+  );
+}
+
+void _openCreatorProfile(BuildContext context, int creatorId) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => CreatorProfilePage(creatorId: creatorId),
+    ),
   );
 }
 

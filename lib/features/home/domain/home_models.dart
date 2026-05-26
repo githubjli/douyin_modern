@@ -84,6 +84,7 @@ class HomeLiveItem {
     required this.id,
     required this.title,
     required this.subtitle,
+    this.ownerId,
     this.ownerName,
     this.ownerAvatarUrl,
     this.status,
@@ -101,6 +102,12 @@ class HomeLiveItem {
   final String id;
   final String title;
   final String subtitle;
+
+  /// Numeric owner/creator ID. Populated from `owner_id` (or nested
+  /// `owner.id` / `creator.id`) in the API response.  Used to navigate to
+  /// [CreatorProfilePage]; null when the API doesn't return the field.
+  final int? ownerId;
+
   final String? ownerName;
   final String? ownerAvatarUrl;
   final String? status;

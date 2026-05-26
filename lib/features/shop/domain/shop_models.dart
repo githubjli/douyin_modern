@@ -37,6 +37,8 @@ class ShopProduct {
     this.thumbnailUrl,
     this.badge,
     this.category,
+    this.description,
+    this.images = const <String>[],
   });
 
   final int id;
@@ -48,6 +50,8 @@ class ShopProduct {
   final ShopCategory? category;
   final int soldCount;
   final int stock;
+  final String? description;
+  final List<String> images;
 }
 
 class ShopProductPage {

@@ -8,6 +8,7 @@ import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
 import 'domain/shop_repository.dart';
+import 'product_detail_page.dart';
 
 part 'widgets/shop_top_bar.dart';
 part 'widgets/shop_banner.dart';

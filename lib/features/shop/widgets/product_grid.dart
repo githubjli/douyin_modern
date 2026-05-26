@@ -19,14 +19,16 @@ class _ProductGrid extends StatelessWidget {
       ),
       itemBuilder: (_, int index) => _ProductCard(
         product: products[index],
-        onTap: () => _showProductComingSoon(context),
+        onTap: () => _openProductDetail(context, products[index]),
       ),
     );
   }
 }
 
-void _showProductComingSoon(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Product detail page coming soon.')),
+void _openProductDetail(BuildContext context, ShopProduct product) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => ProductDetailPage(product: product),
+    ),
   );
 }

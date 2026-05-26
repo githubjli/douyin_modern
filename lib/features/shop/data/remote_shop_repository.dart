@@ -76,6 +76,10 @@ class RemoteShopRepository implements ShopRepository {
 
   ShopProduct _mapProduct(Map<String, dynamic> m) {
     final dynamic cat = m['category'];
+    final dynamic imgs = m['images'];
+    final List<String> images = imgs is List
+        ? imgs.whereType<String>().toList()
+        : const <String>[];
     return ShopProduct(
       id: m['id'] as int? ?? 0,
       name: m['name'] as String? ?? '',
@@ -86,6 +90,8 @@ class RemoteShopRepository implements ShopRepository {
       category: cat is Map<String, dynamic> ? _mapCategory(cat) : null,
       soldCount: m['sold_count'] as int? ?? 0,
       stock: m['stock'] as int? ?? 0,
+      description: m['description'] as String?,
+      images: images,
     );
   }
 

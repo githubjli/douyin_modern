@@ -741,8 +741,19 @@ class _VideoMediaHeader extends StatelessWidget {
             ),
           ),
 
-        // ── 4. Buffering spinner ──────────────────────────────────────────
-        if (isInitialized)
+        // ── 4. Spinners: first-time init + mid-play buffering ────────────
+        if (!isInitialized && initializingVideo)
+          const Center(
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: CircularProgressIndicator(
+                color: Colors.white70,
+                strokeWidth: 2.5,
+              ),
+            ),
+          )
+        else if (isInitialized)
           ValueListenableBuilder<VideoPlayerValue>(
             valueListenable: controller!,
             builder: (_, VideoPlayerValue v, __) {
@@ -820,7 +831,7 @@ class _VideoMediaHeader extends StatelessWidget {
                     onTap: onToggleFullscreen,
                   ),
                 ),
-                // Play / pause center button
+                // Play / pause center button (always shows icon, not spinner)
                 if (canPreview)
                   Center(
                     child: GestureDetector(
@@ -832,11 +843,12 @@ class _VideoMediaHeader extends StatelessWidget {
                           color: AppColors.brandGold.withValues(alpha: 0.92),
                           shape: BoxShape.circle,
                         ),
-                        child: _VideoPlaybackIcon(
-                          canPreviewPlayback: true,
-                          initializingVideo: initializingVideo,
-                          videoInitializationFailed: videoInitializationFailed,
-                          isPlaying: isPlaying,
+                        child: Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: AppColors.warmBackground,
+                          size: 38,
                         ),
                       ),
                     ),

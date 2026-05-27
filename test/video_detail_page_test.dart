@@ -160,7 +160,7 @@ void main() {
 
     expect(apiClient.requestedPath, Endpoints.publicVideoDetail(42));
     expect(apiClient.requestedAuthenticated, isTrue);
-    expect(find.text('Playback preview'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
     expect(find.text('VIP video locked'), findsNothing);
   });
 
@@ -187,7 +187,7 @@ void main() {
       );
 
       expect(apiClient.requestedAuthenticated, isTrue);
-      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
       expect(find.text('Subscribe'), findsNothing);
       expect(find.text('Sign in'), findsNothing);
@@ -223,7 +223,7 @@ void main() {
         loadRemoteDetail: true,
       );
 
-      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
 
       final _FakeApiClient failureClient = _FakeApiClient.error(
@@ -240,7 +240,7 @@ void main() {
       );
 
       expect(failureClient.requestedAuthenticated, isTrue);
-      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
       expect(find.text('Subscribe'), findsNothing);
       expect(find.text('Sign in'), findsNothing);
@@ -276,7 +276,7 @@ void main() {
         loadRemoteDetail: true,
       );
 
-      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
 
       final _FakeApiClient partialClient = _FakeApiClient(<String, dynamic>{
@@ -295,7 +295,7 @@ void main() {
       );
 
       expect(partialClient.requestedAuthenticated, isTrue);
-      expect(find.text('Playback preview'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.text('VIP video locked'), findsNothing);
       expect(find.text('Subscribe'), findsNothing);
       expect(find.text('Sign in'), findsNothing);
@@ -333,7 +333,7 @@ void main() {
       expect(find.text('VIP video locked'), findsOneWidget);
       expect(find.text('Subscribe'), findsOneWidget);
       expect(find.text('Sign in'), findsNothing);
-      expect(find.text('Playback preview'), findsNothing);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
       expect(find.byType(VideoPlayer), findsNothing);
     },
   );
@@ -365,7 +365,7 @@ void main() {
         expect(find.text('VIP video locked'), findsOneWidget);
         expect(find.text('Sign in'), findsOneWidget);
         expect(find.text('Subscribe'), findsNothing);
-        expect(find.text('Playback preview'), findsNothing);
+        expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
         expect(find.byType(VideoPlayer), findsNothing);
       },
     );
@@ -413,10 +413,9 @@ void main() {
     );
 
     expect(find.text('VIP video locked'), findsOneWidget);
-    expect(find.text('VIP locked'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.text('Subscribe'), findsNothing);
-    expect(find.text('Playback preview'), findsNothing);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
     expect(find.byType(VideoPlayer), findsNothing);
   });
 
@@ -438,7 +437,7 @@ void main() {
     expect(find.text('VIP video locked'), findsOneWidget);
     expect(find.text('Subscribe'), findsOneWidget);
     expect(find.text('Sign in'), findsNothing);
-    expect(find.text('Playback preview'), findsNothing);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
     expect(find.byType(VideoPlayer), findsNothing);
   });
 
@@ -517,7 +516,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Playback preview'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
     expect(find.text('VIP video locked'), findsNothing);
     expect(find.text('Sign in'), findsNothing);
     expect(find.text('Subscribe'), findsNothing);
@@ -536,11 +535,11 @@ void main() {
       ),
     );
 
-    expect(find.text('Playback preview'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
     expect(find.text('VIP video locked'), findsNothing);
     await tester.tap(find.byType(AspectRatio).first);
     await tester.pump();
-    expect(find.text('Playback preview'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
   });
 }
 

@@ -77,7 +77,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
   @override
   void initState() {
     super.initState();
-    _startPassivePoll();
+    if (_showChainPaymentSection()) _startPassivePoll();
   }
 
   @override
@@ -290,13 +290,20 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
     );
   }
 
+  /// Returns non-thb_ltt assets to show as instant-payment buttons.
   List<String> _alternativeAssets() {
     final List<String>? assets = widget.supportedPaymentAssets;
     if (assets == null || assets.isEmpty) return const <String>[];
-    return assets
-        .where((String a) => a != 'thb_ltt')
-        .where((String a) => a == 'meow_points' || a == 'meow_credit')
-        .toList();
+    return assets.where((String a) => a != 'thb_ltt').toList();
+  }
+
+  /// Show the chain-payment section (QR / address / txid) only when
+  /// thb_ltt is explicitly supported OR when no supported_payment_assets
+  /// list is provided (backwards compatibility).
+  bool _showChainPaymentSection() {
+    final List<String>? assets = widget.supportedPaymentAssets;
+    if (assets == null) return true;
+    return assets.contains('thb_ltt');
   }
 
   // ---------------------------------------------------------------------------
@@ -354,7 +361,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
                   endsAt: _activeMembership!.endsAt,
                   onDone: () => Navigator.of(context).maybePop(),
                 )
-              else ...<Widget>[
+              else if (_showChainPaymentSection()) ...<Widget>[
                 _QrSection(
                   qrKey: _qrKey,
                   address: info.payToAddress,
@@ -1070,8 +1077,14 @@ class _AlternativePaymentCard extends StatelessWidget {
   String _label(String asset) => switch (asset) {
         'meow_points' => 'Pay with MeowPoints',
         'meow_credit' => 'Pay with MeowCredit',
-        _ => 'Pay with ${asset.replaceAll('_', ' ')}',
+        'thb_ltt'     => 'Pay with THB-LTT',
+        _ => 'Pay with ${_titleCase(asset)}',
       };
+
+  static String _titleCase(String raw) => raw
+      .split('_')
+      .map((String w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
 
   @override
   Widget build(BuildContext context) {

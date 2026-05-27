@@ -176,6 +176,8 @@ class RemoteMembershipRepository implements MembershipRepository {
       settlementTokenSymbol: _settlementStr(data, 'token_symbol'),
       settlementTokenPeg: _settlementStr(data, 'token_peg'),
       supportedPaymentAssets: _stringListField(data['supported_payment_assets']),
+      basePriceAmount: _nonEmptyStr(data['base_price_amount']),
+      basePriceAsset: _nonEmptyStr(data['base_price_asset']),
     );
   }
 

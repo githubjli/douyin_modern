@@ -855,68 +855,29 @@ class _VideoMediaHeader extends StatelessWidget {
                     ),
                   ),
                 ],
-                // Play / pause + skip next row
+                // Play / pause center button
                 if (canPreview)
                   Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        GestureDetector(
-                          onTap: onTogglePlayback,
-                          child: Container(
-                            width: 58,
-                            height: 58,
-                            decoration: BoxDecoration(
-                              color: AppColors.brandGold.withValues(alpha: 0.92),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                              color: AppColors.warmBackground,
-                              size: 38,
-                            ),
-                          ),
+                    child: GestureDetector(
+                      onTap: onTogglePlayback,
+                      child: Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: AppColors.brandGold.withValues(alpha: 0.92),
+                          shape: BoxShape.circle,
                         ),
-                        if (onSkipNext != null) ...<Widget>[
-                          const SizedBox(width: AppSpacing.md),
-                          GestureDetector(
-                            onTap: onSkipNext,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusMd),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(
-                                    sigmaX: 12, sigmaY: 12),
-                                child: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: videoCompleted
-                                        ? AppColors.brandGold
-                                            .withValues(alpha: 0.9)
-                                        : Colors.white
-                                            .withValues(alpha: 0.18),
-                                    borderRadius: BorderRadius.circular(
-                                        AppSpacing.radiusMd),
-                                  ),
-                                  child: Icon(
-                                    Icons.skip_next_rounded,
-                                    color: videoCompleted
-                                        ? AppColors.warmBackground
-                                        : Colors.white,
-                                    size: 26,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                        child: Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: AppColors.warmBackground,
+                          size: 38,
+                        ),
+                      ),
                     ),
                   ),
-                // Progress bar (bottom)
+                // Progress bar (bottom) — skip-next lives inside it
                 if (isInitialized)
                   Positioned(
                     left: 0,
@@ -927,6 +888,8 @@ class _VideoMediaHeader extends StatelessWidget {
                       onSeek: onSeek,
                       playbackSpeed: playbackSpeed,
                       onCycleSpeed: onCycleSpeed,
+                      onSkipNext: onSkipNext,
+                      videoCompleted: videoCompleted,
                     ),
                   ),
               ],
@@ -966,12 +929,16 @@ class _VideoProgressBar extends StatelessWidget {
     required this.onSeek,
     required this.playbackSpeed,
     required this.onCycleSpeed,
+    required this.videoCompleted,
+    this.onSkipNext,
   });
 
   final VideoPlayerController controller;
   final void Function(Duration) onSeek;
   final double playbackSpeed;
   final VoidCallback onCycleSpeed;
+  final bool videoCompleted;
+  final VoidCallback? onSkipNext;
 
   String _fmt(Duration d) {
     final int m = d.inMinutes;
@@ -1029,6 +996,31 @@ class _VideoProgressBar extends StatelessWidget {
                 ),
                 child: Row(
                   children: <Widget>[
+                    if (onSkipNext != null) ...<Widget>[
+                      GestureDetector(
+                        onTap: onSkipNext,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: videoCompleted
+                                ? AppColors.brandGold.withValues(alpha: 0.9)
+                                : Colors.white12,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            Icons.skip_next_rounded,
+                            color: videoCompleted
+                                ? AppColors.warmBackground
+                                : Colors.white70,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
                     Text(
                       _fmt(pos),
                       style: const TextStyle(

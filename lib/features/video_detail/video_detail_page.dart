@@ -808,10 +808,18 @@ class _VideoMediaHeader extends StatelessWidget {
           Center(
             child: GestureDetector(
               onTap: onTogglePlayback,
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 48,
+              child: Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: AppColors.brandGold.withValues(alpha: 0.92),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: AppColors.warmBackground,
+                  size: 38,
+                ),
               ),
             ),
           ),
@@ -841,10 +849,18 @@ class _VideoMediaHeader extends StatelessWidget {
                   Center(
                     child: GestureDetector(
                       onTap: onTogglePlayback,
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 48,
+                      child: Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: AppColors.brandGold.withValues(alpha: 0.92),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: AppColors.warmBackground,
+                          size: 38,
+                        ),
                       ),
                     ),
                   ),

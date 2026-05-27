@@ -39,6 +39,7 @@ class ShopOrder {
   final Map<String, dynamic>? shippingAddressSnapshot;
 
   String get statusText => switch (status) {
+        'pending_payment' || 'pending' => 'Pending payment',
         'paid' => 'Paid, waiting for shipment',
         'shipping' => 'Shipped, waiting for receipt',
         'completed' || 'settled' => 'Completed',

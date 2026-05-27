@@ -7,14 +7,12 @@ class _ShopTopBar extends StatelessWidget {
     required this.searchController,
     required this.onSearchSubmitted,
     required this.onSearchCleared,
-    required this.onCartTap,
     required this.onMenuSelected,
   });
 
   final TextEditingController searchController;
   final VoidCallback onSearchSubmitted;
   final VoidCallback onSearchCleared;
-  final VoidCallback onCartTap;
   final ValueChanged<_ShopMenuAction> onMenuSelected;
 
   @override
@@ -41,17 +39,7 @@ class _ShopTopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.xs),
-        // Cart icon
-        GestureDetector(
-          onTap: onCartTap,
-          child: const Icon(
-            Icons.shopping_cart_outlined,
-            color: AppColors.cocoaText,
-            size: 24,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        // ⋮ popup menu
+        // Cart icon — tap opens popup: My Orders / My Addresses / Cart
         PopupMenuButton<_ShopMenuAction>(
           onSelected: onMenuSelected,
           color: AppColors.cardBackground,
@@ -60,45 +48,39 @@ class _ShopTopBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
             side: const BorderSide(color: AppColors.softBorder),
           ),
-          icon: const Icon(
-            Icons.more_vert_rounded,
+          // Use the cart icon as the visible trigger (no extra ⋮ button)
+          child: const Icon(
+            Icons.shopping_cart_outlined,
             color: AppColors.cocoaText,
-            size: 22,
+            size: 24,
           ),
           itemBuilder: (_) => <PopupMenuEntry<_ShopMenuAction>>[
-            PopupMenuItem<_ShopMenuAction>(
-              value: _ShopMenuAction.orders,
-              child: Row(
-                children: <Widget>[
-                  const Icon(
-                    Icons.receipt_long_outlined,
-                    size: 18,
-                    color: AppColors.cocoaText,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    'My Orders',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.cocoaText,
-                    ),
-                  ),
-                ],
-              ),
+            _menuItem(
+              _ShopMenuAction.orders,
+              Icons.receipt_long_outlined,
+              'My Orders',
             ),
+            _menuItem(
+              _ShopMenuAction.addresses,
+              Icons.location_on_outlined,
+              'My Addresses',
+            ),
+            const PopupMenuDivider(),
+            // Cart — disabled placeholder
             PopupMenuItem<_ShopMenuAction>(
-              value: _ShopMenuAction.addresses,
+              enabled: false,
               child: Row(
                 children: <Widget>[
                   const Icon(
-                    Icons.location_on_outlined,
+                    Icons.shopping_cart_outlined,
                     size: 18,
-                    color: AppColors.cocoaText,
+                    color: AppColors.mutedOliveText,
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   Text(
-                    'My Addresses',
+                    'Cart  (coming soon)',
                     style: AppTextStyles.body.copyWith(
-                      color: AppColors.cocoaText,
+                      color: AppColors.mutedOliveText,
                     ),
                   ),
                 ],
@@ -107,6 +89,23 @@ class _ShopTopBar extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+
+  PopupMenuItem<_ShopMenuAction> _menuItem(
+    _ShopMenuAction value,
+    IconData icon,
+    String label,
+  ) {
+    return PopupMenuItem<_ShopMenuAction>(
+      value: value,
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 18, color: AppColors.cocoaText),
+          const SizedBox(width: AppSpacing.xs),
+          Text(label, style: AppTextStyles.body.copyWith(color: AppColors.cocoaText)),
+        ],
+      ),
     );
   }
 }
@@ -160,14 +159,14 @@ class _ShopSearchBarState extends State<_ShopSearchBar> {
               controller: widget.controller,
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.cocoaText,
-                fontSize: 13,
+                fontSize: 12,
               ),
               textAlignVertical: TextAlignVertical.center,
               decoration: InputDecoration(
                 hintText: 'Search products',
                 hintStyle: AppTextStyles.caption.copyWith(
                   color: AppColors.mutedOliveText,
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
                 border: InputBorder.none,
                 isDense: true,

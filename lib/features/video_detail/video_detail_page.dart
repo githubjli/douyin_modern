@@ -114,6 +114,7 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
     _notifier = VideoDetailNotifier(
       initialVideo: widget.video,
       apiClient: _apiClient,
+      initialRecommendations: widget.recommendations,
     );
   }
 
@@ -490,7 +491,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     final bool isSignedIn = _hasSignedInSession(authState);
     final List<HomeVideoItem> recommendations = _recommendations(
       current: video,
-      candidates: widget.recommendations,
+      candidates: detailState.recommendations,
     );
     final HomeVideoItem? nextVideo =
         recommendations.isNotEmpty ? recommendations.first : null;

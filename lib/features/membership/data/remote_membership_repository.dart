@@ -18,10 +18,17 @@ class RemoteMembershipRepository implements MembershipRepository {
   }
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) async {
+  Future<MembershipOrder> createOrder({
+    required String planCode,
+    String? paymentAsset,
+  }) async {
+    final Map<String, dynamic> body = <String, dynamic>{'plan_code': planCode};
+    if (paymentAsset != null && paymentAsset.trim().isNotEmpty) {
+      body['payment_asset'] = paymentAsset.trim();
+    }
     final response = await _apiClient.post<dynamic>(
       Endpoints.membershipOrders,
-      data: <String, dynamic>{'plan_code': planCode},
+      data: body,
       authenticated: true,
     );
     return _mapOrderResponse(response.data);
@@ -168,6 +175,7 @@ class RemoteMembershipRepository implements MembershipRepository {
       settlementTokenName: _settlementStr(data, 'token_name'),
       settlementTokenSymbol: _settlementStr(data, 'token_symbol'),
       settlementTokenPeg: _settlementStr(data, 'token_peg'),
+      supportedPaymentAssets: _stringListField(data['supported_payment_assets']),
     );
   }
 
@@ -277,6 +285,18 @@ class RemoteMembershipRepository implements MembershipRepository {
   String? _str(dynamic value) {
     if (value is String) return value;
     if (value is num) return value.toString();
+    return null;
+  }
+
+  List<String>? _stringListField(dynamic value) {
+    if (value is List) {
+      final List<String> items = value
+          .whereType<String>()
+          .map((String s) => s.trim())
+          .where((String s) => s.isNotEmpty)
+          .toList();
+      return items.isEmpty ? null : items;
+    }
     return null;
   }
 }

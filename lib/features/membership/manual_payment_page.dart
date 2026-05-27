@@ -19,7 +19,9 @@ import '../../app/widgets/gold_outline_button.dart';
 import 'domain/manual_membership_repository.dart';
 import 'domain/manual_payment_info.dart';
 import 'domain/manual_tx_hint.dart';
+import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
+import 'platform_asset_payment_page.dart';
 
 typedef QrCodeSaver = Future<bool> Function(GlobalKey qrKey);
 
@@ -30,6 +32,9 @@ class ManualPaymentPage extends StatefulWidget {
     required this.repository,
     this.qrCodeSaver,
     this.displayCurrency,
+    this.supportedPaymentAssets,
+    this.membershipRepository,
+    this.onMembershipActivated,
   });
 
   final ManualPaymentInfo paymentInfo;
@@ -37,6 +42,12 @@ class ManualPaymentPage extends StatefulWidget {
   final QrCodeSaver? qrCodeSaver;
   // Overrides info.currency in display (e.g. plan's settlement token symbol).
   final String? displayCurrency;
+  /// Plan's supported_payment_assets list from the API.
+  final List<String>? supportedPaymentAssets;
+  /// Required to create platform-asset orders (meow_points / meow_credit).
+  final MembershipRepository? membershipRepository;
+  /// Called after an instant payment completes successfully.
+  final VoidCallback? onMembershipActivated;
 
   @override
   State<ManualPaymentPage> createState() => _ManualPaymentPageState();
@@ -261,6 +272,33 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Future<void> _navigateToAssetPayment(String assetCode) async {
+    final MembershipRepository? repo = widget.membershipRepository;
+    if (repo == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PlatformAssetPaymentPage(
+          planCode: info.planCode,
+          planName: info.planName,
+          planPrice: info.expectedAmountLbc,
+          planCurrency: widget.displayCurrency ?? info.currency,
+          paymentAsset: assetCode,
+          repository: repo,
+          onSuccess: widget.onMembershipActivated,
+        ),
+      ),
+    );
+  }
+
+  List<String> _alternativeAssets() {
+    final List<String>? assets = widget.supportedPaymentAssets;
+    if (assets == null || assets.isEmpty) return const <String>[];
+    return assets
+        .where((String a) => a != 'thb_ltt')
+        .where((String a) => a == 'meow_points' || a == 'meow_credit')
+        .toList();
+  }
+
   // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
@@ -287,6 +325,22 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
               _PlanSummaryCard(
                 info: info,
                 displayCurrency: widget.displayCurrency,
+              ),
+              Builder(
+                builder: (BuildContext ctx) {
+                  final List<String> alts = _alternativeAssets();
+                  if (alts.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const SizedBox(height: AppSpacing.sm),
+                      _AlternativePaymentCard(
+                        assets: alts,
+                        onPayWith: _navigateToAssetPayment,
+                      ),
+                    ],
+                  );
+                },
               ),
               if (info.purchaseMode != PurchaseMode.unknown &&
                   info.purchaseMode != PurchaseMode.newSubscription) ...<Widget>[
@@ -999,6 +1053,100 @@ class _IconButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(15),
         ),
         child: Icon(icon, size: 15, color: AppColors.brandGold),
+      ),
+    );
+  }
+}
+
+class _AlternativePaymentCard extends StatelessWidget {
+  const _AlternativePaymentCard({
+    required this.assets,
+    required this.onPayWith,
+  });
+
+  final List<String> assets;
+  final ValueChanged<String> onPayWith;
+
+  String _label(String asset) => switch (asset) {
+        'meow_points' => 'Pay with MeowPoints',
+        'meow_credit' => 'Pay with MeowCredit',
+        _ => 'Pay with ${asset.replaceAll('_', ' ')}',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.softBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Other Payment Options',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.mutedOliveText,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: assets.map((String asset) {
+              final bool isLast = asset == assets.last;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: isLast ? 0 : AppSpacing.xs),
+                  child: _AssetButton(
+                    label: _label(asset),
+                    onTap: () => onPayWith(asset),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AssetButton extends StatelessWidget {
+  const _AssetButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        decoration: BoxDecoration(
+          color: AppColors.brandGold.withValues(alpha: 0.08),
+          border: Border.all(
+              color: AppColors.brandGold.withValues(alpha: 0.45)),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.brandGold,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            height: 1.3,
+          ),
+        ),
       ),
     );
   }

@@ -10,6 +10,7 @@ class MembershipPlan {
     this.settlementTokenName,
     this.settlementTokenSymbol,
     this.settlementTokenPeg,
+    this.supportedPaymentAssets,
   });
 
   final String title;
@@ -22,4 +23,6 @@ class MembershipPlan {
   final String? settlementTokenName;
   final String? settlementTokenSymbol;
   final String? settlementTokenPeg;
+  /// Payment asset codes supported by this plan, e.g. ['thb_ltt', 'meow_points', 'meow_credit'].
+  final List<String>? supportedPaymentAssets;
 }

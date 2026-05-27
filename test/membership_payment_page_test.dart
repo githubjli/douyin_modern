@@ -322,7 +322,7 @@ class _PaymentMembershipRepository implements MembershipRepository {
   }
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) {
+  Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
 

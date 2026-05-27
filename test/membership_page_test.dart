@@ -1078,7 +1078,7 @@ class _MembershipRepositoryFake implements MembershipRepository {
   }
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) {
+  Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
 
@@ -1121,7 +1121,7 @@ class _MutableMembershipRepository implements MembershipRepository {
   }
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) {
+  Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
 
@@ -1249,7 +1249,7 @@ class _TrackingMembershipRepository implements MembershipRepository {
   }
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) {
+  Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
 
@@ -1284,7 +1284,7 @@ class _OrderTrackingMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async => null;
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) {
+  Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
 

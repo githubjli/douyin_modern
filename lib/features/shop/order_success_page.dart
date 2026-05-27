@@ -6,6 +6,8 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import 'domain/shop_models.dart';
 import 'domain/shop_order_models.dart';
+import 'domain/shop_repository.dart';
+import 'order_list_page.dart';
 
 /// Full-screen order success page shown immediately after a successful purchase.
 class OrderSuccessPage extends StatelessWidget {
@@ -13,10 +15,12 @@ class OrderSuccessPage extends StatelessWidget {
     super.key,
     required this.order,
     required this.product,
+    required this.repo,
   });
 
   final ShopOrder order;
   final ShopProduct product;
+  final ShopRepository repo;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,7 @@ class OrderSuccessPage extends StatelessWidget {
               const SizedBox(height: AppSpacing.xl),
               _OrderCard(order: order, product: product),
               const Spacer(),
-              _ActionButtons(order: order),
+              _ActionButtons(order: order, repo: repo),
               const SizedBox(height: AppSpacing.lg),
             ],
           ),
@@ -369,8 +373,9 @@ class _StatusBadge extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({required this.order});
+  const _ActionButtons({required this.order, required this.repo});
   final ShopOrder order;
+  final ShopRepository repo;
 
   @override
   Widget build(BuildContext context) {
@@ -381,9 +386,9 @@ class _ActionButtons extends StatelessWidget {
           height: 48,
           child: ElevatedButton(
             onPressed: () {
-              // Pop back to shop (product detail + shop page both off stack)
+              // Pop back past OrderSuccessPage to the shop list
               int count = 0;
-              Navigator.of(context).popUntil((_) => count++ >= 2);
+              Navigator.of(context).popUntil((_) => count++ >= 1);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brandGold,
@@ -405,10 +410,9 @@ class _ActionButtons extends StatelessWidget {
           height: 44,
           child: OutlinedButton(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order history coming soon.'),
-                  duration: Duration(seconds: 2),
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => OrderListPage(repo: repo),
                 ),
               );
             },

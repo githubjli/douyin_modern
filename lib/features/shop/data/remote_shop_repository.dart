@@ -160,20 +160,56 @@ class RemoteShopRepository implements ShopRepository {
     return _mapOrder(raw);
   }
 
-  ShopOrder _mapOrder(Map<String, dynamic> m) => ShopOrder(
-        orderNo: m['order_no'] as String? ?? '',
-        status: m['status'] as String? ?? '',
-        paymentAsset: m['payment_asset'] as String? ?? '',
-        unitPriceSnapshot: m['unit_price_snapshot'] as String? ?? '0',
-        totalAmountSnapshot: m['total_amount_snapshot'] as String? ?? '0',
-        platformFeeAmount: m['platform_fee_amount'] as String? ?? '0',
-        sellerReceivableAmount: m['seller_receivable_amount'] as String? ?? '0',
-        paidAt: m['paid_at'] as String?,
-        shippingAddressSnapshot:
-            m['shipping_address_snapshot'] is Map<String, dynamic>
-                ? m['shipping_address_snapshot'] as Map<String, dynamic>
-                : null,
-      );
+  ShopOrder _mapOrder(Map<String, dynamic> m) {
+    // Product name: try product_name_snapshot first, then nested product.name
+    final dynamic productSnap = m['product_snapshot'];
+    final String? productName = m['product_name_snapshot'] as String? ??
+        (productSnap is Map<String, dynamic>
+            ? productSnap['name'] as String?
+            : null);
+    final String? productThumb = m['product_thumbnail_snapshot'] as String? ??
+        (productSnap is Map<String, dynamic>
+            ? productSnap['thumbnail_url'] as String?
+            : null);
+    return ShopOrder(
+      orderNo: m['order_no'] as String? ?? '',
+      status: m['status'] as String? ?? '',
+      paymentAsset: m['payment_asset'] as String? ?? '',
+      unitPriceSnapshot: m['unit_price_snapshot'] as String? ?? '0',
+      totalAmountSnapshot: m['total_amount_snapshot'] as String? ?? '0',
+      platformFeeAmount: m['platform_fee_amount'] as String? ?? '0',
+      sellerReceivableAmount: m['seller_receivable_amount'] as String? ?? '0',
+      paidAt: m['paid_at'] as String?,
+      shippingAddressSnapshot:
+          m['shipping_address_snapshot'] is Map<String, dynamic>
+              ? m['shipping_address_snapshot'] as Map<String, dynamic>
+              : null,
+      productNameSnapshot: productName,
+      productThumbnailSnapshot: productThumb,
+      quantity: m['quantity'] as int? ?? 1,
+      createdAt: m['created_at'] as String?,
+    );
+  }
+
+  @override
+  Future<List<ShopOrder>> getOrders({int page = 1, int pageSize = 20}) async {
+    final response = await _apiClient.get<dynamic>(
+      Endpoints.shopOrders,
+      queryParameters: <String, dynamic>{'page': page, 'page_size': pageSize},
+      authenticated: true,
+    );
+    final dynamic raw = response.data;
+    // Support both paginated {results: [...]} and plain list responses
+    List<dynamic> items;
+    if (raw is Map<String, dynamic> && raw['results'] is List) {
+      items = raw['results'] as List<dynamic>;
+    } else if (raw is List) {
+      items = raw;
+    } else {
+      items = const <dynamic>[];
+    }
+    return items.whereType<Map<String, dynamic>>().map(_mapOrder).toList();
+  }
 
   ShopProductPage _mapProductPage(Map<String, dynamic> m, int page, int pageSize) {
     final List<dynamic> results =

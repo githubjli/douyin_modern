@@ -19,6 +19,10 @@ class ShopOrder {
     required this.sellerReceivableAmount,
     this.paidAt,
     this.shippingAddressSnapshot,
+    this.productNameSnapshot,
+    this.productThumbnailSnapshot,
+    this.quantity = 1,
+    this.createdAt,
   });
 
   final String orderNo;
@@ -47,6 +51,19 @@ class ShopOrder {
         'meow_credit' => 'MeowCredit',
         _ => paymentAsset,
       };
+
+  /// Product name captured at order time (may come from product_name_snapshot
+  /// or a nested product object — whichever the API provides).
+  final String? productNameSnapshot;
+
+  /// Product thumbnail at order time.
+  final String? productThumbnailSnapshot;
+
+  /// Number of units ordered.
+  final int quantity;
+
+  /// ISO-8601 creation timestamp.
+  final String? createdAt;
 
   /// Human-readable shipping address from the snapshot, or null if not set.
   String? get shippingAddressLine {

@@ -18,6 +18,7 @@ import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
 import 'domain/shop_order_models.dart';
 import 'domain/shop_repository.dart';
+import 'order_list_page.dart';
 import 'order_success_page.dart';
 
 class ProductDetailPage extends ConsumerStatefulWidget {
@@ -170,16 +171,16 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         child: const Center(child: _GlassIconButton(icon: Icons.arrow_back_rounded)),
       ),
       actions: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(right: AppSpacing.sm),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Cart coming soon.')),
-            ),
-            child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cart coming soon.')),
           ),
+          child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
         ),
+        const SizedBox(width: AppSpacing.xs),
+        _GlassMenuButton(repo: _repo),
+        const SizedBox(width: AppSpacing.sm),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
@@ -518,6 +519,7 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
           builder: (_) => OrderSuccessPage(
             order: order,
             product: widget.product,
+            repo: widget.repo,
           ),
         ),
       );
@@ -752,6 +754,69 @@ class _GlassIconButton extends StatelessWidget {
           ),
           child: Icon(icon, color: Colors.white, size: 20),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Frosted glass ⋮ popup menu
+// ---------------------------------------------------------------------------
+
+class _GlassMenuButton extends StatelessWidget {
+  const _GlassMenuButton({required this.repo});
+  final ShopRepository repo;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      color: AppColors.cardBackground,
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        side: const BorderSide(color: AppColors.softBorder),
+      ),
+      onSelected: (String value) {
+        switch (value) {
+          case 'orders':
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => OrderListPage(repo: repo),
+              ),
+            );
+          case 'addresses':
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AddressListPage(),
+              ),
+            );
+        }
+      },
+      itemBuilder: (_) => <PopupMenuEntry<String>>[
+        _menuItem('orders', Icons.receipt_long_outlined, 'My Orders'),
+        _menuItem('addresses', Icons.location_on_outlined, 'My Addresses'),
+      ],
+      // Use glass visual as the "anchor"
+      child: const _GlassIconButton(icon: Icons.more_vert_rounded),
+    );
+  }
+
+  PopupMenuItem<String> _menuItem(
+    String value,
+    IconData icon,
+    String label,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 18, color: AppColors.cocoaText),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            label,
+            style: AppTextStyles.body.copyWith(color: AppColors.cocoaText),
+          ),
+        ],
       ),
     );
   }

@@ -206,6 +206,37 @@ class MockShopRepository implements ShopRepository {
     );
   }
 
+  @override
+  Future<List<ShopOrder>> getOrders({int page = 1, int pageSize = 20}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return const <ShopOrder>[
+      ShopOrder(
+        orderNo: 'MOCK-001',
+        status: 'paid',
+        paymentAsset: 'meow_points',
+        unitPriceSnapshot: '1200',
+        totalAmountSnapshot: '1200',
+        platformFeeAmount: '0',
+        sellerReceivableAmount: '1200',
+        productNameSnapshot: 'Orange Juice 1L',
+        quantity: 1,
+        createdAt: '2024-12-01T10:00:00Z',
+      ),
+      ShopOrder(
+        orderNo: 'MOCK-002',
+        status: 'shipping',
+        paymentAsset: 'meow_credit',
+        unitPriceSnapshot: '22',
+        totalAmountSnapshot: '22',
+        platformFeeAmount: '0',
+        sellerReceivableAmount: '22',
+        productNameSnapshot: 'Handmade Ceramic Mug',
+        quantity: 2,
+        createdAt: '2024-11-28T15:30:00Z',
+      ),
+    ];
+  }
+
   List<ShopProductSpec> _specsFor(ShopProduct p) {
     final String slug = p.category?.slug ?? '';
     return switch (slug) {

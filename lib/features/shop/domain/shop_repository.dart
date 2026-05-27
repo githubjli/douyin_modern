@@ -15,6 +15,8 @@ abstract class ShopRepository {
     required int productId,
     required int quantity,
     required ShopPaymentAsset paymentAsset,
-    int? shippingAddressId, // TODO: required once address management is built
+    int? shippingAddressId,
   });
+
+  Future<List<ShopOrder>> getOrders({int page = 1, int pageSize = 20});
 }

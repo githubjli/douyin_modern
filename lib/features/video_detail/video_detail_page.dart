@@ -186,6 +186,10 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     Future<void>.microtask(() {
       if (!mounted) return;
       ref.read(authControllerProvider.notifier).bootstrap();

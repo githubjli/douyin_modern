@@ -886,31 +886,6 @@ class _VideoMediaHeader extends StatelessWidget {
                     ),
                   ),
 
-                // Small gold skip-next chip at bottom-right when completed (state 4)
-                if (videoCompleted && onSkipNext != null)
-                  Positioned(
-                    right: AppSpacing.md,
-                    bottom: AppSpacing.md,
-                    child: GestureDetector(
-                      onTap: onSkipNext,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xxs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.brandGold,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(
-                          Icons.skip_next_rounded,
-                          color: AppColors.warmBackground,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-
                 // Progress bar — only shown while actively playing (state 2)
                 if (isInitialized && isPlaying)
                   Positioned(

@@ -235,9 +235,6 @@ class _ShopPageState extends State<ShopPage> {
                 searchController: _searchController,
                 onSearchSubmitted: _search,
                 onSearchCleared: _clearSearch,
-                onCartTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cart coming soon.')),
-                ),
                 onMenuSelected: (_ShopMenuAction action) {
                   switch (action) {
                     case _ShopMenuAction.orders:

@@ -171,15 +171,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         child: const Center(child: _GlassIconButton(icon: Icons.arrow_back_rounded)),
       ),
       actions: <Widget>[
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cart coming soon.')),
-          ),
-          child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        _GlassMenuButton(repo: _repo),
+        _GlassCartMenuButton(repo: _repo),
         const SizedBox(width: AppSpacing.sm),
       ],
       flexibleSpace: FlexibleSpaceBar(
@@ -543,15 +535,19 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
   }
 
   bool _mpSufficient(int? balance) {
-    final int? cost = int.tryParse(widget.product.meowPointsPrice ?? '');
+    // Price is a decimal string e.g. "20.00" — int.tryParse would return null.
+    // Use double.tryParse so "20.00" → 20.0 → ceiling for safe comparison.
+    final double? cost =
+        double.tryParse(widget.product.meowPointsPrice ?? '');
     if (cost == null || balance == null) return true;
-    return balance >= cost;
+    return balance >= cost.ceil();
   }
 
   bool _mcSufficient(int? balance) {
-    final int? cost = int.tryParse(widget.product.meowCreditPrice ?? '');
+    final double? cost =
+        double.tryParse(widget.product.meowCreditPrice ?? '');
     if (cost == null || balance == null) return true;
-    return balance >= cost;
+    return balance >= cost.ceil();
   }
 
   Future<void> _confirmAndBuy(
@@ -760,11 +756,11 @@ class _GlassIconButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Frosted glass ⋮ popup menu
+// Frosted glass cart button that also pops My Orders / My Addresses
 // ---------------------------------------------------------------------------
 
-class _GlassMenuButton extends StatelessWidget {
-  const _GlassMenuButton({required this.repo});
+class _GlassCartMenuButton extends StatelessWidget {
+  const _GlassCartMenuButton({required this.repo});
   final ShopRepository repo;
 
   @override
@@ -795,27 +791,37 @@ class _GlassMenuButton extends StatelessWidget {
       itemBuilder: (_) => <PopupMenuEntry<String>>[
         _menuItem('orders', Icons.receipt_long_outlined, 'My Orders'),
         _menuItem('addresses', Icons.location_on_outlined, 'My Addresses'),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.shopping_cart_outlined,
+                  size: 18, color: AppColors.mutedOliveText),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'Cart  (coming soon)',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.mutedOliveText,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
-      // Use glass visual as the "anchor"
-      child: const _GlassIconButton(icon: Icons.more_vert_rounded),
+      // Cart glass icon is the visible trigger — no separate ⋮ button
+      child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
     );
   }
 
-  PopupMenuItem<String> _menuItem(
-    String value,
-    IconData icon,
-    String label,
-  ) {
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label) {
     return PopupMenuItem<String>(
       value: value,
       child: Row(
         children: <Widget>[
           Icon(icon, size: 18, color: AppColors.cocoaText),
           const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            style: AppTextStyles.body.copyWith(color: AppColors.cocoaText),
-          ),
+          Text(label, style: AppTextStyles.body.copyWith(color: AppColors.cocoaText)),
         ],
       ),
     );

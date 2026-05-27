@@ -362,10 +362,10 @@ class _StatusBadge extends StatelessWidget {
             bg: AppColors.softBorder,
             label: 'Cancelled',
           ),
-        'pending' => (
+        'pending' || 'pending_payment' => (
             fg: const Color(0xFFFF9800),
             bg: const Color(0xFFFF9800).withValues(alpha: 0.12),
-            label: 'Pending',
+            label: 'Pending Payment',
           ),
         _ => (
             fg: AppColors.mutedOliveText,

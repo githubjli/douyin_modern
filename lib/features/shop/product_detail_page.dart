@@ -15,6 +15,7 @@ import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
 import 'domain/shop_order_models.dart';
 import 'domain/shop_repository.dart';
+import 'order_success_page.dart';
 
 class ProductDetailPage extends ConsumerStatefulWidget {
   const ProductDetailPage({
@@ -506,12 +507,14 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
         paymentAsset: asset,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Order #${order.orderNo} placed! ${order.statusText}.',
+      // Navigate to the order success page, replacing the product detail page
+      // so the back button on OrderSuccessPage returns directly to the shop.
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => OrderSuccessPage(
+            order: order,
+            product: widget.product,
           ),
-          backgroundColor: AppColors.cardBackground,
         ),
       );
     } on ApiError catch (e) {
@@ -522,7 +525,8 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
           backgroundColor: AppColors.cardBackground,
         ),
       );
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[Buy] error: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to place order. Please try again.')),

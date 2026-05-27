@@ -187,7 +187,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
   Timer? _hideControlsTimer;
   bool _videoCompleted = false;
   double _playbackSpeed = 1.0;
-  bool _danmakuEnabled = true;
 
   @override
   void initState() {
@@ -303,43 +302,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
         : video.title;
     SharePlus.instance.share(ShareParams(text: text));
     unawaited(ref.read(videoDetailProvider.notifier).recordShare());
-  }
-
-  void _toggleDanmaku() => setState(() => _danmakuEnabled = !_danmakuEnabled);
-
-  void _openMoreOptions() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.warmBackground,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppSpacing.radiusLg),
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.share_outlined),
-                title: const Text('Share'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _shareVideo();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.flag_outlined),
-                title: const Text('Report'),
-                onTap: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   // ── Video controller ──────────────────────────────────────────────────────
@@ -570,10 +532,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       onBack: _isFullscreen
           ? _exitFullscreen
           : () => Navigator.of(context).pop(),
-      danmakuEnabled: _danmakuEnabled,
-      onToggleDanmaku: _toggleDanmaku,
       onGift: _openGifts,
-      onMoreOptions: _openMoreOptions,
       onSignInPressed: widget.onSignInPressed,
       onSubscribePressed: widget.onSubscribePressed,
     );
@@ -743,10 +702,7 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.onCycleSpeed,
     required this.onToggleFullscreen,
     required this.onBack,
-    required this.danmakuEnabled,
-    required this.onToggleDanmaku,
     required this.onGift,
-    required this.onMoreOptions,
     required this.onSignInPressed,
     required this.onSubscribePressed,
     this.nextVideo,
@@ -771,10 +727,7 @@ class _VideoMediaHeader extends StatelessWidget {
   final VoidCallback? onSkipNext;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onBack;
-  final bool danmakuEnabled;
-  final VoidCallback onToggleDanmaku;
   final VoidCallback onGift;
-  final VoidCallback onMoreOptions;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
@@ -973,10 +926,7 @@ class _VideoMediaHeader extends StatelessWidget {
                       onCycleSpeed: onCycleSpeed,
                       onSkipNext: onSkipNext,
                       videoCompleted: videoCompleted,
-                      danmakuEnabled: danmakuEnabled,
-                      onToggleDanmaku: onToggleDanmaku,
                       onGift: onGift,
-                      onMoreOptions: onMoreOptions,
                     ),
                   ),
               ],
@@ -1018,12 +968,9 @@ class _VideoProgressBar extends StatelessWidget {
     required this.playbackSpeed,
     required this.onCycleSpeed,
     required this.videoCompleted,
-    required this.danmakuEnabled,
     this.onTogglePlayback,
     this.onSkipNext,
-    this.onToggleDanmaku,
     this.onGift,
-    this.onMoreOptions,
   });
 
   final VideoPlayerController controller;
@@ -1032,12 +979,9 @@ class _VideoProgressBar extends StatelessWidget {
   final double playbackSpeed;
   final VoidCallback onCycleSpeed;
   final bool videoCompleted;
-  final bool danmakuEnabled;
   final VoidCallback? onTogglePlayback;
   final VoidCallback? onSkipNext;
-  final VoidCallback? onToggleDanmaku;
   final VoidCallback? onGift;
-  final VoidCallback? onMoreOptions;
 
   String _fmt(Duration d) {
     final int m = d.inMinutes;
@@ -1076,59 +1020,53 @@ class _VideoProgressBar extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
-                // ── Left: big play/pause + skip-next chip ──────────────
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (onTogglePlayback != null)
-                      GestureDetector(
-                        onTap: onTogglePlayback,
-                        child: const SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Center(
-                            child: Icon(
-                              Icons.pause_rounded,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          ),
+                // ── Left: play/pause + skip-next side by side ──────────
+                if (onTogglePlayback != null)
+                  GestureDetector(
+                    onTap: onTogglePlayback,
+                    child: const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Center(
+                        child: Icon(
+                          Icons.pause_rounded,
+                          color: Colors.white,
+                          size: 30,
                         ),
                       ),
-                    if (onSkipNext != null) ...<Widget>[
-                      const SizedBox(height: AppSpacing.xxs),
-                      GestureDetector(
-                        onTap: onSkipNext,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.xs,
-                            vertical: AppSpacing.xxs,
-                          ),
-                          decoration: BoxDecoration(
-                            color: videoCompleted
-                                ? AppColors.brandGold.withValues(alpha: 0.9)
-                                : Colors.white12,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            Icons.skip_next_rounded,
-                            color: videoCompleted
-                                ? AppColors.warmBackground
-                                : Colors.white70,
-                            size: 18,
-                          ),
-                        ),
+                    ),
+                  ),
+                if (onSkipNext != null) ...<Widget>[
+                  const SizedBox(width: AppSpacing.xxs),
+                  GestureDetector(
+                    onTap: onSkipNext,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: AppSpacing.xxs,
                       ),
-                    ],
-                  ],
-                ),
+                      decoration: BoxDecoration(
+                        color: videoCompleted
+                            ? AppColors.brandGold.withValues(alpha: 0.9)
+                            : Colors.white12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(
+                        Icons.skip_next_rounded,
+                        color: videoCompleted
+                            ? AppColors.warmBackground
+                            : Colors.white70,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: AppSpacing.xxs),
 
-                // ── Center: slider + time row + danmaku toggle ─────────
+                // ── Center: slider + time/speed row ────────────────────
                 Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       SliderTheme(
                         data: SliderTheme.of(ctx).copyWith(
@@ -1154,7 +1092,6 @@ class _VideoProgressBar extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Time + speed row
                       Row(
                         children: <Widget>[
                           Text(
@@ -1196,73 +1133,24 @@ class _VideoProgressBar extends StatelessWidget {
                           ),
                         ],
                       ),
-                      // Danmaku toggle
-                      if (onToggleDanmaku != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: AppSpacing.xxs),
-                          child: GestureDetector(
-                            onTap: onToggleDanmaku,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Icon(
-                                  danmakuEnabled
-                                      ? Icons.chat_bubble
-                                      : Icons.chat_bubble_outline,
-                                  color: danmakuEnabled
-                                      ? AppColors.brandGold
-                                      : Colors.white38,
-                                  size: 14,
-                                ),
-                                const SizedBox(width: AppSpacing.xxs),
-                                Text(
-                                  '弹幕',
-                                  style: TextStyle(
-                                    color: danmakuEnabled
-                                        ? AppColors.brandGold
-                                        : Colors.white38,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
 
-                // ── Right: gift + more-options ─────────────────────────
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (onGift != null)
-                      GestureDetector(
-                        onTap: onGift,
-                        child: const Padding(
-                          padding: EdgeInsets.all(AppSpacing.xxs),
-                          child: Icon(
-                            Icons.card_giftcard_outlined,
-                            color: Colors.white70,
-                            size: 22,
-                          ),
-                        ),
+                // ── Right: gift ────────────────────────────────────────
+                if (onGift != null)
+                  GestureDetector(
+                    onTap: onGift,
+                    child: const Padding(
+                      padding: EdgeInsets.all(AppSpacing.xxs),
+                      child: Icon(
+                        Icons.card_giftcard_outlined,
+                        color: Colors.white70,
+                        size: 22,
                       ),
-                    if (onMoreOptions != null)
-                      GestureDetector(
-                        onTap: onMoreOptions,
-                        child: const Padding(
-                          padding: EdgeInsets.all(AppSpacing.xxs),
-                          child: Icon(
-                            Icons.more_horiz,
-                            color: Colors.white70,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                    ),
+                  ),
               ],
             ),
           ),

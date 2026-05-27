@@ -62,21 +62,25 @@ class VideoDetailState {
     required this.video,
     this.interaction = const VideoInteractionState(),
     this.loadingDetail = false,
+    this.recommendations = const <HomeVideoItem>[],
   });
 
   final HomeVideoItem video;
   final VideoInteractionState interaction;
   final bool loadingDetail;
+  final List<HomeVideoItem> recommendations;
 
   VideoDetailState copyWith({
     HomeVideoItem? video,
     VideoInteractionState? interaction,
     bool? loadingDetail,
+    List<HomeVideoItem>? recommendations,
   }) {
     return VideoDetailState(
       video: video ?? this.video,
       interaction: interaction ?? this.interaction,
       loadingDetail: loadingDetail ?? this.loadingDetail,
+      recommendations: recommendations ?? this.recommendations,
     );
   }
 }
@@ -89,14 +93,54 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
   VideoDetailNotifier({
     required HomeVideoItem initialVideo,
     required ApiClient apiClient,
+    List<HomeVideoItem> initialRecommendations = const <HomeVideoItem>[],
   })  : _apiClient = apiClient,
-        super(VideoDetailState(video: initialVideo));
+        super(VideoDetailState(
+          video: initialVideo,
+          recommendations: initialRecommendations,
+        ));
 
   ApiClient _apiClient;
   bool _viewTracked = false;
 
   void setApiClient(ApiClient client) {
     _apiClient = client;
+  }
+
+  // ── Switch video ───────────────────────────────────────────────────────────
+
+  Future<void> switchVideo(HomeVideoItem next) async {
+    _viewTracked = false;
+    // Keep current recommendations visible while new ones load.
+    state = VideoDetailState(
+      video: next,
+      recommendations: state.recommendations,
+    );
+    await loadDetail();
+    await loadRecommendations();
+  }
+
+  // ── Recommendations ────────────────────────────────────────────────────────
+
+  Future<void> loadRecommendations() async {
+    final int? videoId = int.tryParse(state.video.id);
+    if (videoId == null) return;
+    try {
+      final response = await _apiClient.get<dynamic>(
+        Endpoints.videoRecommendations(videoId),
+        authenticated: true,
+      );
+      final List<dynamic>? items =
+          response.data is List ? response.data as List<dynamic> : null;
+      if (items == null) return;
+      final List<HomeVideoItem> recs = items
+          .map(_mapRecommendationItem)
+          .where((HomeVideoItem r) => r.id.isNotEmpty)
+          .toList();
+      state = state.copyWith(recommendations: recs);
+    } catch (_) {
+      // keep existing recommendations on error
+    }
   }
 
   // ── Detail loading ─────────────────────────────────────────────────────────
@@ -390,6 +434,36 @@ VideoInteractionState _mapInteraction(
     creatorId: creatorId ?? current.creatorId,
     subscriberCount: subscriberCount,
     isFollowing: isFollowing,
+  );
+}
+
+HomeVideoItem _mapRecommendationItem(dynamic data) {
+  if (data is! Map<String, dynamic>) {
+    return const HomeVideoItem(id: '', title: '', subtitle: '');
+  }
+  final String owner = _videoOwnerName(data) ?? '';
+  final int? views = _int(data['view_count']);
+  return HomeVideoItem(
+    id: _str(data['id']) ?? '',
+    title: _str(data['title']) ?? '',
+    subtitle: owner.isEmpty ? '' : '$owner · ${views ?? 0} views',
+    thumbnailUrl: _str(data['thumbnail_url']),
+    videoUrl: _str(data['file_url']) ??
+        _str(data['video_url']) ??
+        _str(data['playback_url']),
+    description: _str(data['description']) ??
+        _str(data['description_preview']),
+    ownerName: owner.isEmpty ? null : owner,
+    ownerAvatarUrl: _videoOwnerAvatarUrl(data),
+    viewCount: views,
+    category: _str(data['category']),
+    categoryName: _str(data['category_name']),
+    createdAt: _str(data['created_at']),
+    accessType: _str(data['access_type']),
+    previewSeconds: _int(data['preview_seconds']),
+    canWatch: _bool(data['can_watch']),
+    isLocked: _bool(data['is_locked']),
+    lockReason: _str(data['lock_reason']),
   );
 }
 

@@ -99,6 +99,14 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
     _apiClient = client;
   }
 
+  // ── Switch video ───────────────────────────────────────────────────────────
+
+  Future<void> switchVideo(HomeVideoItem next) async {
+    _viewTracked = false;
+    state = VideoDetailState(video: next);
+    await loadDetail();
+  }
+
   // ── Detail loading ─────────────────────────────────────────────────────────
 
   Future<void> loadDetail() async {

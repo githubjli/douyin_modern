@@ -894,45 +894,6 @@ class _VideoMediaHeader extends StatelessWidget {
   }
 }
 
-class _VideoPlaybackIcon extends StatelessWidget {
-  const _VideoPlaybackIcon({
-    required this.canPreviewPlayback,
-    required this.initializingVideo,
-    required this.videoInitializationFailed,
-    required this.isPlaying,
-  });
-
-  final bool canPreviewPlayback;
-  final bool initializingVideo;
-  final bool videoInitializationFailed;
-  final bool isPlaying;
-
-  @override
-  Widget build(BuildContext context) {
-    if (initializingVideo) {
-      return const Padding(
-        padding: EdgeInsets.all(AppSpacing.sm),
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: AppColors.warmBackground,
-        ),
-      );
-    }
-
-    final IconData icon = !canPreviewPlayback || videoInitializationFailed
-        ? Icons.image_outlined
-        : isPlaying
-            ? Icons.pause_rounded
-            : Icons.play_arrow_rounded;
-    return Icon(
-      icon,
-      color: canPreviewPlayback && !videoInitializationFailed
-          ? AppColors.warmBackground
-          : AppColors.brandGold,
-      size: canPreviewPlayback && !videoInitializationFailed ? 38 : 30,
-    );
-  }
-}
 
 class _VideoProgressBar extends StatelessWidget {
   const _VideoProgressBar({

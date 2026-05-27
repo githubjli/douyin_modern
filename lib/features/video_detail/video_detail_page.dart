@@ -826,7 +826,20 @@ class _VideoMediaHeader extends StatelessWidget {
                     onTap: onToggleFullscreen,
                   ),
                 ),
-                // Center: only shown when video has ended — big gold skip-next cue
+                // Center play/pause when paused after init (state 3)
+                if (isInitialized && !isPlaying && !videoCompleted && canPreview)
+                  Center(
+                    child: GestureDetector(
+                      onTap: onTogglePlayback,
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+
+                // Center: big gold skip-next when completed (state 4)
                 if (videoCompleted && onSkipNext != null)
                   Center(
                     child: GestureDetector(
@@ -846,8 +859,34 @@ class _VideoMediaHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                // Progress bar (bottom) — play/pause + skip-next + time + speed
-                if (isInitialized)
+
+                // Small gold skip-next chip at bottom-right when completed (state 4)
+                if (videoCompleted && onSkipNext != null)
+                  Positioned(
+                    right: AppSpacing.md,
+                    bottom: AppSpacing.md,
+                    child: GestureDetector(
+                      onTap: onSkipNext,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xxs,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandGold,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.skip_next_rounded,
+                          color: AppColors.warmBackground,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Progress bar — only shown while actively playing (state 2)
+                if (isInitialized && isPlaying)
                   Positioned(
                     left: 0,
                     right: 0,

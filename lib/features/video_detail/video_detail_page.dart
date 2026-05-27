@@ -775,9 +775,10 @@ class _VideoMediaHeader extends StatelessWidget {
                   ),
                 ),
                 // Frosted glass seek buttons (left -10s, right +10s)
-                if (isInitialized && canPreview) ...<Widget>[
+                if (isInitialized && canPreview && isPlaying) ...<Widget>[
                   Positioned(
-                    left: AppSpacing.xl,
+                    left: AppSpacing.xl +
+                        MediaQuery.of(context).padding.left,
                     top: 0,
                     bottom: 0,
                     child: Center(
@@ -788,7 +789,8 @@ class _VideoMediaHeader extends StatelessWidget {
                     ),
                   ),
                   Positioned(
-                    right: AppSpacing.xl,
+                    right: AppSpacing.xl +
+                        MediaQuery.of(context).padding.right,
                     top: 0,
                     bottom: 0,
                     child: Center(
@@ -1137,7 +1139,6 @@ class _FrostedSeekButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-              border: Border.all(color: Colors.white24),
             ),
             child: Icon(icon, color: Colors.white, size: 28),
           ),

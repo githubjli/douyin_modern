@@ -7,7 +7,10 @@ abstract class MembershipRepository {
 
   Future<MembershipStatus?> getCurrentStatus();
 
-  Future<MembershipOrder> createOrder({required String planCode});
+  Future<MembershipOrder> createOrder({
+    required String planCode,
+    String? paymentAsset,
+  });
 
   Future<MembershipOrder> getOrder(String orderNo);
 

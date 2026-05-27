@@ -180,6 +180,8 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
     ref.read(membershipLoadingPlanCodeProvider.notifier).state = planCode;
     final ManualMembershipRepository manualRepo =
         ref.read(membershipPageManualRepoProvider);
+    final MembershipRepository membershipRepo =
+        ref.read(membershipPageRepoProvider);
 
     try {
       final ManualPaymentInfo info =
@@ -192,6 +194,15 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
             paymentInfo: info,
             repository: manualRepo,
             displayCurrency: plan.settlementTokenSymbol,
+            supportedPaymentAssets: plan.supportedPaymentAssets,
+            membershipRepository: membershipRepo,
+            onMembershipActivated: () {
+              if (mounted) {
+                ref
+                    .read(membershipControllerProvider.notifier)
+                    .refresh();
+              }
+            },
           ),
         ),
       );

@@ -16,6 +16,9 @@ class MembershipOrder {
     this.expiresAt,
     this.paidAt,
     this.createdAt,
+    this.paymentAsset,
+    this.paymentMethod,
+    this.amountSnapshot,
   });
 
   factory MembershipOrder.fromJson(Map<String, dynamic> json) {
@@ -88,6 +91,9 @@ class MembershipOrder {
       expiresAt: _firstString(data, const <String>['expires_at', 'expiresAt']),
       paidAt: _firstString(data, const <String>['paid_at', 'paidAt']),
       createdAt: _firstString(data, const <String>['created_at', 'createdAt']),
+      paymentAsset: _firstString(data, const <String>['payment_asset', 'paymentAsset']),
+      paymentMethod: _firstString(data, const <String>['payment_method', 'paymentMethod']),
+      amountSnapshot: _firstString(data, const <String>['amount_snapshot', 'amountSnapshot', 'paid_amount', 'paidAmount']),
     );
   }
 
@@ -107,6 +113,9 @@ class MembershipOrder {
   final String? expiresAt;
   final String? paidAt;
   final String? createdAt;
+  final String? paymentAsset;
+  final String? paymentMethod;
+  final String? amountSnapshot;
 
   bool get isPending {
     return _normalizedStatus == 'pending' ||

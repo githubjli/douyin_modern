@@ -26,7 +26,10 @@ class MockMembershipRepository implements MembershipRepository {
   Future<MembershipStatus?> getCurrentStatus() async => null;
 
   @override
-  Future<MembershipOrder> createOrder({required String planCode}) async {
+  Future<MembershipOrder> createOrder({
+    required String planCode,
+    String? paymentAsset,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     return MembershipOrder(
       orderNo: 'mock-order-${DateTime.now().millisecondsSinceEpoch}',

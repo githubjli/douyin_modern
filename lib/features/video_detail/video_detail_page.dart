@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
@@ -181,9 +180,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
   bool _isFullscreen = false;
   bool _showControls = true;
   Timer? _hideControlsTimer;
-  double _doubleTapDx = 0;
-  String? _seekFeedback;
-  bool _seekFeedbackLeft = false;
 
   @override
   void initState() {
@@ -398,6 +394,17 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     await _videoController?.seekTo(position);
   }
 
+  Future<void> _seekBy(int seconds) async {
+    final VideoPlayerController? controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) return;
+    final Duration pos = controller.value.position;
+    final Duration dur = controller.value.duration;
+    final int newMs = (pos.inMilliseconds + seconds * 1000)
+        .clamp(0, dur.inMilliseconds);
+    await controller.seekTo(Duration(milliseconds: newMs));
+    _resetControlsTimer();
+  }
+
   void _enterFullscreen() {
     setState(() { _isFullscreen = true; _showControls = true; });
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -431,25 +438,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     }
   }
 
-  Future<void> _doubleTapSeek({required bool forward}) async {
-    final VideoPlayerController? controller = _videoController;
-    if (controller == null || !controller.value.isInitialized) return;
-    final Duration pos = controller.value.position;
-    final Duration dur = controller.value.duration;
-    final int newMs = forward
-        ? min(pos.inMilliseconds + 10000, dur.inMilliseconds)
-        : max(pos.inMilliseconds - 10000, 0);
-    await controller.seekTo(Duration(milliseconds: newMs));
-    if (!mounted) return;
-    setState(() {
-      _seekFeedback = forward ? '+10s' : '-10s';
-      _seekFeedbackLeft = !forward;
-    });
-    Future<void>.delayed(const Duration(milliseconds: 700), () {
-      if (mounted) setState(() => _seekFeedback = null);
-    });
-  }
-
   Future<void> _disposeVideoController() async {
     final VideoPlayerController? controller = _videoController;
     _videoController = null;
@@ -481,15 +469,10 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       isPlaying: _videoPlaying,
       isFullscreen: _isFullscreen,
       showControls: _showControls,
-      seekFeedback: _seekFeedback,
-      seekFeedbackLeft: _seekFeedbackLeft,
       onTogglePlayback: () => unawaited(_togglePlayback()),
       onTapVideo: _toggleControls,
-      onDoubleTapDown: (double dx) => _doubleTapDx = dx,
-      onDoubleTap: () {
-        final double width = MediaQuery.of(context).size.width;
-        unawaited(_doubleTapSeek(forward: _doubleTapDx > width / 2));
-      },
+      onSeekBackward: () => unawaited(_seekBy(-10)),
+      onSeekForward: () => unawaited(_seekBy(10)),
       onSeek: (Duration pos) => unawaited(_seekTo(pos)),
       onToggleFullscreen: _isFullscreen ? _exitFullscreen : _enterFullscreen,
       onBack: _isFullscreen
@@ -658,15 +641,13 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.showControls,
     required this.onTogglePlayback,
     required this.onTapVideo,
-    required this.onDoubleTapDown,
-    required this.onDoubleTap,
+    required this.onSeekBackward,
+    required this.onSeekForward,
     required this.onSeek,
     required this.onToggleFullscreen,
     required this.onBack,
     required this.onSignInPressed,
     required this.onSubscribePressed,
-    this.seekFeedback,
-    this.seekFeedbackLeft = false,
   });
 
   final HomeVideoItem video;
@@ -677,12 +658,10 @@ class _VideoMediaHeader extends StatelessWidget {
   final bool isPlaying;
   final bool isFullscreen;
   final bool showControls;
-  final String? seekFeedback;
-  final bool seekFeedbackLeft;
   final VoidCallback onTogglePlayback;
   final VoidCallback onTapVideo;
-  final void Function(double dx) onDoubleTapDown;
-  final VoidCallback onDoubleTap;
+  final VoidCallback onSeekBackward;
+  final VoidCallback onSeekForward;
   final void Function(Duration) onSeek;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onBack;
@@ -729,15 +708,12 @@ class _VideoMediaHeader extends StatelessWidget {
           ),
         ),
 
-        // ── 3. Tap & double-tap handler ───────────────────────────────────
+        // ── 3. Tap handler ────────────────────────────────────────────────
         if (canPreview && !lockedVip)
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onTapVideo,
-              onDoubleTapDown: (TapDownDetails d) =>
-                  onDoubleTapDown(d.globalPosition.dx),
-              onDoubleTap: onDoubleTap,
             ),
           ),
 
@@ -778,40 +754,7 @@ class _VideoMediaHeader extends StatelessWidget {
                     () => _showLockedVipPlaceholder(context, isSignedIn),
           ),
 
-        // ── 6. Seek feedback (+10s / -10s) ────────────────────────────────
-        if (seekFeedback != null)
-          IgnorePointer(
-            child: Positioned(
-              left: seekFeedbackLeft ? AppSpacing.xl : null,
-              right: seekFeedbackLeft ? null : AppSpacing.xl,
-              top: 0,
-              bottom: 0,
-              width: 72,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  ),
-                  child: Text(
-                    seekFeedback!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        // ── 7. Auto-hide controls overlay ────────────────────────────────
+        // ── 6. Auto-hide controls overlay ────────────────────────────────
         AnimatedOpacity(
           opacity: showControls && !lockedVip ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 250),
@@ -831,7 +774,32 @@ class _VideoMediaHeader extends StatelessWidget {
                     onTap: onToggleFullscreen,
                   ),
                 ),
-                // Play / pause center button (always shows icon, not spinner)
+                // Frosted glass seek buttons (left -10s, right +10s)
+                if (isInitialized && canPreview) ...<Widget>[
+                  Positioned(
+                    left: AppSpacing.xl,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _FrostedSeekButton(
+                        icon: Icons.replay_10,
+                        onTap: onSeekBackward,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: AppSpacing.xl,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _FrostedSeekButton(
+                        icon: Icons.forward_10,
+                        onTap: onSeekForward,
+                      ),
+                    ),
+                  ),
+                ],
+                // Play / pause center button
                 if (canPreview)
                   Center(
                     child: GestureDetector(
@@ -1144,6 +1112,36 @@ class _CircleIconButton extends StatelessWidget {
           border: Border.all(color: AppColors.softBorder),
         ),
         child: Icon(icon, color: AppColors.cocoaText, size: 20),
+      ),
+    );
+  }
+}
+
+class _FrostedSeekButton extends StatelessWidget {
+  const _FrostedSeekButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+        ),
       ),
     );
   }

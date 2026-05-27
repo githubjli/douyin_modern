@@ -101,6 +101,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     'Videos',
     'Short Drama',
     'Live',
+    'Shop',
   ];
 
   @override
@@ -227,7 +228,15 @@ class _HomePageState extends ConsumerState<HomePage> {
               channels: _channels,
               selectedIndex: _selectedChannelIndex,
               onSelected: (int index) {
-                setState(() => _selectedChannelIndex = index);
+                if (index == _channels.length - 1) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ShopPage(),
+                    ),
+                  );
+                } else {
+                  setState(() => _selectedChannelIndex = index);
+                }
               },
             ),
             if (_notice != null) ...<Widget>[

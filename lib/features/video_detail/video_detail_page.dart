@@ -379,6 +379,10 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _seekTo(Duration position) async {
+    await _videoController?.seekTo(position);
+  }
+
   Future<void> _disposeVideoController() async {
     final VideoPlayerController? controller = _videoController;
     _videoController = null;
@@ -415,6 +419,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
               videoInitializationFailed: _videoInitializationFailed,
               isPlaying: _videoPlaying,
               onTogglePlayback: () => unawaited(_togglePlayback()),
+              onSeek: (Duration pos) => unawaited(_seekTo(pos)),
               onSignInPressed: widget.onSignInPressed,
               onSubscribePressed: widget.onSubscribePressed,
             ),
@@ -553,6 +558,7 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.videoInitializationFailed,
     required this.isPlaying,
     required this.onTogglePlayback,
+    required this.onSeek,
     required this.onSignInPressed,
     required this.onSubscribePressed,
   });
@@ -564,6 +570,7 @@ class _VideoMediaHeader extends StatelessWidget {
   final bool videoInitializationFailed;
   final bool isPlaying;
   final VoidCallback onTogglePlayback;
+  final void Function(Duration) onSeek;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
@@ -646,19 +653,33 @@ class _VideoMediaHeader extends StatelessWidget {
                 ),
               ),
             Positioned(
-              left: AppSpacing.md,
-              right: AppSpacing.md,
-              bottom: AppSpacing.md,
-              child: IgnorePointer(
-                child: Text(
-                  lockedVip
-                      ? 'VIP locked'
-                      : canPreviewPlayback
-                          ? 'Playback preview'
-                          : 'Thumbnail preview',
-                  style: AppTextStyles.caption.copyWith(color: Colors.white70),
-                ),
-              ),
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: isInitialized && !lockedVip
+                  ? _VideoProgressBar(
+                      controller: controller!,
+                      onSeek: onSeek,
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        0,
+                        AppSpacing.md,
+                        AppSpacing.md,
+                      ),
+                      child: IgnorePointer(
+                        child: Text(
+                          lockedVip
+                              ? 'VIP locked'
+                              : canPreviewPlayback
+                                  ? 'Playback preview'
+                                  : 'Thumbnail preview',
+                          style: AppTextStyles.caption
+                              .copyWith(color: Colors.white70),
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -703,6 +724,94 @@ class _VideoPlaybackIcon extends StatelessWidget {
           ? AppColors.warmBackground
           : AppColors.brandGold,
       size: canPreviewPlayback && !videoInitializationFailed ? 38 : 30,
+    );
+  }
+}
+
+class _VideoProgressBar extends StatelessWidget {
+  const _VideoProgressBar({
+    required this.controller,
+    required this.onSeek,
+  });
+
+  final VideoPlayerController controller;
+  final void Function(Duration) onSeek;
+
+  String _fmt(Duration d) {
+    final int m = d.inMinutes;
+    final int s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: controller,
+      builder: (BuildContext ctx, VideoPlayerValue value, _) {
+        final Duration pos = value.position;
+        final Duration dur = value.duration;
+        final double progress = dur.inMilliseconds > 0
+            ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
+            : 0.0;
+        return Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: <Color>[Color(0xCC000000), Color(0x00000000)],
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SliderTheme(
+                data: SliderTheme.of(ctx).copyWith(
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                  trackHeight: 2,
+                  activeTrackColor: AppColors.brandGold,
+                  inactiveTrackColor: Colors.white30,
+                  thumbColor: AppColors.brandGold,
+                  overlayColor: AppColors.brandGold.withValues(alpha: 0.2),
+                ),
+                child: Slider(
+                  value: progress,
+                  onChanged: (double v) => onSeek(
+                    Duration(milliseconds: (v * dur.inMilliseconds).round()),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  0,
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      _fmt(pos),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                      ),
+                    ),
+                    Text(
+                      _fmt(dur),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

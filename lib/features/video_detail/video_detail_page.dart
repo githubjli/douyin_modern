@@ -180,6 +180,8 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
   bool _isFullscreen = false;
   bool _showControls = true;
   Timer? _hideControlsTimer;
+  bool _videoCompleted = false;
+  double _playbackSpeed = 1.0;
 
   @override
   void initState() {
@@ -329,6 +331,8 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       _initializingVideo = true;
       _videoInitializationFailed = false;
       _videoPlaying = false;
+      _videoCompleted = false;
+      _playbackSpeed = 1.0;
     });
 
     try {
@@ -362,11 +366,20 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     if (!mounted || _videoPlaying == isPlaying) return;
     if (isPlaying) {
       unawaited(ref.read(videoDetailProvider.notifier).trackView());
-      setState(() => _videoPlaying = true);
+      setState(() { _videoPlaying = true; _videoCompleted = false; });
       _resetControlsTimer();
     } else {
       _hideControlsTimer?.cancel();
-      setState(() { _videoPlaying = false; _showControls = true; });
+      final bool completed = controller != null &&
+          controller.value.isInitialized &&
+          controller.value.duration.inMilliseconds > 0 &&
+          controller.value.position.inMilliseconds >=
+              controller.value.duration.inMilliseconds - 500;
+      setState(() {
+        _videoPlaying = false;
+        _showControls = true;
+        if (completed) _videoCompleted = true;
+      });
     }
   }
 
@@ -392,6 +405,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
 
   Future<void> _seekTo(Duration position) async {
     await _videoController?.seekTo(position);
+    if (_videoCompleted) setState(() => _videoCompleted = false);
   }
 
   Future<void> _seekBy(int seconds) async {
@@ -403,6 +417,29 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
         .clamp(0, dur.inMilliseconds);
     await controller.seekTo(Duration(milliseconds: newMs));
     _resetControlsTimer();
+  }
+
+  static const List<double> _speedOptions = <double>[0.5, 1.0, 1.5, 2.0];
+
+  void _cycleSpeed() {
+    final int idx = _speedOptions.indexOf(_playbackSpeed);
+    final double next = _speedOptions[(idx + 1) % _speedOptions.length];
+    setState(() => _playbackSpeed = next);
+    _videoController?.setPlaybackSpeed(next);
+    _resetControlsTimer();
+  }
+
+  void _navigateToNext(HomeVideoItem next) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => VideoDetailPage(
+          video: next,
+          recommendations: widget.recommendations,
+          onSignInPressed: widget.onSignInPressed,
+          onSubscribePressed: widget.onSubscribePressed,
+        ),
+      ),
+    );
   }
 
   void _enterFullscreen() {
@@ -459,6 +496,8 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       current: video,
       candidates: widget.recommendations,
     );
+    final HomeVideoItem? nextVideo =
+        recommendations.isNotEmpty ? recommendations.first : null;
 
     final Widget videoHeader = _VideoMediaHeader(
       video: video,
@@ -469,11 +508,16 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       isPlaying: _videoPlaying,
       isFullscreen: _isFullscreen,
       showControls: _showControls,
+      videoCompleted: _videoCompleted,
+      playbackSpeed: _playbackSpeed,
+      nextVideo: nextVideo,
       onTogglePlayback: () => unawaited(_togglePlayback()),
       onTapVideo: _toggleControls,
       onSeekBackward: () => unawaited(_seekBy(-10)),
       onSeekForward: () => unawaited(_seekBy(10)),
       onSeek: (Duration pos) => unawaited(_seekTo(pos)),
+      onCycleSpeed: _cycleSpeed,
+      onSkipNext: nextVideo != null ? () => _navigateToNext(nextVideo) : null,
       onToggleFullscreen: _isFullscreen ? _exitFullscreen : _enterFullscreen,
       onBack: _isFullscreen
           ? _exitFullscreen
@@ -639,15 +683,20 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.isPlaying,
     required this.isFullscreen,
     required this.showControls,
+    required this.videoCompleted,
+    required this.playbackSpeed,
     required this.onTogglePlayback,
     required this.onTapVideo,
     required this.onSeekBackward,
     required this.onSeekForward,
     required this.onSeek,
+    required this.onCycleSpeed,
     required this.onToggleFullscreen,
     required this.onBack,
     required this.onSignInPressed,
     required this.onSubscribePressed,
+    this.nextVideo,
+    this.onSkipNext,
   });
 
   final HomeVideoItem video;
@@ -658,11 +707,16 @@ class _VideoMediaHeader extends StatelessWidget {
   final bool isPlaying;
   final bool isFullscreen;
   final bool showControls;
+  final bool videoCompleted;
+  final double playbackSpeed;
+  final HomeVideoItem? nextVideo;
   final VoidCallback onTogglePlayback;
   final VoidCallback onTapVideo;
   final VoidCallback onSeekBackward;
   final VoidCallback onSeekForward;
   final void Function(Duration) onSeek;
+  final VoidCallback onCycleSpeed;
+  final VoidCallback? onSkipNext;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onBack;
   final VoidCallback? onSignInPressed;
@@ -801,26 +855,65 @@ class _VideoMediaHeader extends StatelessWidget {
                     ),
                   ),
                 ],
-                // Play / pause center button
+                // Play / pause + skip next row
                 if (canPreview)
                   Center(
-                    child: GestureDetector(
-                      onTap: onTogglePlayback,
-                      child: Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: AppColors.brandGold.withValues(alpha: 0.92),
-                          shape: BoxShape.circle,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        GestureDetector(
+                          onTap: onTogglePlayback,
+                          child: Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: AppColors.brandGold.withValues(alpha: 0.92),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: AppColors.warmBackground,
+                              size: 38,
+                            ),
+                          ),
                         ),
-                        child: Icon(
-                          isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: AppColors.warmBackground,
-                          size: 38,
-                        ),
-                      ),
+                        if (onSkipNext != null) ...<Widget>[
+                          const SizedBox(width: AppSpacing.md),
+                          GestureDetector(
+                            onTap: onSkipNext,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusMd),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                    sigmaX: 12, sigmaY: 12),
+                                child: Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: videoCompleted
+                                        ? AppColors.brandGold
+                                            .withValues(alpha: 0.9)
+                                        : Colors.white
+                                            .withValues(alpha: 0.18),
+                                    borderRadius: BorderRadius.circular(
+                                        AppSpacing.radiusMd),
+                                  ),
+                                  child: Icon(
+                                    Icons.skip_next_rounded,
+                                    color: videoCompleted
+                                        ? AppColors.warmBackground
+                                        : Colors.white,
+                                    size: 26,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 // Progress bar (bottom)
@@ -832,6 +925,8 @@ class _VideoMediaHeader extends StatelessWidget {
                     child: _VideoProgressBar(
                       controller: controller!,
                       onSeek: onSeek,
+                      playbackSpeed: playbackSpeed,
+                      onCycleSpeed: onCycleSpeed,
                     ),
                   ),
               ],
@@ -869,16 +964,23 @@ class _VideoProgressBar extends StatelessWidget {
   const _VideoProgressBar({
     required this.controller,
     required this.onSeek,
+    required this.playbackSpeed,
+    required this.onCycleSpeed,
   });
 
   final VideoPlayerController controller;
   final void Function(Duration) onSeek;
+  final double playbackSpeed;
+  final VoidCallback onCycleSpeed;
 
   String _fmt(Duration d) {
     final int m = d.inMinutes;
     final int s = d.inSeconds % 60;
     return '$m:${s.toString().padLeft(2, '0')}';
   }
+
+  String _fmtSpeed(double s) =>
+      s % 1 == 0 ? '${s.toInt()}×' : '$s×';
 
   @override
   Widget build(BuildContext context) {
@@ -926,7 +1028,6 @@ class _VideoProgressBar extends StatelessWidget {
                   AppSpacing.sm,
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Text(
                       _fmt(pos),
@@ -935,6 +1036,29 @@ class _VideoProgressBar extends StatelessWidget {
                         fontSize: 10,
                       ),
                     ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: onCycleSpeed,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _fmtSpeed(playbackSpeed),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
                     Text(
                       _fmt(dur),
                       style: const TextStyle(

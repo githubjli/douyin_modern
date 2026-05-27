@@ -88,6 +88,7 @@ class VideoDetailPage extends ConsumerStatefulWidget {
     this.recommendations = const <HomeVideoItem>[],
     this.apiClient,
     this.loadRemoteDetail = true,
+    this.startFullscreen = false,
     this.onSignInPressed,
     this.onSubscribePressed,
   });
@@ -96,6 +97,7 @@ class VideoDetailPage extends ConsumerStatefulWidget {
   final List<HomeVideoItem> recommendations;
   final ApiClient? apiClient;
   final bool loadRemoteDetail;
+  final bool startFullscreen;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
@@ -141,6 +143,7 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
         recommendations: widget.recommendations,
         apiClient: _apiClient,
         loadRemoteDetail: widget.loadRemoteDetail,
+        startFullscreen: widget.startFullscreen,
         onSignInPressed: widget.onSignInPressed,
         onSubscribePressed: widget.onSubscribePressed,
       ),
@@ -155,6 +158,7 @@ class _VideoDetailBody extends ConsumerStatefulWidget {
     required this.recommendations,
     required this.apiClient,
     required this.loadRemoteDetail,
+    required this.startFullscreen,
     this.onSignInPressed,
     this.onSubscribePressed,
   });
@@ -162,6 +166,7 @@ class _VideoDetailBody extends ConsumerStatefulWidget {
   final List<HomeVideoItem> recommendations;
   final ApiClient apiClient;
   final bool loadRemoteDetail;
+  final bool startFullscreen;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
@@ -186,10 +191,17 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    if (widget.startFullscreen) {
+      // Skip portrait lock — will enter fullscreen on first frame instead.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _enterFullscreen();
+      });
+    } else {
+      SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
     Future<void>.microtask(() {
       if (!mounted) return;
       ref.read(authControllerProvider.notifier).bootstrap();
@@ -222,7 +234,13 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       unawaited(controller.dispose());
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations(<DeviceOrientation>[]);
+    // Lock back to portrait on exit so dispose() doesn't unlock the
+    // orientation of the incoming page (pushReplacement disposes old route
+    // after new route's initState has already run).
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     super.dispose();
   }
 
@@ -428,6 +446,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
         builder: (_) => VideoDetailPage(
           video: next,
           recommendations: widget.recommendations,
+          startFullscreen: _isFullscreen,
           onSignInPressed: widget.onSignInPressed,
           onSubscribePressed: widget.onSubscribePressed,
         ),

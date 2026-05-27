@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
+
+import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -175,6 +178,13 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
   bool _videoPlaying = false;
   late final ProviderSubscription<String?> _videoUrlSub;
 
+  bool _isFullscreen = false;
+  bool _showControls = true;
+  Timer? _hideControlsTimer;
+  double _doubleTapDx = 0;
+  String? _seekFeedback;
+  bool _seekFeedbackLeft = false;
+
   @override
   void initState() {
     super.initState();
@@ -201,6 +211,7 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
 
   @override
   void dispose() {
+    _hideControlsTimer?.cancel();
     _videoUrlSub.close();
     final VideoPlayerController? controller = _videoController;
     _videoController = null;
@@ -208,6 +219,8 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       controller.removeListener(_handleVideoControllerChanged);
       unawaited(controller.dispose());
     }
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[]);
     super.dispose();
   }
 
@@ -353,10 +366,12 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     if (!mounted || _videoPlaying == isPlaying) return;
     if (isPlaying) {
       unawaited(ref.read(videoDetailProvider.notifier).trackView());
+      setState(() => _videoPlaying = true);
+      _resetControlsTimer();
+    } else {
+      _hideControlsTimer?.cancel();
+      setState(() { _videoPlaying = false; _showControls = true; });
     }
-    setState(() {
-      _videoPlaying = isPlaying;
-    });
   }
 
   Future<void> _togglePlayback() async {
@@ -383,6 +398,58 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     await _videoController?.seekTo(position);
   }
 
+  void _enterFullscreen() {
+    setState(() { _isFullscreen = true; _showControls = true; });
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    _resetControlsTimer();
+  }
+
+  void _exitFullscreen() {
+    setState(() { _isFullscreen = false; _showControls = true; });
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  void _toggleControls() {
+    setState(() => _showControls = !_showControls);
+    if (_showControls) _resetControlsTimer();
+  }
+
+  void _resetControlsTimer() {
+    _hideControlsTimer?.cancel();
+    if (_videoPlaying) {
+      _hideControlsTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _showControls = false);
+      });
+    }
+  }
+
+  Future<void> _doubleTapSeek({required bool forward}) async {
+    final VideoPlayerController? controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) return;
+    final Duration pos = controller.value.position;
+    final Duration dur = controller.value.duration;
+    final int newMs = forward
+        ? min(pos.inMilliseconds + 10000, dur.inMilliseconds)
+        : max(pos.inMilliseconds - 10000, 0);
+    await controller.seekTo(Duration(milliseconds: newMs));
+    if (!mounted) return;
+    setState(() {
+      _seekFeedback = forward ? '+10s' : '-10s';
+      _seekFeedbackLeft = !forward;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _seekFeedback = null);
+    });
+  }
+
   Future<void> _disposeVideoController() async {
     final VideoPlayerController? controller = _videoController;
     _videoController = null;
@@ -405,72 +472,102 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       candidates: widget.recommendations,
     );
 
-    return Scaffold(
-      backgroundColor: AppColors.warmBackground,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: <Widget>[
-            _VideoMediaHeader(
-              video: video,
-              isSignedIn: isSignedIn,
-              controller: _videoController,
-              initializingVideo: _initializingVideo,
-              videoInitializationFailed: _videoInitializationFailed,
-              isPlaying: _videoPlaying,
-              onTogglePlayback: () => unawaited(_togglePlayback()),
-              onSeek: (Duration pos) => unawaited(_seekTo(pos)),
-              onSignInPressed: widget.onSignInPressed,
-              onSubscribePressed: widget.onSubscribePressed,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _VideoInfoSection(video: video, loading: detailState.loadingDetail),
-            const SizedBox(height: AppSpacing.xs),
-            _AuthorFollowRow(
-              video: video,
-              interaction: interaction,
-              isSignedIn: isSignedIn,
-              onFollow: () =>
-                  unawaited(ref.read(videoDetailProvider.notifier).toggleFollow()),
-              onCreatorTap: interaction.creatorId != null
-                  ? () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => CreatorProfilePage(
-                            creatorId: interaction.creatorId!,
-                          ),
-                        ),
+    final Widget videoHeader = _VideoMediaHeader(
+      video: video,
+      isSignedIn: isSignedIn,
+      controller: _videoController,
+      initializingVideo: _initializingVideo,
+      videoInitializationFailed: _videoInitializationFailed,
+      isPlaying: _videoPlaying,
+      isFullscreen: _isFullscreen,
+      showControls: _showControls,
+      seekFeedback: _seekFeedback,
+      seekFeedbackLeft: _seekFeedbackLeft,
+      onTogglePlayback: () => unawaited(_togglePlayback()),
+      onTapVideo: _toggleControls,
+      onDoubleTapDown: (double dx) => _doubleTapDx = dx,
+      onDoubleTap: () {
+        final double width = MediaQuery.of(context).size.width;
+        unawaited(_doubleTapSeek(forward: _doubleTapDx > width / 2));
+      },
+      onSeek: (Duration pos) => unawaited(_seekTo(pos)),
+      onToggleFullscreen: _isFullscreen ? _exitFullscreen : _enterFullscreen,
+      onBack: _isFullscreen
+          ? _exitFullscreen
+          : () => Navigator.of(context).pop(),
+      onSignInPressed: widget.onSignInPressed,
+      onSubscribePressed: widget.onSubscribePressed,
+    );
+
+    return PopScope(
+      canPop: !_isFullscreen,
+      onPopInvokedWithResult: (bool didPop, _) {
+        if (!didPop) _exitFullscreen();
+      },
+      child: Scaffold(
+        backgroundColor:
+            _isFullscreen ? Colors.black : AppColors.warmBackground,
+        body: _isFullscreen
+            ? videoHeader
+            : SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  children: <Widget>[
+                    videoHeader,
+                    const SizedBox(height: AppSpacing.sm),
+                    _VideoInfoSection(
+                      video: video,
+                      loading: detailState.loadingDetail,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    _AuthorFollowRow(
+                      video: video,
+                      interaction: interaction,
+                      isSignedIn: isSignedIn,
+                      onFollow: () => unawaited(
+                        ref.read(videoDetailProvider.notifier).toggleFollow(),
+                      ),
+                      onCreatorTap: interaction.creatorId != null
+                          ? () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => CreatorProfilePage(
+                                    creatorId: interaction.creatorId!,
+                                  ),
+                                ),
+                              )
+                          : null,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    _VideoActionRow(
+                      interaction: interaction,
+                      isSignedIn: isSignedIn,
+                      onLike: () => unawaited(
+                        ref.read(videoDetailProvider.notifier).toggleLike(),
+                      ),
+                      onComment: _openComments,
+                      onGift: _openGifts,
+                      onShare: _shareVideo,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    const Text(
+                      'Recommendations',
+                      style: _videoDetailSectionHeadingStyle,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (recommendations.isEmpty)
+                      const _VideoDetailEmptyCard(
+                        message: 'No video recommendations yet.',
                       )
-                  : null,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            _VideoActionRow(
-              interaction: interaction,
-              isSignedIn: isSignedIn,
-              onLike: () =>
-                  unawaited(ref.read(videoDetailProvider.notifier).toggleLike()),
-              onComment: _openComments,
-              onGift: _openGifts,
-              onShare: _shareVideo,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Text(
-              'Recommendations',
-              style: _videoDetailSectionHeadingStyle,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            if (recommendations.isEmpty)
-              const _VideoDetailEmptyCard(
-                message: 'No video recommendations yet.',
-              )
-            else
-              _VideoRecommendationGrid(
-                items: recommendations,
-                allCandidates: widget.recommendations,
-                onSignInPressed: widget.onSignInPressed,
-                onSubscribePressed: widget.onSubscribePressed,
+                    else
+                      _VideoRecommendationGrid(
+                        items: recommendations,
+                        allCandidates: widget.recommendations,
+                        onSignInPressed: widget.onSignInPressed,
+                        onSubscribePressed: widget.onSubscribePressed,
+                      ),
+                  ],
+                ),
               ),
-          ],
-        ),
       ),
     );
   }
@@ -557,10 +654,19 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.initializingVideo,
     required this.videoInitializationFailed,
     required this.isPlaying,
+    required this.isFullscreen,
+    required this.showControls,
     required this.onTogglePlayback,
+    required this.onTapVideo,
+    required this.onDoubleTapDown,
+    required this.onDoubleTap,
     required this.onSeek,
+    required this.onToggleFullscreen,
+    required this.onBack,
     required this.onSignInPressed,
     required this.onSubscribePressed,
+    this.seekFeedback,
+    this.seekFeedbackLeft = false,
   });
 
   final HomeVideoItem video;
@@ -569,120 +675,208 @@ class _VideoMediaHeader extends StatelessWidget {
   final bool initializingVideo;
   final bool videoInitializationFailed;
   final bool isPlaying;
+  final bool isFullscreen;
+  final bool showControls;
+  final String? seekFeedback;
+  final bool seekFeedbackLeft;
   final VoidCallback onTogglePlayback;
+  final VoidCallback onTapVideo;
+  final void Function(double dx) onDoubleTapDown;
+  final VoidCallback onDoubleTap;
   final void Function(Duration) onSeek;
+  final VoidCallback onToggleFullscreen;
+  final VoidCallback onBack;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
 
   @override
   Widget build(BuildContext context) {
     final bool lockedVip = _isLockedVip(video);
-    final bool canPreviewPlayback = _canPreviewPlayback(video);
+    final bool canPreview = _canPreviewPlayback(video);
     final bool isInitialized = controller?.value.isInitialized == true;
+
+    final Widget stack = Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        // ── 1. Video / thumbnail ──────────────────────────────────────────
+        if (isInitialized)
+          ColoredBox(
+            color: Colors.black,
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: controller!.value.aspectRatio,
+                child: VideoPlayer(controller!),
+              ),
+            ),
+          )
+        else
+          _VideoDetailCover(imageUrl: video.thumbnailUrl),
+
+        // ── 2. Gradient scrim ─────────────────────────────────────────────
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Color(0x88000000),
+                Color(0x00000000),
+                Color(0x00000000),
+                Color(0x99000000),
+              ],
+              stops: <double>[0.0, 0.25, 0.65, 1.0],
+            ),
+          ),
+        ),
+
+        // ── 3. Tap & double-tap handler ───────────────────────────────────
+        if (canPreview && !lockedVip)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTapVideo,
+              onDoubleTapDown: (TapDownDetails d) =>
+                  onDoubleTapDown(d.globalPosition.dx),
+              onDoubleTap: onDoubleTap,
+            ),
+          ),
+
+        // ── 4. Buffering spinner ──────────────────────────────────────────
+        if (isInitialized)
+          ValueListenableBuilder<VideoPlayerValue>(
+            valueListenable: controller!,
+            builder: (_, VideoPlayerValue v, __) {
+              if (!v.isBuffering) return const SizedBox.shrink();
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              );
+            },
+          ),
+
+        // ── 5. VIP lock overlay (always visible) ──────────────────────────
+        if (lockedVip)
+          _LockedVipOverlay(
+            ctaLabel: isSignedIn ? 'Subscribe' : 'Sign in',
+            onCta: isSignedIn
+                ? onSubscribePressed ??
+                    () => _showLockedVipPlaceholder(context, isSignedIn)
+                : onSignInPressed ??
+                    () => _showLockedVipPlaceholder(context, isSignedIn),
+          ),
+
+        // ── 6. Seek feedback (+10s / -10s) ────────────────────────────────
+        if (seekFeedback != null)
+          IgnorePointer(
+            child: Positioned(
+              left: seekFeedbackLeft ? AppSpacing.xl : null,
+              right: seekFeedbackLeft ? null : AppSpacing.xl,
+              top: 0,
+              bottom: 0,
+              width: 72,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                  child: Text(
+                    seekFeedback!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+        // ── 7. Auto-hide controls overlay ────────────────────────────────
+        AnimatedOpacity(
+          opacity: showControls && !lockedVip ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 250),
+          child: IgnorePointer(
+            ignoring: !(showControls && !lockedVip),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                // Fullscreen toggle (top-right)
+                Positioned(
+                  top: AppSpacing.sm,
+                  right: AppSpacing.sm,
+                  child: _CircleIconButton(
+                    icon: isFullscreen
+                        ? Icons.fullscreen_exit
+                        : Icons.fullscreen,
+                    onTap: onToggleFullscreen,
+                  ),
+                ),
+                // Play / pause center button
+                if (canPreview)
+                  Center(
+                    child: GestureDetector(
+                      onTap: onTogglePlayback,
+                      child: Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: AppColors.brandGold.withValues(alpha: 0.92),
+                          shape: BoxShape.circle,
+                        ),
+                        child: _VideoPlaybackIcon(
+                          canPreviewPlayback: true,
+                          initializingVideo: initializingVideo,
+                          videoInitializationFailed: videoInitializationFailed,
+                          isPlaying: isPlaying,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Progress bar (bottom)
+                if (isInitialized)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _VideoProgressBar(
+                      controller: controller!,
+                      onSeek: onSeek,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── 8. Back button — always visible ──────────────────────────────
+        Positioned(
+          top: AppSpacing.sm,
+          left: AppSpacing.sm,
+          child: _CircleIconButton(
+            icon: Icons.arrow_back,
+            onTap: onBack,
+          ),
+        ),
+      ],
+    );
+
+    if (isFullscreen) {
+      return ColoredBox(color: Colors.black, child: stack);
+    }
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            if (isInitialized)
-              ColoredBox(
-                color: Colors.black,
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: controller!.value.aspectRatio,
-                    child: VideoPlayer(controller!),
-                  ),
-                ),
-              )
-            else
-              _VideoDetailCover(imageUrl: video.thumbnailUrl),
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[Color(0x66000000), Color(0x22000000)],
-                ),
-              ),
-            ),
-            if (canPreviewPlayback && !lockedVip)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onTogglePlayback,
-                ),
-              ),
-            Positioned(
-              top: AppSpacing.sm,
-              left: AppSpacing.sm,
-              child: _CircleIconButton(
-                icon: Icons.arrow_back,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ),
-            if (lockedVip)
-              _LockedVipOverlay(
-                ctaLabel: isSignedIn ? 'Subscribe' : 'Sign in',
-                onCta: isSignedIn
-                    ? onSubscribePressed ??
-                        () => _showLockedVipPlaceholder(context, isSignedIn)
-                    : onSignInPressed ??
-                        () => _showLockedVipPlaceholder(context, isSignedIn),
-              )
-            else if (!isPlaying)
-              IgnorePointer(
-                child: Center(
-                  child: Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: canPreviewPlayback
-                          ? AppColors.brandGold.withValues(alpha: 0.92)
-                          : AppColors.cardBackground.withValues(alpha: 0.84),
-                      shape: BoxShape.circle,
-                    ),
-                    child: _VideoPlaybackIcon(
-                      canPreviewPlayback: canPreviewPlayback,
-                      initializingVideo: initializingVideo,
-                      videoInitializationFailed: videoInitializationFailed,
-                      isPlaying: isPlaying,
-                    ),
-                  ),
-                ),
-              ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: isInitialized && !lockedVip
-                  ? _VideoProgressBar(
-                      controller: controller!,
-                      onSeek: onSeek,
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.md,
-                        0,
-                        AppSpacing.md,
-                        AppSpacing.md,
-                      ),
-                      child: IgnorePointer(
-                        child: Text(
-                          lockedVip
-                              ? 'VIP locked'
-                              : canPreviewPlayback
-                                  ? 'Playback preview'
-                                  : 'Thumbnail preview',
-                          style: AppTextStyles.caption
-                              .copyWith(color: Colors.white70),
-                        ),
-                      ),
-                    ),
-            ),
-          ],
-        ),
+        child: stack,
       ),
     );
   }

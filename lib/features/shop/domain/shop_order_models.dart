@@ -18,6 +18,7 @@ class ShopOrder {
     required this.platformFeeAmount,
     required this.sellerReceivableAmount,
     this.paidAt,
+    this.shippingAddressSnapshot,
   });
 
   final String orderNo;
@@ -28,6 +29,10 @@ class ShopOrder {
   final String platformFeeAmount;
   final String sellerReceivableAmount;
   final String? paidAt;
+
+  /// Raw snapshot of the shipping address at order time (may be empty map
+  /// when no address was provided).
+  final Map<String, dynamic>? shippingAddressSnapshot;
 
   String get statusText => switch (status) {
         'paid' => 'Paid, waiting for shipment',
@@ -42,4 +47,30 @@ class ShopOrder {
         'meow_credit' => 'MeowCredit',
         _ => paymentAsset,
       };
+
+  /// Human-readable shipping address from the snapshot, or null if not set.
+  String? get shippingAddressLine {
+    final Map<String, dynamic>? snap = shippingAddressSnapshot;
+    if (snap == null || snap.isEmpty) return null;
+    final List<String> parts = <String>[
+      if ((snap['address_line1'] as String?)?.isNotEmpty == true)
+        snap['address_line1'] as String,
+      if ((snap['address_line2'] as String?)?.isNotEmpty == true)
+        snap['address_line2'] as String,
+      if ((snap['district'] as String?)?.isNotEmpty == true)
+        snap['district'] as String,
+      if ((snap['city'] as String?)?.isNotEmpty == true)
+        snap['city'] as String,
+      if ((snap['state'] as String?)?.isNotEmpty == true)
+        snap['state'] as String,
+      if ((snap['postal_code'] as String?)?.isNotEmpty == true)
+        snap['postal_code'] as String,
+      if ((snap['country'] as String?)?.isNotEmpty == true)
+        snap['country'] as String,
+    ];
+    return parts.isEmpty ? null : parts.join(', ');
+  }
+
+  String? get shippingReceiverName =>
+      shippingAddressSnapshot?['receiver_name'] as String?;
 }

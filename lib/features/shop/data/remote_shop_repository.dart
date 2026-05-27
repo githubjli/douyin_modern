@@ -169,6 +169,10 @@ class RemoteShopRepository implements ShopRepository {
         platformFeeAmount: m['platform_fee_amount'] as String? ?? '0',
         sellerReceivableAmount: m['seller_receivable_amount'] as String? ?? '0',
         paidAt: m['paid_at'] as String?,
+        shippingAddressSnapshot:
+            m['shipping_address_snapshot'] is Map<String, dynamic>
+                ? m['shipping_address_snapshot'] as Map<String, dynamic>
+                : null,
       );
 
   ShopProductPage _mapProductPage(Map<String, dynamic> m, int page, int pageSize) {

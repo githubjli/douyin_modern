@@ -10,6 +10,9 @@ import '../../core/network/api_error.dart';
 import '../auth/application/auth_providers.dart';
 import '../meow_credit/application/meow_credit_providers.dart';
 import '../meow_points/application/meow_points_providers.dart';
+import '../shipping/data/shipping_address_repository.dart';
+import '../shipping/domain/shipping_address.dart';
+import '../shipping/presentation/address_list_page.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
@@ -497,7 +500,7 @@ class _BuyBar extends ConsumerStatefulWidget {
 class _BuyBarState extends ConsumerState<_BuyBar> {
   bool _loading = false;
 
-  Future<void> _buy(ShopPaymentAsset asset) async {
+  Future<void> _buy(ShopPaymentAsset asset, {int? shippingAddressId}) async {
     if (_loading) return;
     setState(() => _loading = true);
     try {
@@ -505,6 +508,7 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
         productId: widget.product.id,
         quantity: 1,
         paymentAsset: asset,
+        shippingAddressId: shippingAddressId,
       );
       if (!mounted) return;
       // Navigate to the order success page, replacing the product detail page
@@ -553,9 +557,10 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
     int? mpBalance,
     int? mcBalance,
   }) async {
-    final bool? confirmed = await showModalBottomSheet<bool>(
+    final _PurchaseResult? result = await showModalBottomSheet<_PurchaseResult>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => _PurchaseConfirmSheet(
         product: widget.product,
         asset: asset,
@@ -563,8 +568,8 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
         mcBalance: mcBalance,
       ),
     );
-    if (confirmed != true || !mounted) return;
-    await _buy(asset);
+    if (result == null || !result.confirmed || !mounted) return;
+    await _buy(asset, shippingAddressId: result.shippingAddressId);
   }
 
   @override
@@ -843,10 +848,20 @@ class _ProductImagePlaceholder extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Purchase confirmation sheet
+// Purchase result — carries confirmed flag + chosen address id
 // ---------------------------------------------------------------------------
 
-class _PurchaseConfirmSheet extends StatelessWidget {
+class _PurchaseResult {
+  const _PurchaseResult({required this.confirmed, this.shippingAddressId});
+  final bool confirmed;
+  final int? shippingAddressId;
+}
+
+// ---------------------------------------------------------------------------
+// Purchase confirmation sheet (with address selection)
+// ---------------------------------------------------------------------------
+
+class _PurchaseConfirmSheet extends ConsumerStatefulWidget {
   const _PurchaseConfirmSheet({
     required this.product,
     required this.asset,
@@ -859,93 +874,246 @@ class _PurchaseConfirmSheet extends StatelessWidget {
   final int? mpBalance;
   final int? mcBalance;
 
-  String get _priceStr => asset == ShopPaymentAsset.meowPoints
-      ? '${product.meowPointsPrice} MP'
-      : '${product.meowCreditPrice} MC';
+  @override
+  ConsumerState<_PurchaseConfirmSheet> createState() =>
+      _PurchaseConfirmSheetState();
+}
+
+class _PurchaseConfirmSheetState
+    extends ConsumerState<_PurchaseConfirmSheet> {
+  ShippingAddress? _selectedAddress;
+  bool _addressLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-populate with the user's default address once the provider resolves.
+    ref.listenManual<AsyncValue<ShippingAddress?>>(
+      defaultShippingAddressProvider,
+      (_, AsyncValue<ShippingAddress?> next) {
+        if (!_addressLoaded && next is AsyncData<ShippingAddress?>) {
+          _addressLoaded = true;
+          if (mounted) setState(() => _selectedAddress = next.value);
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  String get _priceStr => widget.asset == ShopPaymentAsset.meowPoints
+      ? '${widget.product.meowPointsPrice} MP'
+      : '${widget.product.meowCreditPrice} MC';
 
   String get _balanceStr {
-    if (asset == ShopPaymentAsset.meowPoints) {
-      return mpBalance != null ? '$mpBalance MP' : '—';
+    if (widget.asset == ShopPaymentAsset.meowPoints) {
+      return widget.mpBalance != null ? '${widget.mpBalance} MP' : '—';
     }
-    return mcBalance != null ? '$mcBalance MC' : '—';
+    return widget.mcBalance != null ? '${widget.mcBalance} MC' : '—';
+  }
+
+  Future<void> _changeAddress() async {
+    final ShippingAddress? result =
+        await Navigator.of(context).push<ShippingAddress>(
+      MaterialPageRoute<ShippingAddress>(
+        builder: (_) => AddressListPage(
+          selectionMode: true,
+          selectedId: _selectedAddress?.id,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _selectedAddress = result);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.md, 0, AppSpacing.md, AppSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-      ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.softBorder,
-                borderRadius: BorderRadius.circular(2),
+    final double bottomPad = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPad),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, 0, AppSpacing.md, AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        ),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.softBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Confirm Purchase',
-            style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _ConfirmRow(label: 'Product', value: product.name),
-          _ConfirmRow(label: 'Payment', value: asset.displayName),
-          _ConfirmRow(label: 'Amount', value: _priceStr),
-          _ConfirmRow(label: 'Balance', value: _balanceStr),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.softBorder),
-                      foregroundColor: AppColors.cocoaText,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Confirm Purchase',
+              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Order rows
+            _ConfirmRow(label: 'Product', value: widget.product.name),
+            _ConfirmRow(label: 'Payment', value: widget.asset.displayName),
+            _ConfirmRow(label: 'Amount', value: _priceStr),
+            _ConfirmRow(label: 'Balance', value: _balanceStr),
+
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(height: 1, color: AppColors.softBorder),
+            const SizedBox(height: AppSpacing.sm),
+
+            // Address row
+            _AddressRow(
+              address: _selectedAddress,
+              loading: !_addressLoaded,
+              onTap: _changeAddress,
+            ),
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // Action buttons
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context)
+                          .pop(const _PurchaseResult(confirmed: false)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.softBorder),
+                        foregroundColor: AppColors.cocoaText,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusMd),
+                        ),
                       ),
+                      child: const Text('Cancel'),
                     ),
-                    child: const Text('Cancel'),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandGold,
-                      foregroundColor: AppColors.warmBackground,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(
+                        _PurchaseResult(
+                          confirmed: true,
+                          shippingAddressId: _selectedAddress?.id,
+                        ),
                       ),
-                      textStyle: AppTextStyles.body.copyWith(
-                        fontWeight: FontWeight.w700,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brandGold,
+                        foregroundColor: AppColors.warmBackground,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusMd),
+                        ),
+                        textStyle: AppTextStyles.body
+                            .copyWith(fontWeight: FontWeight.w700),
                       ),
+                      child: const Text('Confirm'),
                     ),
-                    child: const Text('Confirm'),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Address row inside the confirmation sheet
+// ---------------------------------------------------------------------------
+
+class _AddressRow extends StatelessWidget {
+  const _AddressRow({
+    required this.address,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final ShippingAddress? address;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(
+            Icons.location_on_outlined,
+            color: AppColors.brandGold,
+            size: 18,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: loading
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: AppColors.mutedOliveText,
+                    ),
+                  )
+                : address == null
+                    ? Text(
+                        'No address selected  ›',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.brandGold,
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Text(
+                                '${address!.receiverName}  ${address!.phone}',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.cocoaText,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Change  ›',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.brandGold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            address!.oneLine,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.mutedOliveText,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
           ),
         ],
       ),

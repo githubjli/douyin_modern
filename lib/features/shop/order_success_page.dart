@@ -246,6 +246,14 @@ class _OrderCard extends StatelessWidget {
                   label: 'Status',
                   child: _StatusBadge(status: order.status),
                 ),
+                if (order.shippingAddressLine != null) ...<Widget>[
+                  const SizedBox(height: AppSpacing.xs),
+                  _DetailRow(
+                    label: 'Ship to',
+                    value: '${order.shippingReceiverName ?? ''}  '
+                        '${order.shippingAddressLine}',
+                  ),
+                ],
               ],
             ),
           ),

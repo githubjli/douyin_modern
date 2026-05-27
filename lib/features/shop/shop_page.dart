@@ -4,10 +4,12 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/api_client.dart';
+import '../shipping/presentation/address_list_page.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
 import 'domain/shop_repository.dart';
+import 'order_list_page.dart';
 import 'product_detail_page.dart';
 
 part 'widgets/shop_top_bar.dart';
@@ -236,6 +238,22 @@ class _ShopPageState extends State<ShopPage> {
                 onCartTap: () => ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Cart coming soon.')),
                 ),
+                onMenuSelected: (_ShopMenuAction action) {
+                  switch (action) {
+                    case _ShopMenuAction.orders:
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => OrderListPage(repo: _repo),
+                        ),
+                      );
+                    case _ShopMenuAction.addresses:
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AddressListPage(),
+                        ),
+                      );
+                  }
+                },
               ),
               const SizedBox(height: AppSpacing.md),
               if (_loading)

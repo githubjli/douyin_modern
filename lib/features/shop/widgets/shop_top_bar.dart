@@ -1,17 +1,21 @@
 part of '../shop_page.dart';
 
+enum _ShopMenuAction { orders, addresses }
+
 class _ShopTopBar extends StatelessWidget {
   const _ShopTopBar({
     required this.searchController,
     required this.onSearchSubmitted,
     required this.onSearchCleared,
     required this.onCartTap,
+    required this.onMenuSelected,
   });
 
   final TextEditingController searchController;
   final VoidCallback onSearchSubmitted;
   final VoidCallback onSearchCleared;
   final VoidCallback onCartTap;
+  final ValueChanged<_ShopMenuAction> onMenuSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +41,7 @@ class _ShopTopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.xs),
+        // Cart icon
         GestureDetector(
           onTap: onCartTap,
           child: const Icon(
@@ -44,6 +49,62 @@ class _ShopTopBar extends StatelessWidget {
             color: AppColors.cocoaText,
             size: 24,
           ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        // ⋮ popup menu
+        PopupMenuButton<_ShopMenuAction>(
+          onSelected: onMenuSelected,
+          color: AppColors.cardBackground,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            side: const BorderSide(color: AppColors.softBorder),
+          ),
+          icon: const Icon(
+            Icons.more_vert_rounded,
+            color: AppColors.cocoaText,
+            size: 22,
+          ),
+          itemBuilder: (_) => <PopupMenuEntry<_ShopMenuAction>>[
+            PopupMenuItem<_ShopMenuAction>(
+              value: _ShopMenuAction.orders,
+              child: Row(
+                children: <Widget>[
+                  const Icon(
+                    Icons.receipt_long_outlined,
+                    size: 18,
+                    color: AppColors.cocoaText,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'My Orders',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.cocoaText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem<_ShopMenuAction>(
+              value: _ShopMenuAction.addresses,
+              child: Row(
+                children: <Widget>[
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 18,
+                    color: AppColors.cocoaText,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'My Addresses',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.cocoaText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

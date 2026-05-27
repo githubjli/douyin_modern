@@ -153,6 +153,11 @@ class Endpoints {
   static const String libraryGiftsSent     = '/api/account/library/gifts/sent/';
   static const String libraryGiftsReceived = '/api/account/library/gifts/received/';
 
+  // ── Shipping Addresses ────────────────────────────────────────────────────
+  static const String shippingAddresses = '/api/shipping-addresses/';
+
+  static String shippingAddressDetail(int id) => '/api/shipping-addresses/$id/';
+
   // ── Shop ─────────────────────────────────────────────────────────────────
   static const String shopBanners = '/api/shop/banners/';
   static const String shopCategories = '/api/shop/categories/';

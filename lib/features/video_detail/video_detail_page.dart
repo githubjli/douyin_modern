@@ -408,17 +408,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
     if (_videoCompleted) setState(() => _videoCompleted = false);
   }
 
-  Future<void> _seekBy(int seconds) async {
-    final VideoPlayerController? controller = _videoController;
-    if (controller == null || !controller.value.isInitialized) return;
-    final Duration pos = controller.value.position;
-    final Duration dur = controller.value.duration;
-    final int newMs = (pos.inMilliseconds + seconds * 1000)
-        .clamp(0, dur.inMilliseconds);
-    await controller.seekTo(Duration(milliseconds: newMs));
-    _resetControlsTimer();
-  }
-
   static const List<double> _speedOptions = <double>[0.5, 1.0, 1.5, 2.0];
 
   void _cycleSpeed() {
@@ -513,8 +502,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
       nextVideo: nextVideo,
       onTogglePlayback: () => unawaited(_togglePlayback()),
       onTapVideo: _toggleControls,
-      onSeekBackward: () => unawaited(_seekBy(-10)),
-      onSeekForward: () => unawaited(_seekBy(10)),
       onSeek: (Duration pos) => unawaited(_seekTo(pos)),
       onCycleSpeed: _cycleSpeed,
       onSkipNext: nextVideo != null ? () => _navigateToNext(nextVideo) : null,
@@ -687,8 +674,6 @@ class _VideoMediaHeader extends StatelessWidget {
     required this.playbackSpeed,
     required this.onTogglePlayback,
     required this.onTapVideo,
-    required this.onSeekBackward,
-    required this.onSeekForward,
     required this.onSeek,
     required this.onCycleSpeed,
     required this.onToggleFullscreen,
@@ -712,8 +697,6 @@ class _VideoMediaHeader extends StatelessWidget {
   final HomeVideoItem? nextVideo;
   final VoidCallback onTogglePlayback;
   final VoidCallback onTapVideo;
-  final VoidCallback onSeekBackward;
-  final VoidCallback onSeekForward;
   final void Function(Duration) onSeek;
   final VoidCallback onCycleSpeed;
   final VoidCallback? onSkipNext;
@@ -808,7 +791,22 @@ class _VideoMediaHeader extends StatelessWidget {
                     () => _showLockedVipPlaceholder(context, isSignedIn),
           ),
 
-        // ── 6. Auto-hide controls overlay ────────────────────────────────
+        // ── 6. Pre-init play button (before video loads) ─────────────────
+        // Gives user a clear tap target to start playback; hidden once
+        // the controller initializes and the progress bar takes over.
+        if (canPreview && !lockedVip && !isInitialized && !initializingVideo)
+          Center(
+            child: GestureDetector(
+              onTap: onTogglePlayback,
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 48,
+              ),
+            ),
+          ),
+
+        // ── 7. Auto-hide controls overlay ────────────────────────────────
         AnimatedOpacity(
           opacity: showControls && !lockedVip ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 250),
@@ -828,38 +826,11 @@ class _VideoMediaHeader extends StatelessWidget {
                     onTap: onToggleFullscreen,
                   ),
                 ),
-                // Frosted glass seek buttons (left -10s, right +10s)
-                if (isInitialized && canPreview && isPlaying) ...<Widget>[
-                  Positioned(
-                    left: AppSpacing.xl +
-                        MediaQuery.of(context).padding.left,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: _FrostedSeekButton(
-                        icon: Icons.replay_10,
-                        onTap: onSeekBackward,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: AppSpacing.xl +
-                        MediaQuery.of(context).padding.right,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: _FrostedSeekButton(
-                        icon: Icons.forward_10,
-                        onTap: onSeekForward,
-                      ),
-                    ),
-                  ),
-                ],
-                // Play / pause center button
-                if (canPreview)
+                // Center: only shown when video has ended — big gold skip-next cue
+                if (videoCompleted && onSkipNext != null)
                   Center(
                     child: GestureDetector(
-                      onTap: onTogglePlayback,
+                      onTap: onSkipNext,
                       child: Container(
                         width: 58,
                         height: 58,
@@ -867,17 +838,15 @@ class _VideoMediaHeader extends StatelessWidget {
                           color: AppColors.brandGold.withValues(alpha: 0.92),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
+                        child: const Icon(
+                          Icons.skip_next_rounded,
                           color: AppColors.warmBackground,
                           size: 38,
                         ),
                       ),
                     ),
                   ),
-                // Progress bar (bottom) — skip-next lives inside it
+                // Progress bar (bottom) — play/pause + skip-next + time + speed
                 if (isInitialized)
                   Positioned(
                     left: 0,
@@ -886,6 +855,8 @@ class _VideoMediaHeader extends StatelessWidget {
                     child: _VideoProgressBar(
                       controller: controller!,
                       onSeek: onSeek,
+                      isPlaying: isPlaying,
+                      onTogglePlayback: canPreview ? onTogglePlayback : null,
                       playbackSpeed: playbackSpeed,
                       onCycleSpeed: onCycleSpeed,
                       onSkipNext: onSkipNext,
@@ -897,7 +868,7 @@ class _VideoMediaHeader extends StatelessWidget {
           ),
         ),
 
-        // ── 8. Back button — always visible ──────────────────────────────
+        // ── 8. Back button — always visible ─────────────────────────────
         Positioned(
           top: AppSpacing.sm,
           left: AppSpacing.sm,
@@ -927,17 +898,21 @@ class _VideoProgressBar extends StatelessWidget {
   const _VideoProgressBar({
     required this.controller,
     required this.onSeek,
+    required this.isPlaying,
     required this.playbackSpeed,
     required this.onCycleSpeed,
     required this.videoCompleted,
+    this.onTogglePlayback,
     this.onSkipNext,
   });
 
   final VideoPlayerController controller;
   final void Function(Duration) onSeek;
+  final bool isPlaying;
   final double playbackSpeed;
   final VoidCallback onCycleSpeed;
   final bool videoCompleted;
+  final VoidCallback? onTogglePlayback;
   final VoidCallback? onSkipNext;
 
   String _fmt(Duration d) {
@@ -996,6 +971,19 @@ class _VideoProgressBar extends StatelessWidget {
                 ),
                 child: Row(
                   children: <Widget>[
+                    if (onTogglePlayback != null) ...<Widget>[
+                      GestureDetector(
+                        onTap: onTogglePlayback,
+                        child: Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
                     if (onSkipNext != null) ...<Widget>[
                       GestureDetector(
                         onTap: onSkipNext,
@@ -1230,35 +1218,6 @@ class _CircleIconButton extends StatelessWidget {
           border: Border.all(color: AppColors.softBorder),
         ),
         child: Icon(icon, color: AppColors.cocoaText, size: 20),
-      ),
-    );
-  }
-}
-
-class _FrostedSeekButton extends StatelessWidget {
-  const _FrostedSeekButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-            ),
-            child: Icon(icon, color: Colors.white, size: 28),
-          ),
-        ),
       ),
     );
   }

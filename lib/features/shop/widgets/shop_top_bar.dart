@@ -160,14 +160,20 @@ class _ShopSearchBarState extends State<_ShopSearchBar> {
               controller: widget.controller,
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.cocoaText,
-                fontSize: 12,
+                fontSize: 13,
               ),
+              textAlignVertical: TextAlignVertical.center,
               decoration: InputDecoration(
                 hintText: 'Search products',
-                hintStyle: AppTextStyles.caption.copyWith(fontSize: 10),
+                hintStyle: AppTextStyles.caption.copyWith(
+                  color: AppColors.mutedOliveText,
+                  fontSize: 13,
+                ),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: EdgeInsets.zero,
+                // Fill the full 38px container height:
+                // 38 - border(2) - icon/row centering ≈ 10px vertical padding each side
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => widget.onSubmitted(),

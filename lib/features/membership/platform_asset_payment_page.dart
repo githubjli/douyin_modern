@@ -11,6 +11,9 @@ import 'domain/membership_repository.dart';
 
 enum _PageState { idle, loading, success, error }
 
+/// Whether the user can meaningfully retry after this error.
+enum _ErrorKind { retryable, terminal }
+
 class PlatformAssetPaymentPage extends StatefulWidget {
   const PlatformAssetPaymentPage({
     super.key,
@@ -40,6 +43,7 @@ class PlatformAssetPaymentPage extends StatefulWidget {
 class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
   _PageState _state = _PageState.idle;
   String? _errorMessage;
+  _ErrorKind _errorKind = _ErrorKind.retryable;
   MembershipOrder? _order;
 
   String get _assetLabel => switch (widget.paymentAsset) {
@@ -76,24 +80,41 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
       }
     } catch (e) {
       if (!mounted) return;
+      final (String msg, _ErrorKind kind) = _parseError(e);
       setState(() {
         _state = _PageState.error;
-        _errorMessage = _parseError(e);
+        _errorMessage = msg;
+        _errorKind = kind;
       });
     }
   }
 
-  String _parseError(Object e) {
+  (String, _ErrorKind) _parseError(Object e) {
     // Use the backend's actual message directly when available.
     if (e is ApiError && e.message.trim().isNotEmpty) {
-      return e.message.trim();
+      final String msg = e.message.trim();
+      final _ErrorKind kind = _classifyApiError(e);
+      return (msg, kind);
     }
     // Fallback: scan the stringified error for common keywords.
-    final String msg = e.toString().toLowerCase();
-    if (msg.contains('insufficient')) {
-      return 'Insufficient $_assetLabel balance.';
+    final String lower = e.toString().toLowerCase();
+    if (lower.contains('insufficient')) {
+      return ('Insufficient $_assetLabel balance.', _ErrorKind.retryable);
     }
-    return 'Payment failed. Please try again.';
+    return ('Payment failed. Please try again.', _ErrorKind.retryable);
+  }
+
+  /// Errors the user cannot fix by retrying (e.g. already has a membership).
+  _ErrorKind _classifyApiError(ApiError e) {
+    // 409 Conflict → duplicate / state conflict → not retryable.
+    if (e.statusCode == 409) return _ErrorKind.terminal;
+    final String lower = e.message.toLowerCase();
+    if (lower.contains('already have') ||
+        lower.contains('active membership') ||
+        lower.contains('not available')) {
+      return _ErrorKind.terminal;
+    }
+    return _ErrorKind.retryable;
   }
 
   void _onDone() {
@@ -106,6 +127,7 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
     setState(() {
       _state = _PageState.idle;
       _errorMessage = null;
+      _errorKind = _ErrorKind.retryable;
     });
   }
 
@@ -141,7 +163,9 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
               else if (_state == _PageState.error)
                 _ErrorCard(
                   message: _errorMessage ?? 'Payment failed.',
+                  isRetryable: _errorKind == _ErrorKind.retryable,
                   onRetry: _onRetry,
+                  onBack: _onDone,
                 )
               else ...<Widget>[
                 _PaymentMethodCard(assetLabel: _assetLabel),
@@ -381,10 +405,17 @@ class _SuccessCard extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.message, required this.onRetry});
+  const _ErrorCard({
+    required this.message,
+    required this.isRetryable,
+    required this.onRetry,
+    required this.onBack,
+  });
 
   final String message;
+  final bool isRetryable;
   final VoidCallback onRetry;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -411,7 +442,10 @@ class _ErrorCard extends StatelessWidget {
             style: AppTextStyles.body.copyWith(fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: AppSpacing.md),
-          GoldButton(label: 'Try Again', onTap: onRetry),
+          if (isRetryable)
+            GoldButton(label: 'Try Again', onTap: onRetry)
+          else
+            GoldButton(label: 'Go Back', onTap: onBack),
         ],
       ),
     );

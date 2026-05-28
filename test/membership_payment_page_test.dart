@@ -327,6 +327,10 @@ class _PaymentMembershipRepository implements MembershipRepository {
   }
 
   @override
+  @override
+  Future<List<MembershipOrder>> listOrders() async => const <MembershipOrder>[];
+
+  @override
   Future<MembershipOrder> getOrder(String orderNo) {
     throw UnimplementedError();
   }

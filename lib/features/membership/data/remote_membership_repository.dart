@@ -4,6 +4,7 @@ import '../domain/membership_order.dart';
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
 import '../domain/membership_status.dart';
+import '../domain/payment_asset_option.dart';
 
 class RemoteMembershipRepository implements MembershipRepository {
   RemoteMembershipRepository({required ApiClient apiClient})
@@ -32,6 +33,17 @@ class RemoteMembershipRepository implements MembershipRepository {
       authenticated: true,
     );
     return _mapOrderResponse(response.data);
+  }
+
+  @override
+  Future<List<MembershipOrder>> listOrders() async {
+    final response = await _apiClient.get<dynamic>(
+      Endpoints.membershipOrders,
+      authenticated: true,
+    );
+    return _rows(response.data)
+        .map((Map<String, dynamic> row) => MembershipOrder.fromJson(row))
+        .toList();
   }
 
   @override
@@ -178,6 +190,7 @@ class RemoteMembershipRepository implements MembershipRepository {
       supportedPaymentAssets: _stringListField(data['supported_payment_assets']),
       basePriceAmount: _nonEmptyStr(data['base_price_amount']),
       basePriceAsset: _nonEmptyStr(data['base_price_asset']),
+      paymentAssetOptions: _paymentAssetOptions(data['payment_asset_options']),
     );
   }
 
@@ -300,5 +313,15 @@ class RemoteMembershipRepository implements MembershipRepository {
       return items.isEmpty ? null : items;
     }
     return null;
+  }
+
+  List<PaymentAssetOption>? _paymentAssetOptions(dynamic value) {
+    if (value is! List) return null;
+    final List<PaymentAssetOption> options = value
+        .whereType<Map<String, dynamic>>()
+        .map(PaymentAssetOption.fromJson)
+        .where((PaymentAssetOption o) => o.assetCode.isNotEmpty)
+        .toList();
+    return options.isEmpty ? null : options;
   }
 }

@@ -802,13 +802,13 @@ class _GiftSheetState extends State<_GiftSheet> {
       );
       if (!mounted) return;
       final dynamic data = response.data;
-      final int? balance = data is Map<String, dynamic>
-          ? data['sender_balance'] as int?
+      final double? balance = data is Map<String, dynamic>
+          ? _parseDecimal(data['sender_balance'])
           : null;
       final String unit =
           _paymentMethod == 'meow_credit' ? 'Credits' : 'Points';
       final String balanceNote =
-          balance != null ? '  ·  Balance: $balance $unit' : '';
+          balance != null ? '  ·  Balance: ${_fmtBalance(balance)} $unit' : '';
       Navigator.of(context).pop();
       // gift_count not in response — parent triggers _refreshSummary
       widget.onSent();
@@ -1357,7 +1357,7 @@ class _CaptionBlock extends StatelessWidget {
     String? accessLabel;
     if (item.isLocked == true) {
       if (item.pointsPrice != null && item.pointsPrice! > 0) {
-        accessLabel = '${item.pointsPrice} Points';
+        accessLabel = '${item.pointsPrice} MP';
       } else {
         accessLabel = 'Locked';
       }
@@ -1410,5 +1410,19 @@ class _CaptionBlock extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Parses int, double, or decimal-string values (e.g. "300.50") → double.
+double? _parseDecimal(dynamic v) {
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
+/// Formats a balance double: integer if whole, 2dp otherwise.
+String _fmtBalance(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(2);
 }
 

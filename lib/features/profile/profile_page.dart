@@ -358,7 +358,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   builder: (_) => const KycPage(),
                 ),
               ).then((_) => ref.invalidate(kycProfileProvider)),
-              creditBalance: ref.watch(meowCreditWalletProvider).valueOrNull?.balance,
+              creditBalance: ref.watch(meowCreditWalletProvider).valueOrNull?.displayBalance,
               onGoLive: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => const GoLivePage(),
@@ -942,7 +942,7 @@ class _SignedInProfileBody extends StatelessWidget {
 
   final UserProfile? profile;
   final MeowPointWallet? wallet;
-  final int? creditBalance;
+  final String? creditBalance;
   final String? kycStatus;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
@@ -1336,7 +1336,7 @@ class _RoleBadge extends StatelessWidget {
 class _CreditCard extends StatelessWidget {
   const _CreditCard({required this.balance, required this.onDetails});
 
-  final int? balance;
+  final String? balance;
   final VoidCallback onDetails;
 
   @override
@@ -1373,7 +1373,7 @@ class _CreditCard extends StatelessWidget {
               children: <Widget>[
                 const Text('Meow Credit', style: AppTextStyles.body),
                 Text(
-                  balance != null ? '$balance credits' : '— credits',
+                  balance != null ? '$balance MC' : '— MC',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.mutedOliveText,
                   ),
@@ -1435,7 +1435,7 @@ class _PointsCard extends StatelessWidget {
               children: <Widget>[
                 const Text('Meow Points', style: AppTextStyles.body),
                 Text(
-                  wallet != null ? '${wallet!.balance} pts' : '— pts',
+                  wallet != null ? '${wallet!.displayBalance} MP' : '— MP',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.mutedOliveText,
                   ),

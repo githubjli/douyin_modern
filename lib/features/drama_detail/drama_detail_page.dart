@@ -538,7 +538,7 @@ class _DramaEpisodeCard extends StatelessWidget {
     final String badge = episode.isLocked
         ? episode.pointsPrice == null
             ? 'Locked'
-            : '${episode.pointsPrice} pts'
+            : '${episode.pointsPrice} MP'
         : 'Free';
 
     return GestureDetector(

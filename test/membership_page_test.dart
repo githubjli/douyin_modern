@@ -1083,6 +1083,10 @@ class _MembershipRepositoryFake implements MembershipRepository {
   }
 
   @override
+  @override
+  Future<List<MembershipOrder>> listOrders() async => const <MembershipOrder>[];
+
+  @override
   Future<MembershipOrder> getOrder(String orderNo) {
     throw UnimplementedError();
   }
@@ -1124,6 +1128,10 @@ class _MutableMembershipRepository implements MembershipRepository {
   Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
+
+  @override
+  @override
+  Future<List<MembershipOrder>> listOrders() async => const <MembershipOrder>[];
 
   @override
   Future<MembershipOrder> getOrder(String orderNo) {
@@ -1254,6 +1262,10 @@ class _TrackingMembershipRepository implements MembershipRepository {
   }
 
   @override
+  @override
+  Future<List<MembershipOrder>> listOrders() async => const <MembershipOrder>[];
+
+  @override
   Future<MembershipOrder> getOrder(String orderNo) {
     throw UnimplementedError();
   }
@@ -1287,6 +1299,10 @@ class _OrderTrackingMembershipRepository implements MembershipRepository {
   Future<MembershipOrder> createOrder({required String planCode, String? paymentAsset}) {
     throw UnimplementedError();
   }
+
+  @override
+  @override
+  Future<List<MembershipOrder>> listOrders() async => const <MembershipOrder>[];
 
   @override
   Future<MembershipOrder> getOrder(String orderNo) {

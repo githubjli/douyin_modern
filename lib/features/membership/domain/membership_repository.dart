@@ -14,6 +14,10 @@ abstract class MembershipRepository {
 
   Future<MembershipOrder> getOrder(String orderNo);
 
+  /// GET /api/membership/orders/
+  /// Returns the current user's membership orders, newest first.
+  Future<List<MembershipOrder>> listOrders();
+
   Future<MembershipOrder> submitTxHint({
     required String orderNo,
     required String txid,

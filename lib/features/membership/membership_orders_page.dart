@@ -8,6 +8,7 @@ import '../../app/widgets/back_nav_header.dart';
 import 'application/membership_providers.dart';
 import 'application/membership_state.dart';
 import 'domain/manual_tx_hint.dart';
+import 'domain/membership_order.dart';
 import 'domain/membership_status.dart';
 
 class MembershipOrdersPage extends ConsumerWidget {
@@ -16,9 +17,14 @@ class MembershipOrdersPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final MembershipState state = ref.watch(membershipControllerProvider);
+    final AsyncValue<List<MembershipOrder>> orders =
+        ref.watch(membershipOrdersListProvider);
     final AsyncValue<List<ManualTxHint>> hints = ref.watch(txHintsProvider);
 
-    void refresh() => ref.invalidate(txHintsProvider);
+    void refresh() {
+      ref.invalidate(membershipOrdersListProvider);
+      ref.invalidate(txHintsProvider);
+    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -38,6 +44,8 @@ class MembershipOrdersPage extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             _MembershipStatusCard(state: state),
+            const SizedBox(height: AppSpacing.md),
+            _OrdersSection(orders: orders, onRefresh: refresh),
             const SizedBox(height: AppSpacing.md),
             _TxHintsSection(hints: hints, onRefresh: refresh),
           ],
@@ -143,7 +151,239 @@ class _MembershipStatusCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Tx hints section — live list from the API
+// Orders section — all membership orders (platform asset + chain)
+// ---------------------------------------------------------------------------
+
+class _OrdersSection extends StatelessWidget {
+  const _OrdersSection({required this.orders, required this.onRefresh});
+
+  final AsyncValue<List<MembershipOrder>> orders;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Order History',
+          style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        orders.when(
+          loading: () => const _LoadingCard(),
+          error: (_, __) => _ErrorCard(onRetry: onRefresh),
+          data: (List<MembershipOrder> items) {
+            if (items.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  border: Border.all(color: AppColors.softBorder),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+                child: Text(
+                  'No orders yet.',
+                  style: AppTextStyles.body.copyWith(
+                    fontSize: 12,
+                    color: AppColors.mutedOliveText,
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: <Widget>[
+                for (final MembershipOrder order in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _OrderCard(order: order),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({required this.order});
+
+  final MembershipOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final String normalizedStatus = order.status.toLowerCase().trim();
+    final bool isPaid = order.isSuccessLike;
+    final bool isPending = order.isPending;
+
+    final Color statusColor = isPaid
+        ? AppColors.brandGold
+        : isPending
+            ? AppColors.mutedOliveText
+            : Colors.redAccent;
+
+    final String statusLabel = switch (normalizedStatus) {
+      'paid'             => 'Paid',
+      'pending'          => 'Pending',
+      'created'          => 'Pending',
+      'awaiting_payment' => 'Awaiting',
+      'expired'          => 'Expired',
+      'underpaid'        => 'Underpaid',
+      'overpaid'         => 'Paid',
+      'paid_after_expiry'=> 'Paid',
+      'cancelled'        => 'Cancelled',
+      _                  => _capitalize(order.status),
+    };
+
+    final String? amountLine = _buildAmountLine();
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(
+          color: isPaid
+              ? AppColors.brandGold.withValues(alpha: 0.45)
+              : AppColors.softBorder,
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  order.planTitle ?? order.planCode ?? order.orderNo,
+                  style: AppTextStyles.cardTitle.copyWith(fontSize: 13),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  border:
+                      Border.all(color: statusColor.withValues(alpha: 0.45)),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: AppTextStyles.caption.copyWith(
+                    color: statusColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xxs),
+          if (amountLine != null)
+            _OrderRow(label: 'Amount', value: amountLine),
+          _OrderRow(
+            label: 'Order',
+            value: order.orderNo.length > 20
+                ? '${order.orderNo.substring(0, 10)}…${order.orderNo.substring(order.orderNo.length - 6)}'
+                : order.orderNo,
+          ),
+          if (order.createdAt != null)
+            _OrderRow(label: 'Date', value: _formatDate(order.createdAt!)),
+        ],
+      ),
+    );
+  }
+
+  String? _buildAmountLine() {
+    // Prefer display_payment_amount / display_payment_asset from the backend.
+    if (order.displayPaymentAmount != null) {
+      final String amt = _formatAmount(order.displayPaymentAmount!);
+      final String asset = _assetLabel(order.displayPaymentAsset);
+      return '$amt $asset';
+    }
+    // Fallback: expected amount in token symbol.
+    if (order.expectedAmountLbc != null) {
+      final String amt = _formatAmount(order.expectedAmountLbc!);
+      final String asset = order.tokenSymbol ?? order.currency ?? '';
+      return asset.isNotEmpty ? '$amt $asset' : amt;
+    }
+    return null;
+  }
+
+  static String _assetLabel(String? raw) => switch (raw?.toLowerCase()) {
+        'meow_points' => 'MeowPoints',
+        'meow_credit' => 'MeowCredit',
+        'thb_ltt'     => 'THB-LTT',
+        null          => '',
+        _             => raw!,
+      };
+
+  static String _formatAmount(String raw) {
+    final double? v = double.tryParse(raw.trim());
+    if (v == null) return raw.trim();
+    return v
+        .toStringAsFixed(8)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  static String _formatDate(String rawDate) {
+    final DateTime? parsed = DateTime.tryParse(rawDate);
+    if (parsed == null) return rawDate;
+    const List<String> months = <String>[
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
+  }
+
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+}
+
+class _OrderRow extends StatelessWidget {
+  const _OrderRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 60,
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(fontSize: 11),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.body.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tx hints section — THB-LTT manual chain payment submissions
 // ---------------------------------------------------------------------------
 
 class _TxHintsSection extends StatelessWidget {
@@ -158,7 +398,7 @@ class _TxHintsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          'Payment History',
+          'Chain Payment Submissions',
           style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
         ),
         const SizedBox(height: AppSpacing.xs),

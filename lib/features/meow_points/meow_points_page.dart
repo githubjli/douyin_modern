@@ -199,7 +199,7 @@ class _BalanceCard extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              'pts',
+              'MP',
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.mutedOliveText,
               ),
@@ -255,7 +255,7 @@ class _DailyRewardCard extends StatelessWidget {
               children: <Widget>[
                 const Text('Daily Login Reward', style: AppTextStyles.body),
                 Text(
-                  '+10 pts per day',
+                  '+10 MP per day',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.mutedOliveText,
                   ),
@@ -337,7 +337,12 @@ class _StatsCard extends StatelessWidget {
 class _StatRow extends StatelessWidget {
   const _StatRow({required this.label, required this.value});
   final String label;
-  final int value;
+  final double value;
+
+  String get _display {
+    if (value == value.truncateToDouble()) return value.toInt().toString();
+    return value.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +353,7 @@ class _StatRow extends StatelessWidget {
         children: <Widget>[
           Text(label, style: AppTextStyles.body),
           Text(
-            '$value pts',
+            '$_display MP',
             style: AppTextStyles.body.copyWith(
               color: AppColors.brandGold,
               fontWeight: FontWeight.w600,

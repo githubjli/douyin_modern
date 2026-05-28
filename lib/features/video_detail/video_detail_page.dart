@@ -621,8 +621,22 @@ String? _str(dynamic value) {
 int? _int(dynamic value) {
   if (value is int) return value;
   if (value is double) return value.round();
-  if (value is String) return int.tryParse(value);
+  if (value is String) return int.tryParse(value) ?? double.tryParse(value)?.round();
   return null;
+}
+
+/// Parses int, double, or decimal-string values (e.g. "300.50") → double.
+double? _parseDecimal(dynamic v) {
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
+/// Formats a balance double: integer if whole, 2dp otherwise.
+String _fmtBalance(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(2);
 }
 
 List<HomeVideoItem> _recommendations({
@@ -2044,13 +2058,13 @@ class _VideoGiftSheetState extends State<_VideoGiftSheet> {
       );
       if (!mounted) return;
       final dynamic data = response.data;
-      final int? balance = data is Map<String, dynamic>
-          ? data['sender_balance'] as int?
+      final double? balance = data is Map<String, dynamic>
+          ? _parseDecimal(data['sender_balance'])
           : null;
       final String unit =
           _paymentMethod == 'meow_credit' ? 'Credits' : 'Points';
       final String balanceNote =
-          balance != null ? '  ·  Balance: $balance $unit' : '';
+          balance != null ? '  ·  Balance: ${_fmtBalance(balance)} $unit' : '';
       Navigator.of(context).pop();
       widget.onGiftSent?.call();
       ScaffoldMessenger.of(context).showSnackBar(

@@ -432,7 +432,7 @@ class _GiftCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String giftName = item['gift_name'] as String? ?? 'Gift';
-    final int amount = _int(item['amount']) ?? 0;
+    final double amount = _parseDecimal(item['amount']) ?? 0;
     final String? date = item['created_at'] as String?;
 
     // Sent: receiver, Received: sender
@@ -450,7 +450,7 @@ class _GiftCard extends StatelessWidget {
     }
 
     return _LibCard(
-      title: '$giftName × $amount',
+      title: '$giftName × ${amount == amount.truncateToDouble() ? amount.toInt() : amount.toStringAsFixed(2)}',
       subtitle: isSent ? 'To $otherName' : 'From $otherName',
       trailing: date != null
           ? Text(_fmtDate(date),
@@ -639,10 +639,17 @@ class _LibCard extends StatelessWidget {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+double? _parseDecimal(dynamic v) {
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
 int? _int(dynamic v) {
   if (v is int) return v;
   if (v is double) return v.round();
-  if (v is String) return int.tryParse(v);
+  if (v is String) return int.tryParse(v) ?? double.tryParse(v)?.round();
   return null;
 }
 

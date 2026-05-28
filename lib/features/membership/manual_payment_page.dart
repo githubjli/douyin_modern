@@ -21,6 +21,7 @@ import 'domain/manual_payment_info.dart';
 import 'domain/manual_tx_hint.dart';
 import 'domain/membership_repository.dart';
 import 'domain/membership_status.dart';
+import 'domain/payment_asset_option.dart';
 import 'platform_asset_payment_page.dart';
 
 typedef QrCodeSaver = Future<bool> Function(GlobalKey qrKey);
@@ -33,6 +34,7 @@ class ManualPaymentPage extends StatefulWidget {
     this.qrCodeSaver,
     this.displayCurrency,
     this.supportedPaymentAssets,
+    this.paymentAssetOptions,
     this.membershipRepository,
     this.onMembershipActivated,
   });
@@ -44,6 +46,8 @@ class ManualPaymentPage extends StatefulWidget {
   final String? displayCurrency;
   /// Plan's supported_payment_assets list from the API.
   final List<String>? supportedPaymentAssets;
+  /// Per-asset estimated prices from payment_asset_options[] in the plan API.
+  final List<PaymentAssetOption>? paymentAssetOptions;
   /// Required to create platform-asset orders (meow_points / meow_credit).
   final MembershipRepository? membershipRepository;
   /// Called after an instant payment completes successfully.
@@ -275,16 +279,19 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
   Future<void> _navigateToAssetPayment(String assetCode) async {
     final MembershipRepository? repo = widget.membershipRepository;
     if (repo == null) return;
+    // Find the matching PaymentAssetOption so we can show the estimated price
+    // on the confirmation screen before the order is created.
+    final PaymentAssetOption? option = widget.paymentAssetOptions
+        ?.where((PaymentAssetOption o) => o.assetCode == assetCode)
+        .firstOrNull;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => PlatformAssetPaymentPage(
           planCode: info.planCode,
           planName: info.planName,
-          // Do NOT pass the THB-LTT price — it is unrelated to the
-          // platform-asset price and would mislead the user.
-          // The actual deducted amount is shown after success via
-          // order.displayPaymentAmount / displayPaymentAsset.
           paymentAsset: assetCode,
+          estimatedPaymentAmount: option?.estimatedPaymentAmount,
+          estimatedPaymentAssetLabel: option?.displayName,
           repository: repo,
           onSuccess: widget.onMembershipActivated,
         ),
@@ -345,6 +352,7 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
                       const SizedBox(height: AppSpacing.sm),
                       _AlternativePaymentCard(
                         assets: alts,
+                        paymentAssetOptions: widget.paymentAssetOptions,
                         onPayWith: _navigateToAssetPayment,
                       ),
                     ],
@@ -1071,22 +1079,58 @@ class _AlternativePaymentCard extends StatelessWidget {
   const _AlternativePaymentCard({
     required this.assets,
     required this.onPayWith,
+    this.paymentAssetOptions,
   });
 
   final List<String> assets;
+  final List<PaymentAssetOption>? paymentAssetOptions;
   final ValueChanged<String> onPayWith;
 
-  String _label(String asset) => switch (asset) {
-        'meow_points' => 'Pay with MeowPoints',
-        'meow_credit' => 'Pay with MeowCredit',
-        'thb_ltt'     => 'Pay with THB-LTT',
-        _ => 'Pay with ${_titleCase(asset)}',
-      };
+  /// Returns the human-readable asset name, preferring the backend display_name.
+  String _assetName(String asset) {
+    final String? backendName = paymentAssetOptions
+        ?.where((PaymentAssetOption o) => o.assetCode == asset)
+        .firstOrNull
+        ?.displayName;
+    if (backendName != null) return backendName;
+    return switch (asset) {
+      'meow_points' => 'MeowPoints',
+      'meow_credit' => 'MeowCredit',
+      'thb_ltt'     => 'THB-LTT',
+      _ => _titleCase(asset),
+    };
+  }
+
+  /// Returns the estimated payment amount for this asset, if available.
+  String? _estimatedAmount(String asset) {
+    return paymentAssetOptions
+        ?.where((PaymentAssetOption o) => o.assetCode == asset)
+        .firstOrNull
+        ?.estimatedPaymentAmount;
+  }
+
+  /// Formats the button label: "Pay with MeowPoints — 300 MeowPoints".
+  String _label(String asset) {
+    final String name = _assetName(asset);
+    final String? raw = _estimatedAmount(asset);
+    if (raw == null) return 'Pay with $name';
+    final String formatted = _formatAmount(raw);
+    return 'Pay with $name — $formatted $name';
+  }
 
   static String _titleCase(String raw) => raw
       .split('_')
       .map((String w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
+
+  static String _formatAmount(String raw) {
+    final double? v = double.tryParse(raw.trim());
+    if (v == null) return raw.trim();
+    return v
+        .toStringAsFixed(8)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1109,20 +1153,16 @@ class _AlternativePaymentCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: assets.map((String asset) {
-              final bool isLast = asset == assets.last;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: isLast ? 0 : AppSpacing.xs),
-                  child: _AssetButton(
-                    label: _label(asset),
-                    onTap: () => onPayWith(asset),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+          ...assets.map((String asset) {
+            final bool isLast = asset == assets.last;
+            return Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.xs),
+              child: _AssetButton(
+                label: _label(asset),
+                onTap: () => onPayWith(asset),
+              ),
+            );
+          }),
         ],
       ),
     );

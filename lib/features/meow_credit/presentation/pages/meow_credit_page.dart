@@ -90,7 +90,7 @@ class MeowCreditPage extends ConsumerWidget {
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => MeowCreditRedeemPage(
-                                balance: walletAsync.valueOrNull?.balance ?? 0,
+                                balance: (walletAsync.valueOrNull?.balance ?? 0).toInt(),
                               ),
                             ),
                           ),
@@ -290,7 +290,12 @@ class _OverallCard extends StatelessWidget {
 class _StatRow extends StatelessWidget {
   const _StatRow({required this.label, required this.value});
   final String label;
-  final int value;
+  final double value;
+
+  String get _display {
+    if (value == value.truncateToDouble()) return value.toInt().toString();
+    return value.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -302,7 +307,7 @@ class _StatRow extends StatelessWidget {
         children: <Widget>[
           Text(label,
               style: AppTextStyles.body.copyWith(color: Colors.white70)),
-          Text('$value crds',
+          Text('$_display MC',
               style: AppTextStyles.body
                   .copyWith(color: AppColors.brandGold)),
         ],

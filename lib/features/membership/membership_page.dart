@@ -195,6 +195,7 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
             repository: manualRepo,
             displayCurrency: plan.settlementTokenSymbol,
             supportedPaymentAssets: plan.supportedPaymentAssets,
+            paymentAssetOptions: plan.paymentAssetOptions,
             membershipRepository: membershipRepo,
             onMembershipActivated: () {
               if (mounted) {

@@ -19,23 +19,24 @@ class PlatformAssetPaymentPage extends StatefulWidget {
     super.key,
     required this.planCode,
     required this.planName,
-    this.planPrice,
-    this.planCurrency,
     required this.paymentAsset,
     required this.repository,
+    this.estimatedPaymentAmount,
+    this.estimatedPaymentAssetLabel,
     this.onSuccess,
   });
 
   final String planCode;
   final String planName;
-  /// THB-LTT reference price — NOT shown on the confirmation screen because
-  /// the actual platform-asset deduction amount is only known after the order
-  /// is created. Kept for potential future use.
-  final String? planPrice;
-  final String? planCurrency;
   /// Raw API value: 'meow_points' or 'meow_credit'.
   final String paymentAsset;
   final MembershipRepository repository;
+  /// Estimated amount from payment_asset_options[].estimated_payment_amount.
+  /// Shown before order creation; replaced by the actual deducted amount after
+  /// the order succeeds.
+  final String? estimatedPaymentAmount;
+  /// Human-readable asset label for the estimated amount (e.g. 'MeowPoints').
+  final String? estimatedPaymentAssetLabel;
   final VoidCallback? onSuccess;
 
   @override
@@ -163,15 +164,14 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
               const SizedBox(height: AppSpacing.md),
               _PlanSummaryCard(
                 planName: widget.planName,
-                // Before order creation: don't show the THB-LTT price —
-                // it is not the platform-asset price and would mislead the user.
                 // After success: show the actual deducted amount from the order.
+                // Before order creation: show the estimated amount from the plan API.
                 displayAmount: _state == _PageState.success
                     ? _order?.displayPaymentAmount
-                    : null,
+                    : widget.estimatedPaymentAmount,
                 displayAsset: _state == _PageState.success
                     ? _displayAssetLabel(_order?.displayPaymentAsset)
-                    : null,
+                    : widget.estimatedPaymentAssetLabel,
               ),
               const SizedBox(height: AppSpacing.sm),
               if (_state == _PageState.success)

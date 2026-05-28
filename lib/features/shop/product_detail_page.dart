@@ -534,26 +534,24 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
     }
   }
 
-  bool _mpSufficient(int? balance) {
-    // Price is a decimal string e.g. "20.00" — int.tryParse would return null.
-    // Use double.tryParse so "20.00" → 20.0 → ceiling for safe comparison.
+  bool _mpSufficient(double? balance) {
     final double? cost =
         double.tryParse(widget.product.meowPointsPrice ?? '');
     if (cost == null || balance == null) return true;
-    return balance >= cost.ceil();
+    return balance >= cost;
   }
 
-  bool _mcSufficient(int? balance) {
+  bool _mcSufficient(double? balance) {
     final double? cost =
         double.tryParse(widget.product.meowCreditPrice ?? '');
     if (cost == null || balance == null) return true;
-    return balance >= cost.ceil();
+    return balance >= cost;
   }
 
   Future<void> _confirmAndBuy(
     ShopPaymentAsset asset, {
-    int? mpBalance,
-    int? mcBalance,
+    double? mpBalance,
+    double? mcBalance,
   }) async {
     final _PurchaseResult? result = await showModalBottomSheet<_PurchaseResult>(
       context: context,
@@ -624,8 +622,8 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
       );
     }
 
-    final int? mpBalance = ref.watch(meowPointsWalletProvider).valueOrNull?.balance;
-    final int? mcBalance = ref.watch(meowCreditWalletProvider).valueOrNull?.balance;
+    final double? mpBalance = ref.watch(meowPointsWalletProvider).valueOrNull?.balance;
+    final double? mcBalance = ref.watch(meowCreditWalletProvider).valueOrNull?.balance;
 
     final bool isMp = asset == ShopPaymentAsset.meowPoints;
     final bool ok = isMp ? _mpSufficient(mpBalance) : _mcSufficient(mcBalance);
@@ -942,8 +940,8 @@ class _PurchaseConfirmSheet extends ConsumerStatefulWidget {
 
   final ShopProduct product;
   final ShopPaymentAsset asset;
-  final int? mpBalance;
-  final int? mcBalance;
+  final double? mpBalance;
+  final double? mcBalance;
 
   @override
   ConsumerState<_PurchaseConfirmSheet> createState() =>
@@ -977,9 +975,20 @@ class _PurchaseConfirmSheetState
 
   String get _balanceStr {
     if (widget.asset == ShopPaymentAsset.meowPoints) {
-      return widget.mpBalance != null ? '${widget.mpBalance} MP' : '—';
+      return widget.mpBalance != null
+          ? '${_fmtBal(widget.mpBalance!)} MP'
+          : '—';
     }
-    return widget.mcBalance != null ? '${widget.mcBalance} MC' : '—';
+    return widget.mcBalance != null
+        ? '${_fmtBal(widget.mcBalance!)} MC'
+        : '—';
+  }
+
+  static String _fmtBal(double v) {
+    if (v == v.truncateToDouble()) return v.toInt().toString();
+    return v.toStringAsFixed(2)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   Future<void> _changeAddress() async {

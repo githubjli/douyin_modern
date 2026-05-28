@@ -944,9 +944,9 @@ class _LockedEpisodeOverlay extends StatelessWidget {
     final int? points = episode.pointsPrice;
     final int? credits = episode.creditsPrice;
     final String priceLabel = credits != null && credits > 0
-        ? '$credits Credits'
+        ? '$credits MC'
         : points != null && points > 0
-            ? '$points Points'
+            ? '$points MP'
             : 'Unlock';
 
     final String? thumb = episode.thumbnailUrl;
@@ -1114,7 +1114,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 Expanded(
                   child: _UnlockOption(
                     label: 'Meow Points',
-                    price: '$points pts',
+                    price: '$points MP',
                     selected: _paymentMethod == 'meow_points',
                     onTap: () =>
                         setState(() => _paymentMethod = 'meow_points'),
@@ -1656,13 +1656,13 @@ class _DramaGiftSheetState extends State<_DramaGiftSheet> {
       );
       if (!mounted) return;
       final dynamic data = response.data;
-      final int? balance = data is Map<String, dynamic>
-          ? data['sender_balance'] as int?
+      final double? balance = data is Map<String, dynamic>
+          ? _parseDecimal(data['sender_balance'])
           : null;
       final String unit =
           _paymentMethod == 'meow_credit' ? 'Credits' : 'Points';
       final String balanceNote =
-          balance != null ? '  ·  Balance: $balance $unit' : '';
+          balance != null ? '  ·  Balance: ${_fmtBalance(balance)} $unit' : '';
       Navigator.of(context).pop();
       widget.onSent();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1763,7 +1763,7 @@ class _DramaGiftSheetState extends State<_DramaGiftSheet> {
                   Expanded(
                     child: _UnlockOption(
                       label: 'Meow Points',
-                      price: '$_selectedAmount pts',
+                      price: '$_selectedAmount MP',
                       selected: _paymentMethod == 'meow_points',
                       onTap: () =>
                           setState(() => _paymentMethod = 'meow_points'),
@@ -1813,4 +1813,18 @@ class _DramaGiftSheetState extends State<_DramaGiftSheet> {
       ),
     );
   }
+}
+
+/// Parses int, double, or decimal-string values (e.g. "300.50") → double.
+double? _parseDecimal(dynamic v) {
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
+/// Formats a balance double: integer if whole, 2dp otherwise.
+String _fmtBalance(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(2);
 }

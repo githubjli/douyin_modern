@@ -1,3 +1,5 @@
+import 'payment_asset_option.dart';
+
 class MembershipPlan {
   const MembershipPlan({
     required this.title,
@@ -13,6 +15,7 @@ class MembershipPlan {
     this.supportedPaymentAssets,
     this.basePriceAmount,
     this.basePriceAsset,
+    this.paymentAssetOptions,
   });
 
   final String title;
@@ -29,4 +32,6 @@ class MembershipPlan {
   final List<String>? supportedPaymentAssets;
   final String? basePriceAmount;
   final String? basePriceAsset;
+  /// Per-asset estimated prices from `payment_asset_options[]` in the plan API.
+  final List<PaymentAssetOption>? paymentAssetOptions;
 }

@@ -5,25 +5,33 @@ class MeowCreditWallet {
     required this.totalSpent,
     required this.totalRedeemed,
     required this.totalAdjusted,
+    this.balanceDisplay,
     this.createdAt,
     this.updatedAt,
   });
 
-  final int balance;
-  final int totalRecharged;
-  final int totalSpent;
-  final int totalRedeemed;
-  final int totalAdjusted;
+  final double balance;
+  final double totalRecharged;
+  final double totalSpent;
+  final double totalRedeemed;
+  final double totalAdjusted;
+  /// Pre-formatted balance string from the backend (e.g. "150.25").
+  final String? balanceDisplay;
   final String? createdAt;
   final String? updatedAt;
 
+  /// Formatted balance for display: shows decimals only when non-zero.
+  String get displayBalance =>
+      balanceDisplay ?? _formatDecimal(balance);
+
   factory MeowCreditWallet.fromJson(Map<String, dynamic> json) {
     return MeowCreditWallet(
-      balance: _int(json['balance']) ?? 0,
-      totalRecharged: _int(json['total_recharged']) ?? 0,
-      totalSpent: _int(json['total_spent']) ?? 0,
-      totalRedeemed: _int(json['total_redeemed']) ?? 0,
-      totalAdjusted: _int(json['total_adjusted']) ?? 0,
+      balance: _double(json['balance']) ?? 0,
+      totalRecharged: _double(json['total_recharged']) ?? 0,
+      totalSpent: _double(json['total_spent']) ?? 0,
+      totalRedeemed: _double(json['total_redeemed']) ?? 0,
+      totalAdjusted: _double(json['total_adjusted']) ?? 0,
+      balanceDisplay: json['balance_display'] as String?,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
     );
@@ -315,7 +323,7 @@ class MeowCreditRedeem {
   });
 
   final String redeemNo;
-  final int amount;
+  final double amount;
   final String status; // pending | completed | rejected
   final String redeemMethod;
   final String receivingAddress;
@@ -335,7 +343,7 @@ class MeowCreditRedeem {
         : '';
     return MeowCreditRedeem(
       redeemNo: json['redeem_no'] as String? ?? '',
-      amount: _int(json['amount']) ?? 0,
+      amount: _double(json['amount']) ?? 0,
       status: json['status'] as String? ?? 'pending',
       redeemMethod: json['redeem_method'] as String? ?? 'thb_ltt_wallet',
       receivingAddress: address,
@@ -361,8 +369,8 @@ class MeowCreditLedgerEntry {
 
   final String entryType; // recharge | spend | redeem | refund | adjust
   final String status;    // pending | completed | rejected | cancelled
-  final int amount;       // positive = credit, negative = debit
-  final int? balanceAfter;
+  final double amount;    // positive = credit, negative = debit
+  final double? balanceAfter;
   final String? note;
   final String? createdAt;
 
@@ -372,17 +380,29 @@ class MeowCreditLedgerEntry {
     return MeowCreditLedgerEntry(
       entryType: json['entry_type'] as String? ?? 'recharge',
       status: json['status'] as String? ?? 'pending',
-      amount: _int(json['amount']) ?? 0,
-      balanceAfter: _int(json['balance_after']),
+      amount: _double(json['amount']) ?? 0,
+      balanceAfter: _double(json['balance_after']),
       note: json['note'] as String?,
       createdAt: json['created_at'] as String?,
     );
   }
 }
 
+double? _double(dynamic v) {
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
 int? _int(dynamic v) {
   if (v is int) return v;
   if (v is double) return v.round();
-  if (v is String) return int.tryParse(v);
+  if (v is String) return int.tryParse(v) ?? double.tryParse(v)?.round();
   return null;
+}
+
+String _formatDecimal(double v) {
+  if (v == v.truncateToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
 }

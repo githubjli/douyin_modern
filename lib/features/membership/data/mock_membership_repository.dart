@@ -46,6 +46,9 @@ class MockMembershipRepository implements MembershipRepository {
   }
 
   @override
+  Future<List<MembershipOrder>> listOrders() async => const <MembershipOrder>[];
+
+  @override
   Future<MembershipOrder> getOrder(String orderNo) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     return MembershipOrder(

@@ -7,6 +7,7 @@ import '../data/remote_manual_membership_repository.dart';
 import '../data/remote_membership_repository.dart';
 import '../domain/manual_membership_repository.dart';
 import '../domain/manual_tx_hint.dart';
+import '../domain/membership_order.dart';
 import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
 import '../domain/membership_status.dart';
@@ -40,6 +41,14 @@ final manualMembershipRepositoryProvider =
 final txHintsProvider =
     FutureProvider.autoDispose<List<ManualTxHint>>((ref) async {
   return ref.watch(manualMembershipRepositoryProvider).getTxHints();
+});
+
+/// GET /api/membership/orders/ — all membership orders for the current user,
+/// newest first. Includes platform-asset orders (meow_points, meow_credit)
+/// that are NOT captured by txHintsProvider.
+final membershipOrdersListProvider =
+    FutureProvider.autoDispose<List<MembershipOrder>>((ref) async {
+  return ref.watch(membershipRepositoryProvider).listOrders();
 });
 
 // ── MembershipPage page-scoped providers ─────────────────────────────────────

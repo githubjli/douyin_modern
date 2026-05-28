@@ -20,7 +20,6 @@ dependencies:
   share_plus: ^12.0.2
   gal: ^2.3.2
   image_picker: ^1.1.2
-  ant_media_flutter: ^1.5.4
   flutter_webrtc: ^1.4.1
   country_picker: ^2.0.26
   cached_network_image: ^3.4.1
@@ -42,9 +41,3 @@ flutter_launcher_icons:
   ios: true
   image_path: assets/brand/app_icon_black.png
   remove_alpha_ios: true
-
-# Local fork of ant_media_flutter with VP8 preference patch applied to
-# _createOfferAntMedia(). Remove this block to go back to the pub.dev version.
-dependency_overrides:
-  ant_media_flutter:
-    path: packages/ant_media_flutter

@@ -363,7 +363,8 @@ class _DefaultToggle extends StatelessWidget {
           'Set as default address',
           style: AppTextStyles.body.copyWith(color: AppColors.cocoaText),
         ),
-        activeColor: AppColors.brandGold,
+        activeThumbColor: AppColors.brandGold,
+        activeTrackColor: AppColors.brandGold.withValues(alpha: 0.5),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
         ),

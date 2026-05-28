@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:ant_media_flutter/ant_media_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../core/network/endpoints.dart';
+import '../../core/webrtc/ams_rtc_client.dart';
 import '../auth/application/auth_providers.dart';
 import 'domain/live_chat_message.dart';
 import 'domain/live_session.dart';
@@ -65,17 +65,17 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   static const int _maxMessages = 200;
   bool _sendingGift = false;
 
-  // Ant Media / WebRTC
+  // WebRTC
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   MediaStream? _localStream;
+  AmsRtcClient? _amsClient;
   bool _cameraReady = false;
   bool _isFrontCamera = true;
   bool _publishStarted = false;
   bool _freshRestartInProgress = false;
   // Incremented each time _initAndPublish() is called. Callbacks capture
   // the generation at registration time and bail out if it no longer matches,
-  // preventing stale AntHelper instances (the SDK keeps a reconnect loop even
-  // after close()) from interfering with a newer session.
+  // preventing stale client instances from interfering with a newer session.
   int _antGeneration = 0;
 
   @override
@@ -90,7 +90,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     _stopPolling();
     _localRenderer.dispose();
     if (!widget.skipAntMediaCheck) {
-      AntMediaFlutter.anthelper?.close();
+      _amsClient?.close();
     }
     super.dispose();
   }
@@ -152,8 +152,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   }
 
   // Acquire media with explicit constraints, show local preview immediately,
-  // then connect to Ant Media and inject the stream so the SDK skips its own
-  // getUserMedia call (AntHelper.createStream only runs when _localStream==null).
+  // then connect to AMS and inject the stream so the client skips its own
+  // getUserMedia call (tracks are added to PeerConnection only when _localStream != null).
   Future<void> _initAndPublish() async {
     final LiveSession? session = _session;
     if (session == null) return;
@@ -166,11 +166,13 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     _freshRestartInProgress = false;
     final int gen = ++_antGeneration;
 
-    AntMediaFlutter.requestPermissions();
+    // Close any previous client before creating a new one.
+    _amsClient?.close();
+    _amsClient = null;
 
     // Acquire stream with explicit 720p/30fps constraints before connecting.
     // This lets us verify colour correctness in the preview independently of
-    // the Ant Media SDK, and prevents the SDK from opening a second camera track.
+    // the AMS client, and prevents it from opening a second camera track.
     MediaStream stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia(<String, dynamic>{
@@ -196,46 +198,32 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       return;
     }
 
-    // Bind to renderer now — colour check happens here, before any SDK code.
+    // Bind to renderer now — colour check happens here, before any WebRTC code.
     setState(() {
       _localStream = stream;
       _localRenderer.srcObject = stream;
       _cameraReady = true;
     });
 
-    AntMediaFlutter.connect(
-      session.websocketUrl,
-      session.streamId,
-      '',
-      '',
-      AntMediaType.Publish,
-      false,
-      (HelperState state) {
+    final client = AmsRtcClient(
+      websocketUrl: session.websocketUrl,
+      streamId: session.streamId,
+      publish: true,
+      onStateChange: (AmsState state) {
         if (!mounted || gen != _antGeneration) return;
-        switch (state) {
-          case HelperState.ConnectionError:
-          case HelperState.ConnectionClosed:
-            if (!_publishStarted &&
-                _phase != _Phase.live &&
-                _phase != _Phase.ending) {
-              setState(() {
-                _error = 'Stream connection failed. Please try again.';
-                _phase = _Phase.ready;
-                _cameraReady = false;
-              });
-            }
-          default:
-            break;
+        if (state == AmsState.error || state == AmsState.closed) {
+          if (!_publishStarted &&
+              _phase != _Phase.live &&
+              _phase != _Phase.ending) {
+            setState(() {
+              _error = 'Stream connection failed. Please try again.';
+              _phase = _Phase.ready;
+              _cameraReady = false;
+            });
+          }
         }
       },
-      (MediaStream _) {},  // stream pre-injected via setStream — SDK won't call createStream
-      (MediaStream stream) {},
-      (RTCDataChannel channel) {},
-      (RTCDataChannel dc, RTCDataChannelMessage data, bool isReceived) {},
-      (dynamic streams) {},
-      (MediaStream stream) {},
-      <Map<String, String>>[],
-      (String command, Map<dynamic, dynamic> mapData) {
+      onCommand: (String command, Map<dynamic, dynamic> mapData) {
         if (gen != _antGeneration) return;
         if (command == 'notification' &&
             mapData['definition'] == 'publish_started') {
@@ -247,7 +235,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
             mapData['definition'] == 'streamIdInUse') {
           if (_publishStarted) {
             _antGeneration++;
-            AntMediaFlutter.anthelper?.close();
+            _amsClient?.close();
+            _amsClient = null;
           } else if (!_freshRestartInProgress) {
             unawaited(_freshRestart());
           }
@@ -255,12 +244,12 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       },
     );
 
-    // Inject our stream synchronously — the WebSocket open callback is async
-    // network I/O and hasn't fired yet, so _createPeerConnection hasn't run,
-    // meaning AntHelper._localStream is still null at this point.
-    // Once we set it, the SDK's createStream() check (if _localStream == null)
-    // will be false and our stream is used directly for the PeerConnection.
-    AntMediaFlutter.anthelper?.setStream(stream);
+    // Inject stream before connect() — the PeerConnection is created only after
+    // the WebSocket 'start' message arrives, so setStream() here guarantees the
+    // tracks are available when addTrack() is called inside AmsRtcClient.
+    client.setStream(stream);
+    _amsClient = client;
+    await client.connect();
   }
 
   Future<void> _switchCamera() async {
@@ -271,11 +260,12 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   }
 
   // Called when streamIdInUse is received before publish_started.
-  // Ends the stale Ant Media session and acquires a brand-new live session.
+  // Ends the stale client session and acquires a brand-new live session.
   Future<void> _freshRestart() async {
     if (_freshRestartInProgress) return;
     _freshRestartInProgress = true;
-    AntMediaFlutter.anthelper?.close();
+    _amsClient?.close();
+    _amsClient = null;
     if (!mounted) {
       _freshRestartInProgress = false;
       return;
@@ -403,7 +393,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     if (id == null) return;
     _stopPolling();
     if (!widget.skipAntMediaCheck) {
-      AntMediaFlutter.anthelper?.close();
+      _amsClient?.close();
+      _amsClient = null;
     }
     setState(() {
       _phase = _Phase.ending;
@@ -483,7 +474,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
             _error = 'Stream failed. You can try again or start a fresh session.';
             _stopPolling();
             if (!widget.skipAntMediaCheck) {
-              AntMediaFlutter.anthelper?.close();
+              _amsClient?.close();
+              _amsClient = null;
             }
           }
         });

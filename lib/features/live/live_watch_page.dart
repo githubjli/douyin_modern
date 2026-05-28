@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:ant_media_flutter/ant_media_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:video_player/video_player.dart';
+
+import '../../core/webrtc/ams_rtc_client.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
@@ -49,9 +50,10 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
 
   // ── WebRTC ──────────────────────────────────────────────────────────────
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  AmsRtcClient? _amsClient;
   bool _webrtcBound = false;
 
-  /// Incremented each time we (re)connect to invalidate stale SDK callbacks.
+  /// Incremented each time we (re)connect to invalidate stale callbacks.
   int _antGeneration = 0;
 
   /// Falls back to HLS if no remote stream arrives within this window.
@@ -89,8 +91,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
   void dispose() {
     _stopPolling();
     _webrtcTimeoutTimer?.cancel();
-    _antGeneration++; // invalidate any in-flight SDK callbacks
-    AntMediaFlutter.anthelper?.close();
+    _antGeneration++; // invalidate any in-flight callbacks
+    _amsClient?.close();
+    _amsClient = null;
     _remoteRenderer.dispose();
     _hlsController?.removeListener(_onHlsPlayerUpdate);
     _hlsController?.dispose();
@@ -153,40 +156,38 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
     setState(() => _phase = _WatchPhase.connecting);
     final int gen = ++_antGeneration;
 
+    _amsClient?.close();
+    _amsClient = null;
+
     // Bail out to HLS if no remote track arrives in 15 seconds.
     _webrtcTimeoutTimer?.cancel();
     _webrtcTimeoutTimer = Timer(const Duration(seconds: 15), () {
       if (!mounted || gen != _antGeneration) return;
       if (_phase == _WatchPhase.connecting) {
         _antGeneration++;
-        AntMediaFlutter.anthelper?.close();
+        _amsClient?.close();
+        _amsClient = null;
         _startHLS(config);
       }
     });
 
-    AntMediaFlutter.connect(
-      config.playback.websocketUrl!,
-      config.playback.streamId!,
-      '', // roomId – not used for Play mode
-      '', // token  – public stream, no TOTP
-      AntMediaType.Play,
-      false, // userScreen
-      // onStateChange
-      (HelperState state) {
+    final client = AmsRtcClient(
+      websocketUrl: config.playback.websocketUrl!,
+      streamId: config.playback.streamId!,
+      publish: false,
+      onStateChange: (AmsState state) {
         if (!mounted || gen != _antGeneration) return;
-        if (state == HelperState.ConnectionError ||
-            state == HelperState.ConnectionClosed) {
+        if (state == AmsState.error || state == AmsState.closed) {
           if (_phase == _WatchPhase.connecting) {
             _antGeneration++;
+            _amsClient?.close();
+            _amsClient = null;
             final LiveWatchConfig? cfg = _config;
             if (cfg != null) _startHLS(cfg);
           }
         }
       },
-      // onLocalStream – not needed for viewer
-      (MediaStream _) {},
-      // onAddRemoteStream – fires when the remote track is available
-      (MediaStream stream) {
+      onRemoteStream: (MediaStream stream) {
         if (!mounted || gen != _antGeneration) return;
         _webrtcTimeoutTimer?.cancel();
         _remoteRenderer.srcObject = stream;
@@ -195,13 +196,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
           _phase = _WatchPhase.playing;
         });
       },
-      (RTCDataChannel _) {},
-      (RTCDataChannel dc, RTCDataChannelMessage msg, bool received) {},
-      (dynamic _) {},
-      (MediaStream _) {},
-      const <Map<String, String>>[],
-      // Ant Media signalling callbacks
-      (String command, Map<dynamic, dynamic> data) {
+      onCommand: (String command, Map<dynamic, dynamic> data) {
         if (!mounted || gen != _antGeneration) return;
         if (command == 'notification') {
           final String? def = data['definition']?.toString();
@@ -211,6 +206,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         }
       },
     );
+
+    _amsClient = client;
+    client.connect();
   }
 
   // ── HLS fallback ──────────────────────────────────────────────────────────

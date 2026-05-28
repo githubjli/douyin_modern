@@ -10,5 +10,13 @@ final dramaDetailRepositoryProvider = Provider<DramaDetailRepository>((ref) {
 });
 
 /// Tab selection state per drama (keyed by drama ID).
+class _DramaTabNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void set(int index) => state = index;
+}
+
 final dramaTabIndexProvider =
-    StateProvider.autoDispose.family<int, String>((ref, dramaId) => 0);
+    NotifierProvider.autoDispose.family<_DramaTabNotifier, int, String>(
+  (_) => _DramaTabNotifier(),
+);

@@ -41,14 +41,18 @@ class PaymentPageState {
   }
 }
 
-class PaymentPageNotifier extends StateNotifier<PaymentPageState> {
+class PaymentPageNotifier extends Notifier<PaymentPageState> {
   PaymentPageNotifier({
     required MembershipOrder initialOrder,
     required MembershipRepository repository,
   })  : _repository = repository,
-        super(PaymentPageState(currentOrder: initialOrder));
+        _initialOrder = initialOrder;
 
   final MembershipRepository _repository;
+  final MembershipOrder _initialOrder;
+
+  @override
+  PaymentPageState build() => PaymentPageState(currentOrder: _initialOrder);
 
   void tick(Duration remaining) {
     state = state.copyWith(remaining: remaining);
@@ -111,7 +115,7 @@ class PaymentPageNotifier extends StateNotifier<PaymentPageState> {
 }
 
 /// Placeholder — always overridden via ProviderScope inside MembershipPaymentPage.
-final paymentPageProvider = StateNotifierProvider.autoDispose<
-    PaymentPageNotifier, PaymentPageState>(
-  (ref) => throw UnimplementedError('paymentPageProvider must be overridden'),
+final paymentPageProvider =
+    NotifierProvider.autoDispose<PaymentPageNotifier, PaymentPageState>(
+  () => throw UnimplementedError('paymentPageProvider must be overridden'),
 );

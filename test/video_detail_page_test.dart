@@ -30,7 +30,7 @@ void main() {
   }) async {
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
-          overrides: <Override>[
+          overrides: [
             authRepositoryProvider.overrideWithValue(
               authRepository ?? _FakeAuthRepository(isSignedIn: isSignedIn),
             ),

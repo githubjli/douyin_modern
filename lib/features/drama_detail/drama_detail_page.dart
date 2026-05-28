@@ -76,7 +76,7 @@ class _DramaDetailPageState extends ConsumerState<DramaDetailPage> {
                   selectedIndex: tabIndex,
                   onSelected: (int index) => ref
                       .read(dramaTabIndexProvider(widget.drama.id).notifier)
-                      .state = index,
+                      .set(index),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 if (snapshot.connectionState == ConnectionState.waiting &&

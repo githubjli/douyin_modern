@@ -36,9 +36,9 @@ class MembershipPaymentPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
-      overrides: <Override>[
+      overrides: [
         paymentPageProvider.overrideWith(
-          (ref) => PaymentPageNotifier(
+          () => PaymentPageNotifier(
             initialOrder: order,
             repository: repository,
           ),

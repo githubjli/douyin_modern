@@ -135,8 +135,8 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
-      overrides: <Override>[
-        videoDetailProvider.overrideWith((_) => _notifier),
+      overrides: [
+        videoDetailProvider.overrideWith(() => _notifier),
       ],
       child: _VideoDetailBody(
         recommendations: widget.recommendations,

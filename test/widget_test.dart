@@ -71,7 +71,7 @@ void main() {
       (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[
+        overrides: [
           authRepositoryProvider.overrideWithValue(_SignedOutAuthRepository()),
         ],
         child: const MeowMediaApp(
@@ -120,7 +120,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[
+        overrides: [
           authRepositoryProvider.overrideWithValue(_SignedOutAuthRepository()),
         ],
         child: const MaterialApp(

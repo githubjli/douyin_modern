@@ -90,7 +90,7 @@ class MeowCreditPage extends ConsumerWidget {
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => MeowCreditRedeemPage(
-                                balance: (walletAsync.valueOrNull?.balance ?? 0).toInt(),
+                                balance: (walletAsync.value?.balance ?? 0).toInt(),
                               ),
                             ),
                           ),
@@ -115,7 +115,7 @@ class MeowCreditPage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.sm),
                 ledgerAsync.when(
                   data: (entries) {
-                    final redeems = redeemsAsync.valueOrNull ?? const <MeowCreditRedeem>[];
+                    final redeems = redeemsAsync.value ?? const <MeowCreditRedeem>[];
                     if (entries.isEmpty) return _emptyLedger();
                     return Column(
                       children: entries.map((e) {

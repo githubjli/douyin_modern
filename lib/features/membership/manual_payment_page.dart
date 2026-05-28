@@ -280,8 +280,10 @@ class _ManualPaymentPageState extends State<ManualPaymentPage> {
         builder: (_) => PlatformAssetPaymentPage(
           planCode: info.planCode,
           planName: info.planName,
-          planPrice: info.expectedAmountLbc,
-          planCurrency: widget.displayCurrency ?? info.currency,
+          // Do NOT pass the THB-LTT price — it is unrelated to the
+          // platform-asset price and would mislead the user.
+          // The actual deducted amount is shown after success via
+          // order.displayPaymentAmount / displayPaymentAsset.
           paymentAsset: assetCode,
           repository: repo,
           onSuccess: widget.onMembershipActivated,

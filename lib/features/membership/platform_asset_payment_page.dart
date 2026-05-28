@@ -19,8 +19,8 @@ class PlatformAssetPaymentPage extends StatefulWidget {
     super.key,
     required this.planCode,
     required this.planName,
-    required this.planPrice,
-    required this.planCurrency,
+    this.planPrice,
+    this.planCurrency,
     required this.paymentAsset,
     required this.repository,
     this.onSuccess,
@@ -28,8 +28,11 @@ class PlatformAssetPaymentPage extends StatefulWidget {
 
   final String planCode;
   final String planName;
-  final String planPrice;
-  final String planCurrency;
+  /// THB-LTT reference price — NOT shown on the confirmation screen because
+  /// the actual platform-asset deduction amount is only known after the order
+  /// is created. Kept for potential future use.
+  final String? planPrice;
+  final String? planCurrency;
   /// Raw API value: 'meow_points' or 'meow_credit'.
   final String paymentAsset;
   final MembershipRepository repository;
@@ -160,17 +163,15 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
               const SizedBox(height: AppSpacing.md),
               _PlanSummaryCard(
                 planName: widget.planName,
-                // After success use the backend's display fields so the card
-                // shows the actual deducted asset/amount (e.g. MeowCredit)
-                // instead of the THB-LTT reference price.
-                planPrice: (_state == _PageState.success
-                        ? _order?.displayPaymentAmount
-                        : null) ??
-                    widget.planPrice,
-                planCurrency: (_state == _PageState.success
-                        ? _displayAssetLabel(_order?.displayPaymentAsset)
-                        : null) ??
-                    widget.planCurrency,
+                // Before order creation: don't show the THB-LTT price —
+                // it is not the platform-asset price and would mislead the user.
+                // After success: show the actual deducted amount from the order.
+                displayAmount: _state == _PageState.success
+                    ? _order?.displayPaymentAmount
+                    : null,
+                displayAsset: _state == _PageState.success
+                    ? _displayAssetLabel(_order?.displayPaymentAsset)
+                    : null,
               ),
               const SizedBox(height: AppSpacing.sm),
               if (_state == _PageState.success)
@@ -213,16 +214,20 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
 class _PlanSummaryCard extends StatelessWidget {
   const _PlanSummaryCard({
     required this.planName,
-    required this.planPrice,
-    required this.planCurrency,
+    this.displayAmount,
+    this.displayAsset,
   });
 
   final String planName;
-  final String planPrice;
-  final String planCurrency;
+  /// Actual deducted amount — only populated after a successful order.
+  final String? displayAmount;
+  /// Human-readable asset label — only populated after a successful order.
+  final String? displayAsset;
 
   @override
   Widget build(BuildContext context) {
+    final bool hasAmount =
+        displayAmount != null && displayAsset != null;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
@@ -264,29 +269,31 @@ class _PlanSummaryCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Text(
-                _formatAmount(planPrice),
-                style: AppTextStyles.sectionTitle.copyWith(
-                  color: AppColors.brandGold,
-                  fontSize: 22,
-                  height: 1,
+          if (hasAmount) ...<Widget>[
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  _formatAmount(displayAmount!),
+                  style: AppTextStyles.sectionTitle.copyWith(
+                    color: AppColors.brandGold,
+                    fontSize: 22,
+                    height: 1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xxs),
-              Text(
-                planCurrency,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.brandGold,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  displayAsset!,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.brandGold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -344,7 +351,7 @@ class _PaymentMethodCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Your $assetLabel balance will be deducted upon confirmation.',
+                  'Your $assetLabel balance will be deducted upon confirmation. The exact amount will be shown after payment.',
                   style:
                       AppTextStyles.caption.copyWith(fontSize: 12, height: 1.4),
                 ),

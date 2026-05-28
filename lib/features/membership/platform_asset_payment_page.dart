@@ -49,7 +49,17 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
   String get _assetLabel => switch (widget.paymentAsset) {
         'meow_points' => 'MeowPoints',
         'meow_credit' => 'MeowCredit',
+        'thb_ltt'     => 'THB-LTT',
         _ => widget.paymentAsset,
+      };
+
+  /// Human-readable label for any asset code returned by the backend.
+  String? _displayAssetLabel(String? raw) => switch (raw?.toLowerCase()) {
+        'meow_points' => 'MeowPoints',
+        'meow_credit' => 'MeowCredit',
+        'thb_ltt'     => 'THB-LTT',
+        null          => null,
+        _             => raw,
       };
 
   String get _pageTitle => 'Pay with $_assetLabel';
@@ -150,13 +160,24 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
               const SizedBox(height: AppSpacing.md),
               _PlanSummaryCard(
                 planName: widget.planName,
-                planPrice: widget.planPrice,
-                planCurrency: widget.planCurrency,
+                // After success use the backend's display fields so the card
+                // shows the actual deducted asset/amount (e.g. MeowCredit)
+                // instead of the THB-LTT reference price.
+                planPrice: (_state == _PageState.success
+                        ? _order?.displayPaymentAmount
+                        : null) ??
+                    widget.planPrice,
+                planCurrency: (_state == _PageState.success
+                        ? _displayAssetLabel(_order?.displayPaymentAsset)
+                        : null) ??
+                    widget.planCurrency,
               ),
               const SizedBox(height: AppSpacing.sm),
               if (_state == _PageState.success)
                 _SuccessCard(
                   planName: _order?.planTitle ?? widget.planName,
+                  paidAmount: _order?.displayPaymentAmount,
+                  paidAsset: _displayAssetLabel(_order?.displayPaymentAsset),
                   endsAt: null,
                   onDone: _onDone,
                 )
@@ -341,15 +362,22 @@ class _SuccessCard extends StatelessWidget {
     required this.planName,
     required this.onDone,
     this.endsAt,
+    this.paidAmount,
+    this.paidAsset,
   });
 
   final String planName;
   final String? endsAt;
+  final String? paidAmount;
+  final String? paidAsset;
   final VoidCallback onDone;
 
   @override
   Widget build(BuildContext context) {
     final String? formattedEnd = _fmtDate(endsAt);
+    final String? amountLine = (paidAmount != null && paidAsset != null)
+        ? '${_fmt(paidAmount!)} $paidAsset deducted'
+        : null;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -373,6 +401,18 @@ class _SuccessCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTextStyles.body.copyWith(fontSize: 13),
           ),
+          if (amountLine != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              amountLine,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.brandGold,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           if (formattedEnd != null) ...<Widget>[
             const SizedBox(height: AppSpacing.xxs),
             Text(
@@ -390,6 +430,15 @@ class _SuccessCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _fmt(String raw) {
+    final double? v = double.tryParse(raw.trim());
+    if (v == null) return raw.trim();
+    return v
+        .toStringAsFixed(8)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   static String? _fmtDate(String? raw) {

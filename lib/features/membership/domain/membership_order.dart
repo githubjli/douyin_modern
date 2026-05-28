@@ -19,6 +19,8 @@ class MembershipOrder {
     this.paymentAsset,
     this.paymentMethod,
     this.amountSnapshot,
+    this.displayPaymentAmount,
+    this.displayPaymentAsset,
   });
 
   factory MembershipOrder.fromJson(Map<String, dynamic> json) {
@@ -94,6 +96,8 @@ class MembershipOrder {
       paymentAsset: _firstString(data, const <String>['payment_asset', 'paymentAsset']),
       paymentMethod: _firstString(data, const <String>['payment_method', 'paymentMethod']),
       amountSnapshot: _firstString(data, const <String>['amount_snapshot', 'amountSnapshot', 'paid_amount', 'paidAmount']),
+      displayPaymentAmount: _firstString(data, const <String>['display_payment_amount', 'displayPaymentAmount']),
+      displayPaymentAsset: _firstString(data, const <String>['display_payment_asset', 'displayPaymentAsset']),
     );
   }
 
@@ -116,6 +120,10 @@ class MembershipOrder {
   final String? paymentAsset;
   final String? paymentMethod;
   final String? amountSnapshot;
+  /// Ready-to-display amount returned by the backend (platform_asset: paid_amount; thb_ltt: expected_amount_lbc).
+  final String? displayPaymentAmount;
+  /// Ready-to-display asset label returned by the backend (e.g. 'meow_credit', 'thb_ltt').
+  final String? displayPaymentAsset;
 
   bool get isPending {
     return _normalizedStatus == 'pending' ||

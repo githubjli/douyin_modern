@@ -89,19 +89,25 @@ class VideoDetailState {
 // Notifier
 // ---------------------------------------------------------------------------
 
-class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
+class VideoDetailNotifier extends Notifier<VideoDetailState> {
   VideoDetailNotifier({
     required HomeVideoItem initialVideo,
     required ApiClient apiClient,
     List<HomeVideoItem> initialRecommendations = const <HomeVideoItem>[],
   })  : _apiClient = apiClient,
-        super(VideoDetailState(
-          video: initialVideo,
-          recommendations: initialRecommendations,
-        ));
+        _initialVideo = initialVideo,
+        _initialRecommendations = initialRecommendations;
 
   ApiClient _apiClient;
+  final HomeVideoItem _initialVideo;
+  final List<HomeVideoItem> _initialRecommendations;
   bool _viewTracked = false;
+
+  @override
+  VideoDetailState build() => VideoDetailState(
+        video: _initialVideo,
+        recommendations: _initialRecommendations,
+      );
 
   void setApiClient(ApiClient client) {
     _apiClient = client;
@@ -332,9 +338,9 @@ class VideoDetailNotifier extends StateNotifier<VideoDetailState> {
 // Placeholder provider — always overridden via ProviderScope in VideoDetailPage
 // ---------------------------------------------------------------------------
 
-final videoDetailProvider = StateNotifierProvider.autoDispose<
+final videoDetailProvider = NotifierProvider.autoDispose<
     VideoDetailNotifier, VideoDetailState>(
-  (ref) => throw UnimplementedError('videoDetailProvider must be overridden'),
+  () => throw UnimplementedError('videoDetailProvider must be overridden'),
 );
 
 // ---------------------------------------------------------------------------

@@ -38,7 +38,7 @@ void main() {
     });
 
     final ProviderContainer container = ProviderContainer(
-      overrides: <Override>[
+      overrides: [
         authRepositoryProvider.overrideWithValue(
           authRepository ?? _AuthRepositoryFake(isSignedIn: true),
         ),

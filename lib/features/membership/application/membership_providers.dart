@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+export 'membership_repository_provider.dart';
+
 import '../../auth/application/auth_providers.dart';
 import '../../home/data/remote_home_repository.dart';
 import '../../home/domain/home_models.dart';
 import '../data/remote_manual_membership_repository.dart';
-import '../data/remote_membership_repository.dart';
 import '../domain/manual_membership_repository.dart';
 import '../domain/manual_tx_hint.dart';
 import '../domain/membership_order.dart';
@@ -12,11 +13,8 @@ import '../domain/membership_plan.dart';
 import '../domain/membership_repository.dart';
 import '../domain/membership_status.dart';
 import 'membership_controller.dart';
+import 'membership_repository_provider.dart';
 import 'membership_state.dart';
-
-final membershipRepositoryProvider = Provider<MembershipRepository>((ref) {
-  return RemoteMembershipRepository(apiClient: ref.watch(apiClientProvider));
-});
 
 final membershipStatusProvider =
     FutureProvider.autoDispose<MembershipStatus?>((ref) async {
@@ -25,10 +23,8 @@ final membershipStatusProvider =
 });
 
 final membershipControllerProvider =
-    StateNotifierProvider<MembershipController, MembershipState>(
-  (ref) => MembershipController(
-    repository: ref.watch(membershipRepositoryProvider),
-  ),
+    NotifierProvider<MembershipController, MembershipState>(
+  MembershipController.new,
 );
 
 final manualMembershipRepositoryProvider =
@@ -52,9 +48,6 @@ final membershipOrdersListProvider =
 });
 
 // ── MembershipPage page-scoped providers ─────────────────────────────────────
-// Normally overridden via ProviderScope inside MembershipPage. The defaults
-// fall back to the global repositories so a missing override degrades
-// gracefully instead of crashing.
 
 final membershipPageRepoProvider = Provider<MembershipRepository>(
   (ref) => ref.watch(membershipRepositoryProvider),
@@ -97,7 +90,7 @@ final membershipPlansProvider =
     }
     return mockRepo.getPlans();
   },
-  dependencies: <ProviderOrFamily>[
+  dependencies: [
     membershipPageRepoProvider,
     membershipPageMockRepoProvider,
   ],
@@ -136,7 +129,7 @@ final membershipVipVideosProvider =
       return const <HomeVideoItem>[];
     }
   },
-  dependencies: <ProviderOrFamily>[
+  dependencies: [
     membershipPageVipFutureProvider,
     membershipPageUseRemoteProvider,
     membershipPageVideoRepoProvider,
@@ -163,12 +156,20 @@ final membershipPendingCodesProvider =
       return const <String>{};
     }
   },
-  dependencies: <ProviderOrFamily>[membershipPageManualRepoProvider],
+  dependencies: [membershipPageManualRepoProvider],
 );
 
 /// Which plan's payment info is currently being fetched.
+class _LoadingPlanCodeNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void set(String? code) => state = code;
+}
+
 final membershipLoadingPlanCodeProvider =
-    StateProvider.autoDispose<String?>((ref) => null);
+    NotifierProvider.autoDispose<_LoadingPlanCodeNotifier, String?>(
+  _LoadingPlanCodeNotifier.new,
+);
 
 List<HomeVideoItem> _membershipVideos(List<HomeVideoItem> videos) {
   return videos.where((HomeVideoItem v) => v.isMembershipVideo).toList();

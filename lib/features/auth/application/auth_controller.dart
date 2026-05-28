@@ -4,15 +4,16 @@ import '../../../core/network/api_error.dart';
 import '../../../core/network/api_error_classifier.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_session.dart';
+import 'auth_dependency_providers.dart';
 import 'auth_state.dart';
 
-class AuthController extends StateNotifier<AuthState> {
-  AuthController({required AuthRepository repository})
-      : _repository = repository,
-        super(const AuthState.unknown());
-
-  final AuthRepository _repository;
+class AuthController extends Notifier<AuthState> {
   int _operationGeneration = 0;
+
+  @override
+  AuthState build() => const AuthState.unknown();
+
+  AuthRepository get _repository => ref.read(authRepositoryProvider);
 
   Future<void> bootstrap() async {
     final int operation = _beginOperation();
@@ -128,10 +129,6 @@ class AuthController extends StateNotifier<AuthState> {
   void _handleFailure(Object error, {AuthSession? previous}) {
     if (isAuthDeniedError(error)) {
       state = const AuthState.signedOut();
-      return;
-    }
-    if (isTransientError(error)) {
-      state = AuthState.error(_messageFor(error), previous: previous);
       return;
     }
     state = AuthState.error(_messageFor(error), previous: previous);

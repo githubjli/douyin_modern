@@ -18,4 +18,13 @@ final meowPointsWalletProvider =
 });
 
 /// True while the daily-reward claim request is in-flight.
-final claimingRewardProvider = StateProvider.autoDispose<bool>((ref) => false);
+class _ClaimingRewardNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void set(bool value) => state = value;
+}
+
+final claimingRewardProvider =
+    NotifierProvider.autoDispose<_ClaimingRewardNotifier, bool>(
+  _ClaimingRewardNotifier.new,
+);

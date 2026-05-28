@@ -37,7 +37,7 @@ class MainShell extends ConsumerWidget {
     void goToTab(int value) {
       final NavigatorState navigator = Navigator.of(context);
       if (navigator.canPop()) navigator.pop();
-      ref.read(selectedTabProvider.notifier).state = value;
+      ref.read(selectedTabProvider.notifier).set(value);
     }
 
     Future<void> onTapTab(int value) async {
@@ -99,7 +99,7 @@ class MainShell extends ConsumerWidget {
         );
         return;
       }
-      ref.read(selectedTabProvider.notifier).state = value;
+      ref.read(selectedTabProvider.notifier).set(value);
     }
 
     final int displayIndex = index >= 2 ? index - 1 : index;

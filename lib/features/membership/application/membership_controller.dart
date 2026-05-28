@@ -5,14 +5,14 @@ import '../../../core/network/api_error_classifier.dart';
 import '../../auth/application/auth_state.dart';
 import '../domain/membership_repository.dart';
 import '../domain/membership_status.dart';
+import 'membership_repository_provider.dart';
 import 'membership_state.dart';
 
-class MembershipController extends StateNotifier<MembershipState> {
-  MembershipController({required MembershipRepository repository})
-      : _repository = repository,
-        super(const MembershipState.unknown());
+class MembershipController extends Notifier<MembershipState> {
+  @override
+  MembershipState build() => const MembershipState.unknown();
 
-  final MembershipRepository _repository;
+  MembershipRepository get _repository => ref.read(membershipRepositoryProvider);
 
   Future<void> refresh() async {
     final MembershipStatus? previous = _activeMembership;
@@ -27,10 +27,6 @@ class MembershipController extends StateNotifier<MembershipState> {
     } catch (error) {
       if (isAuthDeniedError(error)) {
         state = const MembershipState.inactive();
-        return;
-      }
-      if (isTransientError(error)) {
-        state = MembershipState.error(_messageFor(error), previous: previous);
         return;
       }
       state = MembershipState.error(_messageFor(error), previous: previous);

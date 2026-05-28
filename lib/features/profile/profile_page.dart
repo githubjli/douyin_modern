@@ -338,8 +338,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ],
             _SignedInProfileBody(
               profile: _profile,
-              wallet: ref.watch(meowPointsWalletProvider).valueOrNull,
-              kycStatus: ref.watch(kycProfileProvider).valueOrNull?.status,
+              wallet: ref.watch(meowPointsWalletProvider).value,
+              kycStatus: ref.watch(kycProfileProvider).value?.status,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,
@@ -358,7 +358,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   builder: (_) => const KycPage(),
                 ),
               ).then((_) => ref.invalidate(kycProfileProvider)),
-              creditBalance: ref.watch(meowCreditWalletProvider).valueOrNull?.displayBalance,
+              creditBalance: ref.watch(meowCreditWalletProvider).value?.displayBalance,
               onGoLive: () => Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => const GoLivePage(),

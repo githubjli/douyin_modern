@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meow_media/core/auth/token_storage.dart';
 import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/core/network/endpoints.dart';
-import 'package:meow_media/features/auth/application/auth_controller.dart';
+import 'package:meow_media/features/auth/application/auth_providers.dart';
 import 'package:meow_media/features/auth/application/auth_state.dart';
 import 'package:meow_media/features/auth/data/remote_auth_repository.dart';
 
@@ -85,14 +86,19 @@ void main() {
         'display_name': 'Meow User',
       }),
     ]);
-    final AuthController controller = AuthController(
-      repository: _repository(adapter, tokenStorage),
+    final RemoteAuthRepository repo = _repository(adapter, tokenStorage);
+    final ProviderContainer container = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(repo)],
     );
+    addTearDown(container.dispose);
 
-    await controller.login(email: 'meow@example.com', password: 'secret');
+    await container
+        .read(authControllerProvider.notifier)
+        .login(email: 'meow@example.com', password: 'secret');
 
-    expect(controller.state.status, AuthStatus.signedIn);
-    expect(controller.state.session?.userId, 'user-1');
+    final AuthState state = container.read(authControllerProvider);
+    expect(state.status, AuthStatus.signedIn);
+    expect(state.session?.userId, 'user-1');
     expect(tokenStorage.accessToken, 'login-access');
     expect(adapter.requests.map((_RecordedRequest request) => request.path),
         <String>[Endpoints.authLogin, Endpoints.authMe]);

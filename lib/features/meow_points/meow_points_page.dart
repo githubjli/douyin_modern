@@ -24,7 +24,7 @@ class MeowPointsPage extends ConsumerWidget {
       // Capture messenger before await to avoid using context across async gaps.
       final ScaffoldMessengerState messenger =
           ScaffoldMessenger.of(context);
-      ref.read(claimingRewardProvider.notifier).state = true;
+      ref.read(claimingRewardProvider.notifier).set(true);
       try {
         final response = await ref.read(apiClientProvider).post<dynamic>(
           Endpoints.meowPointsDailyReward,
@@ -49,11 +49,11 @@ class MeowPointsPage extends ConsumerWidget {
           const SnackBar(content: Text('Unable to claim reward.')),
         );
       } finally {
-        ref.read(claimingRewardProvider.notifier).state = false;
+        ref.read(claimingRewardProvider.notifier).set(false);
       }
     }
 
-    final MeowPointWallet? wallet = walletAsync.valueOrNull;
+    final MeowPointWallet? wallet = walletAsync.value;
     final bool loading = walletAsync.isLoading;
     final String? error = walletAsync.hasError ? 'Unable to load wallet.' : null;
 

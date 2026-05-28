@@ -128,7 +128,7 @@ class _AddressListPageState extends ConsumerState<AddressListPage> {
               onPressed: () {
                 // Confirm current selection (or null if nothing chosen)
                 final List<ShippingAddress> list =
-                    addressesAsync.valueOrNull ?? <ShippingAddress>[];
+                    addressesAsync.value ?? <ShippingAddress>[];
                 final ShippingAddress? chosen = _selectedId == null
                     ? null
                     : list.where((ShippingAddress a) => a.id == _selectedId).firstOrNull;

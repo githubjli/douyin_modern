@@ -622,8 +622,8 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
       );
     }
 
-    final double? mpBalance = ref.watch(meowPointsWalletProvider).valueOrNull?.balance;
-    final double? mcBalance = ref.watch(meowCreditWalletProvider).valueOrNull?.balance;
+    final double? mpBalance = ref.watch(meowPointsWalletProvider).value?.balance;
+    final double? mcBalance = ref.watch(meowCreditWalletProvider).value?.balance;
 
     final bool isMp = asset == ShopPaymentAsset.meowPoints;
     final bool ok = isMp ? _mpSufficient(mpBalance) : _mcSufficient(mcBalance);

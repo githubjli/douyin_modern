@@ -68,7 +68,7 @@ class MembershipPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final Future<List<HomeVideoItem>>? vipFuture = vipVideosFuture;
     return ProviderScope(
-      overrides: <Override>[
+      overrides: [
         membershipPageRepoProvider.overrideWithValue(_resolveRepo(ref)),
         membershipPageMockRepoProvider.overrideWithValue(mockRepository),
         membershipPageManualRepoProvider
@@ -177,7 +177,7 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
     }
     if (ref.read(membershipLoadingPlanCodeProvider) != null) return;
 
-    ref.read(membershipLoadingPlanCodeProvider.notifier).state = planCode;
+    ref.read(membershipLoadingPlanCodeProvider.notifier).set(planCode);
     final ManualMembershipRepository manualRepo =
         ref.read(membershipPageManualRepoProvider);
     final MembershipRepository membershipRepo =
@@ -187,7 +187,7 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
       final ManualPaymentInfo info =
           await manualRepo.getPaymentInfo(planCode: planCode);
       if (!mounted) return;
-      ref.read(membershipLoadingPlanCodeProvider.notifier).state = null;
+      ref.read(membershipLoadingPlanCodeProvider.notifier).set(null);
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => ManualPaymentPage(
@@ -210,7 +210,7 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
       if (mounted) ref.invalidate(membershipPendingCodesProvider);
     } catch (_) {
       if (!mounted) return;
-      ref.read(membershipLoadingPlanCodeProvider.notifier).state = null;
+      ref.read(membershipLoadingPlanCodeProvider.notifier).set(null);
       _showMessage('Unable to load payment info. Please try again later.');
     }
   }
@@ -508,11 +508,11 @@ class _PlanSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final List<MembershipPlan> plans = _displayPlans(
-      ref.watch(membershipPlansProvider).valueOrNull ?? const <MembershipPlan>[],
+      ref.watch(membershipPlansProvider).value ?? const <MembershipPlan>[],
     );
     final String? loadingCode = ref.watch(membershipLoadingPlanCodeProvider);
     final Set<String> pendingCodes =
-        ref.watch(membershipPendingCodesProvider).valueOrNull ?? const <String>{};
+        ref.watch(membershipPendingCodesProvider).value ?? const <String>{};
     final MembershipStatus? activeStatus =
         status?.isActive == true ? status : null;
 
@@ -665,7 +665,7 @@ class _ExclusiveSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final List<HomeVideoItem> videos =
-        ref.watch(membershipVipVideosProvider).valueOrNull ??
+        ref.watch(membershipVipVideosProvider).value ??
             const <HomeVideoItem>[];
 
     return Column(

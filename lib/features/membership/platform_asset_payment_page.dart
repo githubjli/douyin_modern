@@ -5,6 +5,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 import '../../app/widgets/back_nav_header.dart';
 import '../../app/widgets/gold_button.dart';
+import '../../core/network/api_error.dart';
 import 'domain/membership_order.dart';
 import 'domain/membership_repository.dart';
 
@@ -83,13 +84,12 @@ class _PlatformAssetPaymentPageState extends State<PlatformAssetPaymentPage> {
   }
 
   String _parseError(Object e) {
+    // Use the backend's actual message directly when available.
+    if (e is ApiError && e.message.trim().isNotEmpty) {
+      return e.message.trim();
+    }
+    // Fallback: scan the stringified error for common keywords.
     final String msg = e.toString().toLowerCase();
-    if (msg.contains('insufficient') && msg.contains('meow_point')) {
-      return 'Insufficient MeowPoints balance.';
-    }
-    if (msg.contains('insufficient') && msg.contains('meow_credit')) {
-      return 'Insufficient MeowCredit balance.';
-    }
     if (msg.contains('insufficient')) {
       return 'Insufficient $_assetLabel balance.';
     }

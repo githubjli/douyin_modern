@@ -22,10 +22,12 @@ class PendingGift {
   final String? animationUrl;
   final String? animationType;
 
-  bool get hasLottie =>
-      animationType == 'lottie' &&
-      animationUrl != null &&
-      animationUrl!.isNotEmpty;
+  bool get hasLottie {
+    final url = animationUrl;
+    if (url == null || url.isEmpty) return false;
+    // Accept explicit animation_type or detect by .json extension.
+    return animationType == 'lottie' || url.toLowerCase().endsWith('.json');
+  }
 }
 
 /// Returns the emoji for a gift based on the chat message payload or name.
@@ -62,10 +64,12 @@ class GiftBurst extends StatefulWidget {
   final String? animationUrl;
   final String? animationType;
 
-  bool get hasLottie =>
-      animationType == 'lottie' &&
-      animationUrl != null &&
-      animationUrl!.isNotEmpty;
+  bool get hasLottie {
+    final url = animationUrl;
+    if (url == null || url.isEmpty) return false;
+    // Accept explicit animation_type or detect by .json extension.
+    return animationType == 'lottie' || url.toLowerCase().endsWith('.json');
+  }
 
   @override
   State<GiftBurst> createState() => _GiftBurstState();
@@ -112,7 +116,22 @@ class _GiftBurstState extends State<GiftBurst>
         width: 48,
         height: 48,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _buildIconFallback(),
+        repeat: true,
+        errorBuilder: (_, err, __) {
+          assert(() {
+            // ignore: avoid_print
+            print('[GiftBurst] Lottie error for ${widget.animationUrl}: $err');
+            return true;
+          }());
+          return _buildIconFallback();
+        },
+        onWarning: (msg) {
+          assert(() {
+            // ignore: avoid_print
+            print('[GiftBurst] Lottie warning: $msg');
+            return true;
+          }());
+        },
       );
     }
     // Static icon image

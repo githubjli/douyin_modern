@@ -1289,10 +1289,11 @@ class _LiveGift {
   final String? animationUrl;
   final String? animationType; // 'lottie' | null
 
-  bool get hasLottie =>
-      animationType == 'lottie' &&
-      animationUrl != null &&
-      animationUrl!.isNotEmpty;
+  bool get hasLottie {
+    final url = animationUrl;
+    if (url == null || url.isEmpty) return false;
+    return animationType == 'lottie' || url.toLowerCase().endsWith('.json');
+  }
 
   static String? _resolveUrl(String? raw) {
     if (raw == null || raw.isEmpty) return null;

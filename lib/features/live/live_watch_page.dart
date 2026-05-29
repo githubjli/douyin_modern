@@ -1377,6 +1377,73 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
     );
   }
 
+  Future<void> _confirmAndSendFixed(_LiveGift gift, int quantity) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Send ${gift.name}?',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This will cost ${gift.coinCost * quantity} pts.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.brandGold),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Send', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop();
+      await widget.onSendFixed(gift, quantity);
+    }
+  }
+
+  Future<void> _confirmAndSendAmount(int amount, String paymentMethod) async {
+    final String methodLabel = paymentMethod == 'meow_points' ? 'pts' : 'credits';
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Send Gift?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This will spend $amount $methodLabel.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.brandGold),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Send', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop();
+      await widget.onSendAmount(amount, paymentMethod);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1476,10 +1543,7 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
       itemBuilder: (_, int i) {
         final _LiveGift gift = widget.gifts[i];
         return GestureDetector(
-          onTap: () async {
-            Navigator.of(context).pop();
-            await widget.onSendFixed(gift, 1);
-          },
+          onTap: () => _confirmAndSendFixed(gift, 1),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
@@ -1595,11 +1659,7 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
             child: FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brandGold),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await widget.onSendAmount(
-                    _selectedAmount, _paymentMethod);
-              },
+              onPressed: () => _confirmAndSendAmount(_selectedAmount, _paymentMethod),
               child: Text('Send $_selectedAmount',
                   style: const TextStyle(
                       color: Colors.black,

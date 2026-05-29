@@ -75,6 +75,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   // Gift animation
   final List<PendingGift> _activeGifts = [];
   int _nextGiftId = 0;
+  List<_GiftCatalogEntry> _giftCatalog = const [];
 
   @override
   void initState() {
@@ -472,6 +473,28 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     _pollStatus();
     // Fetch initial chat history via REST, then hand off to WebSocket.
     _pollChat().then((_) => _connectChatWs());
+    _loadGiftCatalog();
+  }
+
+  Future<void> _loadGiftCatalog() async {
+    final String? id = _session?.id;
+    if (id == null) return;
+    try {
+      final response = await ref.read(apiClientProvider).get<dynamic>(
+        Endpoints.liveGifts(id),
+        authenticated: true,
+      );
+      final dynamic data = response.data;
+      final List<dynamic> list = data is List ? data : <dynamic>[];
+      if (mounted) {
+        setState(() {
+          _giftCatalog = list
+              .whereType<Map<String, dynamic>>()
+              .map(_GiftCatalogEntry.fromJson)
+              .toList();
+        });
+      }
+    } catch (_) {}
   }
 
   void _stopPolling() {
@@ -644,16 +667,22 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   }
 
   void _triggerGiftBurst(LiveChatMessage msg) {
-    final emoji = giftEmojiFromPayload(msg.payload);
+    final dynamic rawId = msg.payload['gift_id'];
+    final int giftId = rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '') ?? 0;
+    final String giftCode = msg.payload['gift_code']?.toString() ?? '';
+    final _GiftCatalogEntry? cat = _giftCatalog.cast<_GiftCatalogEntry?>().firstWhere(
+      (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
+      orElse: () => null,
+    );
     setState(() {
       _activeGifts.add(PendingGift(
         id: _nextGiftId++,
-        emoji: emoji,
+        emoji: cat?.emoji ?? giftEmojiFromPayload(msg.payload),
         senderName: msg.senderName,
         label: msg.message,
-        iconUrl: _resolveGiftUrl(msg.payload['icon_url']?.toString()),
-        animationUrl: _resolveGiftUrl(msg.payload['animation_url']?.toString()),
-        animationType: msg.payload['animation_type']?.toString(),
+        iconUrl: cat?.iconUrl ?? _resolveGiftUrl(msg.payload['icon_url']?.toString()),
+        animationUrl: cat?.animationUrl ?? _resolveGiftUrl(msg.payload['animation_url']?.toString()),
+        animationType: cat?.animationType ?? msg.payload['animation_type']?.toString(),
       ));
     });
   }
@@ -1965,6 +1994,46 @@ class _SummaryRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// Minimal gift catalog entry for the streamer side — only the fields needed
+// to enrich GiftBurst (icon/animation URLs and emoji).
+class _GiftCatalogEntry {
+  const _GiftCatalogEntry({
+    required this.id,
+    required this.code,
+    required this.emoji,
+    this.iconUrl,
+    this.animationUrl,
+    this.animationType,
+  });
+
+  final int id;
+  final String code;
+  final String emoji;
+  final String? iconUrl;
+  final String? animationUrl;
+  final String? animationType;
+
+  static String? _resolveUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    final base = ApiClient.defaultBaseUrl.endsWith('/')
+        ? ApiClient.defaultBaseUrl.substring(0, ApiClient.defaultBaseUrl.length - 1)
+        : ApiClient.defaultBaseUrl;
+    return '$base${raw.startsWith('/') ? raw : '/$raw'}';
+  }
+
+  factory _GiftCatalogEntry.fromJson(Map<String, dynamic> json) {
+    return _GiftCatalogEntry(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      code: json['code']?.toString() ?? '',
+      emoji: json['emoji']?.toString() ?? '🎁',
+      iconUrl: _resolveUrl(json['icon_url']?.toString()),
+      animationUrl: _resolveUrl(json['animation_url']?.toString()),
+      animationType: json['animation_type']?.toString(),
     );
   }
 }

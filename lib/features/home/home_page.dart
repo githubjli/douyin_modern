@@ -1091,6 +1091,33 @@ void _showLiveComingSoon(BuildContext context) {
   );
 }
 
+void _showSignInToWatchDialog(BuildContext context) {
+  final VoidCallback? onSignIn =
+      _HomeDetailCallbacks.maybeOf(context)?.onSignInPressed;
+  showDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) => AlertDialog(
+      title: const Text('Sign in required'),
+      content: const Text(
+        'You need to be signed in to join a live stream and interact with the host.',
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            onSignIn?.call();
+          },
+          child: const Text('Sign in'),
+        ),
+      ],
+    ),
+  );
+}
+
 void _openCreatorProfile(BuildContext context, int creatorId) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -1106,6 +1133,14 @@ void _openCreatorProfile(BuildContext context, int creatorId) {
 void _openLiveItem(BuildContext context, HomeLiveItem item) {
   final String status = _liveStatus(item);
   if (status == 'live') {
+    final AuthState authState =
+        ProviderScope.containerOf(context).read(authControllerProvider);
+    final bool isSignedIn = authState.session?.isSignedIn == true ||
+        authState.status == AuthStatus.signedIn;
+    if (!isSignedIn) {
+      _showSignInToWatchDialog(context);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LiveWatchPage(item: item),

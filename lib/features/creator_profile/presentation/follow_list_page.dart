@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../../../features/auth/application/auth_providers.dart';
 import 'creator_profile_page.dart';

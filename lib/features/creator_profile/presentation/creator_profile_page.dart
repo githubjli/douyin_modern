@@ -13,7 +13,6 @@ import '../../home/domain/home_models.dart';
 import '../../video_detail/video_detail_page.dart';
 import '../data/creator_profile_repository.dart';
 import '../domain/public_creator_profile.dart';
-import 'follow_list_page.dart';
 
 // ── Entry point ────────────────────────────────────────────────────────────────
 
@@ -331,29 +330,11 @@ class _ProfileHeader extends StatelessWidget {
               _StatItem(
                 value: profile.followerCount,
                 label: 'Followers',
-                onTap: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute<void>(
-                    builder: (_) => FollowListPage(
-                      userId: profile.id,
-                      type: FollowListType.followers,
-                      totalCount: profile.followerCount,
-                    ),
-                  ),
-                ),
               ),
               const SizedBox(width: AppSpacing.xl),
               _StatItem(
                 value: profile.followingCount,
                 label: 'Following',
-                onTap: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute<void>(
-                    builder: (_) => FollowListPage(
-                      userId: profile.id,
-                      type: FollowListType.following,
-                      totalCount: profile.followingCount,
-                    ),
-                  ),
-                ),
               ),
               const SizedBox(width: AppSpacing.xl),
               _StatItem(
@@ -463,30 +444,26 @@ class _FollowButton extends StatelessWidget {
 // ── Stat item ──────────────────────────────────────────────────────────────────
 
 class _StatItem extends StatelessWidget {
-  const _StatItem({required this.value, required this.label, this.onTap});
+  const _StatItem({required this.value, required this.label});
 
   final int value;
   final String label;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            _formatCount(value),
-            style: AppTextStyles.cardTitle.copyWith(fontSize: 16),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            style: AppTextStyles.caption.copyWith(fontSize: 11),
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          _formatCount(value),
+          style: AppTextStyles.cardTitle.copyWith(fontSize: 16),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(fontSize: 11),
+        ),
+      ],
     );
   }
 }

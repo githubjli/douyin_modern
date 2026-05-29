@@ -11,32 +11,14 @@ import '../../app/theme/app_text_styles.dart';
 import '../../core/network/endpoints.dart';
 import '../../core/webrtc/ams_rtc_client.dart';
 import '../auth/application/auth_providers.dart';
+import '../../../core/auth/token_storage.dart';
+import '../../../core/network/api_client.dart';
+import 'data/live_chat_ws_client.dart';
 import 'domain/live_chat_message.dart';
 import 'domain/live_session.dart';
+import 'widgets/gift_burst.dart';
 
 enum _Phase { idle, preparing, ready, live, ending, ended }
-
-// ── Gift definitions ──────────────────────────────────────────────────────────
-
-class _GiftDef {
-  const _GiftDef({
-    required this.id,
-    required this.emoji,
-    required this.name,
-    required this.cost,
-  });
-  final int id;
-  final String emoji;
-  final String name;
-  final int cost; // Meow Credits
-}
-
-const List<_GiftDef> _kGifts = <_GiftDef>[
-  _GiftDef(id: 1, emoji: '🌹', name: 'Rose',    cost: 1),
-  _GiftDef(id: 2, emoji: '⭐', name: 'Star',    cost: 5),
-  _GiftDef(id: 3, emoji: '👑', name: 'Crown',   cost: 50),
-  _GiftDef(id: 4, emoji: '💎', name: 'Diamond', cost: 100),
-];
 
 class GoLivePage extends ConsumerStatefulWidget {
   const GoLivePage({super.key, this.skipAntMediaCheck = false});
@@ -57,13 +39,16 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   bool _sendingMessage = false;
   String? _error;
   Timer? _statusTimer;
-  Timer? _chatTimer;
   Timer? _durationTimer;
   int _durationSeconds = 0;
   int _lastChatId = 0;
   int _startRetries = 0;
   static const int _maxMessages = 200;
-  bool _sendingGift = false;
+  bool _chatError = false;
+
+  // WebSocket chat
+  LiveChatWsClient? _chatWs;
+  bool _chatWsConnected = false;
 
   // WebRTC
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
@@ -71,12 +56,20 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   AmsRtcClient? _amsClient;
   bool _cameraReady = false;
   bool _isFrontCamera = true;
+  bool _isMuted = false;
   bool _publishStarted = false;
   bool _freshRestartInProgress = false;
   // Incremented each time _initAndPublish() is called. Callbacks capture
   // the generation at registration time and bail out if it no longer matches,
   // preventing stale client instances from interfering with a newer session.
   int _antGeneration = 0;
+
+  // Title
+  final TextEditingController _titleController = TextEditingController();
+
+  // Gift animation
+  final List<PendingGift> _activeGifts = [];
+  int _nextGiftId = 0;
 
   @override
   void initState() {
@@ -87,6 +80,8 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   @override
   void dispose() {
     _chatController.dispose();
+    _titleController.dispose();
+    _chatWs?.close();
     _stopPolling();
     _localRenderer.dispose();
     if (!widget.skipAntMediaCheck) {
@@ -103,9 +98,12 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       _error = null;
     });
     try {
+      final String title = _titleController.text.trim();
       final response = await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveQuickStart,
-        data: <String, dynamic>{},
+        data: <String, dynamic>{
+          if (title.isNotEmpty) 'title': title,
+        },
         authenticated: true,
       );
       final dynamic data = response.data;
@@ -406,33 +404,107 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
         Endpoints.liveEnd(id),
         authenticated: true,
       );
+    } on DioException catch (e) {
+      // 4xx means the session is already ended/closed server-side — proceed.
+      // 5xx or network errors: surface to user so they can retry.
+      final int statusCode = e.response?.statusCode ?? 0;
+      if (statusCode == 0 || statusCode >= 500) {
+        if (mounted) {
+          setState(() {
+            _phase = _Phase.live;
+            _error = 'Failed to end stream. Please try again.';
+          });
+          _startPolling();
+        }
+        return;
+      }
     } catch (_) {
-      // best-effort — session may already be closed server-side
+      // Unexpected error — treat as non-fatal and proceed to ended state.
     }
     // One-shot status refresh to pick up the latest thumbnail_url.
-    // If the thumbnail isn't ready yet, _EndedView shows a static placeholder.
     if (mounted) await _pollStatus();
     if (mounted) setState(() => _phase = _Phase.ended);
   }
 
-  // ── Polling ────────────────────────────────────────────────────────────────
+  // ── Polling + WebSocket ────────────────────────────────────────────────────
 
   void _startPolling() {
     _statusTimer =
         Timer.periodic(const Duration(seconds: 10), (_) => _pollStatus());
-    _chatTimer =
-        Timer.periodic(const Duration(seconds: 3), (_) => _pollChat());
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _durationSeconds++);
     });
     _pollStatus();
-    _pollChat();
+    // Fetch initial chat history via REST, then hand off to WebSocket.
+    _pollChat().then((_) => _connectChatWs());
   }
 
   void _stopPolling() {
     _statusTimer?.cancel();
-    _chatTimer?.cancel();
     _durationTimer?.cancel();
+    _chatWs?.close();
+    _chatWs = null;
+  }
+
+  Future<void> _connectChatWs() async {
+    final String? id = _session?.id;
+    if (id == null || !mounted) return;
+    final String? token = await TokenStorage().readAccessToken();
+    if (token == null || token.isEmpty || !mounted) return;
+
+    _chatWs?.close();
+    _chatWs = LiveChatWsClient(
+      baseUrl: ApiClient.defaultBaseUrl,
+      liveId: id,
+      token: token,
+      onMessage: _handleChatWsEvent,
+      onStateChange: (LiveChatWsState state) {
+        if (!mounted) return;
+        final bool connected = state == LiveChatWsState.connected;
+        setState(() {
+          _chatWsConnected = connected;
+          _chatError = state == LiveChatWsState.disconnected;
+        });
+        // After reconnect, compensate any missed messages via REST.
+        if (connected && _lastChatId > 0) _pollChat();
+      },
+    );
+    _chatWs!.connect();
+  }
+
+  void _handleChatWsEvent(Map<String, dynamic> frame) {
+    if (!mounted) return;
+    final String type = frame['type']?.toString() ?? '';
+    final dynamic msgData = frame['message'];
+    if (msgData is! Map<String, dynamic>) return;
+
+    if (type == 'message_created') {
+      final LiveChatMessage msg = LiveChatMessage.fromJson(msgData);
+      // Deduplicate — REST compensation may have already added this id.
+      if (_messages.any((m) => m.id == msg.id)) return;
+      setState(() {
+        _messages.add(msg);
+        if (_messages.length > _maxMessages) {
+          _messages.removeRange(0, _messages.length - _maxMessages);
+        }
+        if (msg.id > _lastChatId) _lastChatId = msg.id;
+        _chatError = false;
+      });
+      if (msg.isGift) _triggerGiftBurst(msg);
+
+    } else if (type == 'message_updated') {
+      final int updatedId = (msgData['id'] as num?)?.toInt() ?? 0;
+      final int idx = _messages.indexWhere((m) => m.id == updatedId);
+      if (idx >= 0) {
+        setState(() {
+          _messages[idx] = LiveChatMessage.fromJson(msgData);
+        });
+      }
+
+    } else if (type == 'message_deleted') {
+      final int deletedId = (msgData['id'] as num?)?.toInt() ?? 0;
+      setState(() => _messages.removeWhere((m) => m.id == deletedId));
+    }
   }
 
   Future<void> _pollStatus() async {
@@ -508,14 +580,43 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
             .map(LiveChatMessage.fromJson)
             .toList();
         setState(() {
+          _chatError = false;
           _messages.addAll(newMessages);
           if (_messages.length > _maxMessages) {
             _messages.removeRange(0, _messages.length - _maxMessages);
           }
           _lastChatId = newMessages.last.id;
         });
+        for (final msg in newMessages) {
+          if (msg.isGift && mounted) _triggerGiftBurst(msg);
+        }
+      } else if (mounted) {
+        setState(() => _chatError = false);
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _chatError = true);
+    }
+  }
+
+  void _toggleMute() {
+    final tracks = _localStream?.getAudioTracks() ?? <MediaStreamTrack>[];
+    final next = !_isMuted;
+    for (final t in tracks) {
+      t.enabled = !next;
+    }
+    setState(() => _isMuted = next);
+  }
+
+  void _triggerGiftBurst(LiveChatMessage msg) {
+    final emoji = giftEmojiFromPayload(msg.payload);
+    setState(() {
+      _activeGifts.add(PendingGift(
+        id: _nextGiftId++,
+        emoji: emoji,
+        senderName: msg.senderName,
+        label: msg.message,
+      ));
+    });
   }
 
   Future<void> _sendMessage() async {
@@ -525,44 +626,23 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     if (id == null) return;
     setState(() => _sendingMessage = true);
     _chatController.clear();
-    try {
-      await ref.read(apiClientProvider).post<dynamic>(
-        Endpoints.liveChatMessages(id),
-        data: <String, String>{'message': text},
-        authenticated: true,
-      );
-      await _pollChat();
-    } catch (_) {
-      if (mounted) _chatController.text = text;
-    } finally {
-      if (mounted) setState(() => _sendingMessage = false);
-    }
-  }
 
-  // Send a gift to the live stream.
-  // client_request_id prevents duplicate charges on retry (idempotency key).
-  Future<void> _sendGift(int giftId, int quantity) async {
-    final String? id = _session?.id;
-    if (id == null || _sendingGift) return;
-    setState(() => _sendingGift = true);
-    try {
-      await ref.read(apiClientProvider).post<dynamic>(
-        Endpoints.liveGiftSend(id),
-        data: <String, dynamic>{
-          'gift_id': giftId,
-          'quantity': quantity,
-          'client_request_id':
-              DateTime.now().microsecondsSinceEpoch.toString(),
-        },
-        authenticated: true,
-      );
-      // Gift event will surface via the next chat poll (type: 'gift').
-      await _pollChat();
-    } catch (_) {
-      // Silent — gift may still have gone through; chat poll will confirm.
-    } finally {
-      if (mounted) setState(() => _sendingGift = false);
+    // Prefer WebSocket; fall back to REST when WS is not connected.
+    final bool sentViaWs = _chatWsConnected && (_chatWs?.sendText(text) ?? false);
+    if (!sentViaWs) {
+      try {
+        await ref.read(apiClientProvider).post<dynamic>(
+          Endpoints.liveChatMessages(id),
+          data: <String, dynamic>{'message_type': 'text', 'content': text},
+          authenticated: true,
+        );
+        await _pollChat();
+      } catch (_) {
+        if (mounted) _chatController.text = text;
+      }
     }
+
+    if (mounted) setState(() => _sendingMessage = false);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -582,7 +662,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   @override
   Widget build(BuildContext context) {
     final String displayName = ref.watch(authControllerProvider).session?.displayName ?? '';
-    return switch (_phase) {
+    final Widget page = switch (_phase) {
       _Phase.ended => _EndedView(
           session: _session,
           durationSeconds: _durationSeconds,
@@ -593,17 +673,19 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           messages: _messages,
           chatController: _chatController,
           sendingMessage: _sendingMessage,
-          sendingGift: _sendingGift,
+          sendingGift: false,
+          chatError: _chatError,
           durationSeconds: _durationSeconds,
           ending: _phase == _Phase.ending,
           localRenderer: _cameraReady ? _localRenderer : null,
           isFrontCamera: _isFrontCamera,
           canSwitchCamera: _localStream != null,
+          isMuted: _isMuted,
           displayName: displayName,
           onSend: _sendMessage,
-          onSendGift: _sendGift,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
+          onToggleMute: _toggleMute,
           formatDuration: _formatDuration,
         ),
       _ => _PrepareView(
@@ -614,13 +696,41 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           publishStarted: _publishStarted,
           isFrontCamera: _isFrontCamera,
           canSwitchCamera: _localStream != null,
+          isMuted: _isMuted,
           displayName: displayName,
+          titleController: _titleController,
           onStart: _phase == _Phase.idle ? _quickStart : _goLive,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
+          onToggleMute: _toggleMute,
           onBack: () => Navigator.of(context).maybePop(),
         ),
     };
+
+    // Gift burst overlay — rendered above everything.
+    if (_activeGifts.isEmpty) return page;
+    return Stack(
+      children: [
+        page,
+        Positioned(
+          right: 16,
+          bottom: 96,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: _activeGifts.map((g) => GiftBurst(
+              key: ValueKey(g.id),
+              emoji: g.emoji,
+              senderName: g.senderName,
+              label: g.label,
+              onDone: () {
+                if (mounted) setState(() => _activeGifts.removeWhere((x) => x.id == g.id));
+              },
+            )).toList(),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -635,10 +745,13 @@ class _PrepareView extends StatelessWidget {
     required this.onEnd,
     required this.onBack,
     required this.onSwitchCamera,
+    required this.onToggleMute,
     required this.publishStarted,
     required this.isFrontCamera,
     required this.canSwitchCamera,
+    required this.isMuted,
     required this.displayName,
+    required this.titleController,
     this.localRenderer,
   });
 
@@ -648,11 +761,14 @@ class _PrepareView extends StatelessWidget {
   final bool publishStarted;
   final bool isFrontCamera;
   final bool canSwitchCamera;
+  final bool isMuted;
   final String displayName;
+  final TextEditingController titleController;
   final VoidCallback onStart;
   final VoidCallback onEnd;
   final VoidCallback onBack;
   final VoidCallback onSwitchCamera;
+  final VoidCallback onToggleMute;
   final RTCVideoRenderer? localRenderer;
 
   @override
@@ -732,8 +848,15 @@ class _PrepareView extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
-                  if (canSwitchCamera)
+                  if (canSwitchCamera) ...<Widget>[
                     _CircleButton(icon: Icons.flip_camera_ios_rounded, onTap: onSwitchCamera),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  if (canSwitchCamera)
+                    _CircleButton(
+                      icon: isMuted ? Icons.mic_off : Icons.mic,
+                      onTap: onToggleMute,
+                    ),
                 ],
               ),
             ),
@@ -753,6 +876,7 @@ class _PrepareView extends StatelessWidget {
                         session: s,
                         loading: loading,
                         onStart: onStart,
+                        titleController: titleController,
                       ),
               ),
             ),
@@ -824,25 +948,50 @@ class _PreparePanel extends StatelessWidget {
     required this.session,
     required this.loading,
     required this.onStart,
+    required this.titleController,
   });
   final _Phase phase;
   final String? error;
   final LiveSession? session;
   final bool loading;
   final VoidCallback onStart;
+  final TextEditingController titleController;
 
   @override
   Widget build(BuildContext context) {
     final LiveSession? s = session;
     final bool hasSession = s != null;
+    final bool isIdle = phase == _Phase.idle;
     // In the ready phase, respect server's can_start flag.
     // Default true for idle (no session yet) and when the field is absent.
-    final bool canGoLive =
-        phase == _Phase.idle || (s?.canStart ?? true);
+    final bool canGoLive = isIdle || (s?.canStart ?? true);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        // Title input — only shown before the session is prepared
+        if (isIdle) ...<Widget>[
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(18),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: TextField(
+              controller: titleController,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              maxLength: 60,
+              decoration: const InputDecoration(
+                hintText: 'Live title (optional)',
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 15),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                counterText: '',
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         if (hasSession) ...<Widget>[
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -952,15 +1101,17 @@ class _LiveView extends StatefulWidget {
     required this.chatController,
     required this.sendingMessage,
     required this.sendingGift,
+    required this.chatError,
     required this.durationSeconds,
     required this.ending,
     required this.isFrontCamera,
     required this.canSwitchCamera,
+    required this.isMuted,
     required this.displayName,
     required this.onSend,
-    required this.onSendGift,
     required this.onEnd,
     required this.onSwitchCamera,
+    required this.onToggleMute,
     required this.formatDuration,
     this.localRenderer,
   });
@@ -969,17 +1120,20 @@ class _LiveView extends StatefulWidget {
   final List<LiveChatMessage> messages;
   final TextEditingController chatController;
   final bool sendingMessage;
+  // Kept for future use (e.g. moderator sending gifts); not shown in streamer UI.
   final bool sendingGift;
+  final bool chatError;
   final RTCVideoRenderer? localRenderer;
   final bool isFrontCamera;
   final bool canSwitchCamera;
+  final bool isMuted;
   final String displayName;
   final int durationSeconds;
   final bool ending;
   final VoidCallback onSend;
-  final Future<void> Function(int giftId, int quantity) onSendGift;
   final VoidCallback onEnd;
   final VoidCallback onSwitchCamera;
+  final VoidCallback onToggleMute;
   final String Function(int) formatDuration;
 
   @override
@@ -996,16 +1150,6 @@ class _LiveViewState extends State<_LiveView> {
       widget.session?.effectiveStatus != 'ended' &&
       widget.session?.effectiveStatus != 'failed';
 
-  void _showGiftPicker() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => _GiftPickerSheet(onSend: widget.onSendGift),
-    );
-  }
 
   @override
   void dispose() {
@@ -1155,14 +1299,21 @@ class _LiveViewState extends State<_LiveView> {
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       // Flip camera
-                      if (widget.canSwitchCamera)
-                        Padding(
-                          padding: const EdgeInsets.only(right: AppSpacing.sm),
-                          child: _CircleButton(
-                            icon: Icons.flip_camera_ios_rounded,
-                            onTap: widget.onSwitchCamera,
-                          ),
+                      if (widget.canSwitchCamera) ...<Widget>[
+                        _CircleButton(
+                          icon: Icons.flip_camera_ios_rounded,
+                          onTap: widget.onSwitchCamera,
                         ),
+                        const SizedBox(width: AppSpacing.xs),
+                      ],
+                      // Mute
+                      Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.sm),
+                        child: _CircleButton(
+                          icon: widget.isMuted ? Icons.mic_off : Icons.mic,
+                          onTap: widget.onToggleMute,
+                        ),
+                      ),
                       // End button — gated by server can_end
                       GestureDetector(
                         onTap: (widget.session?.canEnd ?? true)
@@ -1298,6 +1449,23 @@ class _LiveViewState extends State<_LiveView> {
                   ),
                 ),
 
+                // Chat error hint
+                if (widget.chatError)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: 2),
+                    child: Row(
+                      children: const <Widget>[
+                        Icon(Icons.wifi_off, color: Colors.white38, size: 12),
+                        SizedBox(width: 4),
+                        Text(
+                          'Chat connection lost',
+                          style: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // Chat input
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -1344,38 +1512,6 @@ class _LiveViewState extends State<_LiveView> {
                                 ? (_) => widget.onSend()
                                 : null,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      // Gift button
-                      GestureDetector(
-                        onTap: (_isLiveActive && !widget.sendingGift)
-                            ? _showGiftPicker
-                            : null,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(
-                                _isLiveActive ? 25 : 10),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: widget.sendingGift
-                              ? const Padding(
-                                  padding: EdgeInsets.all(10),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.brandGold,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.card_giftcard_rounded,
-                                  color: _isLiveActive
-                                      ? AppColors.brandGold
-                                      : Colors.white24,
-                                  size: 20,
-                                ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
@@ -1758,98 +1894,3 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-// ── Gift picker ───────────────────────────────────────────────────────────────
-
-class _GiftPickerSheet extends StatelessWidget {
-  const _GiftPickerSheet({required this.onSend});
-  final Future<void> Function(int giftId, int quantity) onSend;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        // Handle + title
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, AppSpacing.md, AppSpacing.sm, 0),
-          child: Row(
-            children: <Widget>[
-              const Text('Send a Gift', style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              )),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.close_rounded,
-                    color: AppColors.mutedOliveText),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-        ),
-        // Gift grid
-        GridView.count(
-          crossAxisCount: 4,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
-          mainAxisSpacing: AppSpacing.sm,
-          crossAxisSpacing: AppSpacing.sm,
-          children: _kGifts
-              .map(
-                (gift) => _GiftTile(
-                  gift: gift,
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await onSend(gift.id, 1);
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _GiftTile extends StatelessWidget {
-  const _GiftTile({required this.gift, required this.onTap});
-  final _GiftDef gift;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          border: Border.all(color: AppColors.softBorder),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(gift.emoji,
-                style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 4),
-            Text(gift.name,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            Text('${gift.cost} MC',
-                style: const TextStyle(
-                    color: AppColors.brandGold,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -1,0 +1,135 @@
+import 'package:flutter/material.dart';
+
+import '../../../app/theme/app_colors.dart';
+
+class PendingGift {
+  PendingGift({
+    required this.id,
+    required this.emoji,
+    required this.senderName,
+    required this.label,
+  });
+  final int id;
+  final String emoji;
+  final String senderName;
+  final String label;
+}
+
+/// Returns the emoji for a gift based on the chat message payload or name.
+String giftEmojiFromPayload(Map<String, dynamic> payload) {
+  final name = (payload['gift_name'] ?? payload['name'] ?? '').toString().toLowerCase();
+  return switch (name) {
+    'rose'    => '🌹',
+    'star'    => '⭐',
+    'crown'   => '👑',
+    'diamond' => '💎',
+    _         => '🎁',
+  };
+}
+
+/// Floating gift animation card. Self-contained — manages its own controller.
+/// Parent just adds/removes [PendingGift] from a list; [onDone] signals removal.
+class GiftBurst extends StatefulWidget {
+  const GiftBurst({
+    super.key,
+    required this.emoji,
+    required this.senderName,
+    required this.label,
+    required this.onDone,
+  });
+
+  final String emoji;
+  final String senderName;
+  final String label;
+  final VoidCallback onDone;
+
+  @override
+  State<GiftBurst> createState() => _GiftBurstState();
+}
+
+class _GiftBurstState extends State<GiftBurst>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<double> _translateY;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    );
+
+    _opacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 32),
+    ]).animate(_ctrl);
+
+    _translateY = Tween<double>(begin: 0, end: -110).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+
+    _ctrl.forward().then((_) => widget.onDone());
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Transform.translate(
+        offset: Offset(0, _translateY.value),
+        child: Opacity(
+          opacity: _opacity.value,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xDD000000), Color(0x99000000)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: AppColors.brandGold.withValues(alpha: 0.45),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(widget.emoji,
+                    style: const TextStyle(fontSize: 26)),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.senderName,
+                      style: const TextStyle(
+                        color: AppColors.brandGold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      widget.label,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

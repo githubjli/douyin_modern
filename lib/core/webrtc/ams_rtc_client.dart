@@ -165,6 +165,13 @@ class AmsRtcClient {
       }
     }
 
+    _pc!.onIceConnectionState = (RTCIceConnectionState state) {
+      if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        _pc?.restartIce();
+      }
+    };
+
     _pc!.onIceCandidate = (c) {
       _send({
         'command': 'takeCandidate',

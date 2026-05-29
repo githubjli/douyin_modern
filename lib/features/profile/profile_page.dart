@@ -21,6 +21,7 @@ import '../creator_studio/pages/my_drama_page.dart';
 import '../creator_studio/pages/my_live_streams_page.dart';
 import '../creator_studio/pages/my_videos_page.dart';
 import '../creator_studio/pages/upload_video_page.dart';
+import '../creator_profile/presentation/creator_profile_page.dart';
 import '../live/go_live_page.dart';
 import '../membership/membership_orders_page.dart';
 import '../meow_credit/application/meow_credit_providers.dart';
@@ -1177,25 +1178,39 @@ class _ProfileHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // Avatar
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: AppColors.brandGold.withAlpha(30),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.brandGold, width: 1.5),
+              // Avatar — tappable to view own public profile
+              GestureDetector(
+                onTap: () {
+                  final int? uid =
+                      int.tryParse(profile?.userId ?? '');
+                  if (uid == null) return;
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          CreatorProfilePage(creatorId: uid),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: AppColors.brandGold.withAlpha(30),
+                    shape: BoxShape.circle,
+                    border:
+                        Border.all(color: AppColors.brandGold, width: 1.5),
+                  ),
+                  child: avatarUrl != null
+                      ? ClipOval(
+                          child: Image.network(
+                            avatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _InitialsAvatar(initials: initials),
+                          ),
+                        )
+                      : _InitialsAvatar(initials: initials),
                 ),
-                child: avatarUrl != null
-                    ? ClipOval(
-                        child: Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _InitialsAvatar(initials: initials),
-                        ),
-                      )
-                    : _InitialsAvatar(initials: initials),
               ),
               const SizedBox(width: AppSpacing.md),
               // Name, email, badges, bio

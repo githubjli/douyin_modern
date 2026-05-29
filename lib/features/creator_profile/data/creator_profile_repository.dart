@@ -9,13 +9,14 @@ class CreatorProfileRepository {
   const CreatorProfileRepository(this._client);
   final ApiClient _client;
 
+  /// Uses the universal user endpoint (works for all users, not just creators).
   Future<PublicCreatorProfile> getProfile(int creatorId) async {
     final response = await _client.get<dynamic>(
-      Endpoints.publicCreatorProfile(creatorId),
+      Endpoints.publicUserProfile(creatorId),
     );
     final data = response.data;
     if (data is! Map<String, dynamic>) {
-      throw const FormatException('Invalid creator profile response');
+      throw const FormatException('Invalid user profile response');
     }
     return PublicCreatorProfile.fromJson(data);
   }

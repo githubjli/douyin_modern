@@ -715,6 +715,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
             ),
           ),
           _buildTopBar(),
+          _buildOrientationButton(),
           if (_phase == _WatchPhase.loading ||
               _phase == _WatchPhase.connecting)
             _buildLoadingOverlay(),
@@ -813,28 +814,34 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
               _buildStreamerChip(),
               const Spacer(),
               _buildViewerBadge(),
-              const SizedBox(width: AppSpacing.xs),
-              GestureDetector(
-                onTap: _toggleOrientation,
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Icon(
-                    _isLandscape
-                        ? Icons.stay_current_portrait_rounded
-                        : Icons.stay_current_landscape_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-              ),
               const SizedBox(width: AppSpacing.sm),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrientationButton() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 56,
+      right: AppSpacing.sm,
+      child: GestureDetector(
+        onTap: _toggleOrientation,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.black45,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Icon(
+            _isLandscape
+                ? Icons.stay_current_portrait_rounded
+                : Icons.stay_current_landscape_rounded,
+            color: Colors.white,
+            size: 18,
           ),
         ),
       ),

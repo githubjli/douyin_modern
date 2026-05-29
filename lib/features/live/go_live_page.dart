@@ -1304,6 +1304,18 @@ class _LiveViewState extends State<_LiveView> {
             ),
           ),
 
+          // Orientation toggle — right side, row 2
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 56,
+            right: AppSpacing.sm,
+            child: _CircleButton(
+              icon: widget.isLandscape
+                  ? Icons.stay_current_portrait_rounded
+                  : Icons.stay_current_landscape_rounded,
+              onTap: widget.onToggleOrientation,
+            ),
+          ),
+
           // UI content
           SafeArea(
             child: Column(
@@ -1381,14 +1393,6 @@ class _LiveViewState extends State<_LiveView> {
                       _CircleButton(
                         icon: widget.isMuted ? Icons.mic_off : Icons.mic,
                         onTap: widget.onToggleMute,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      // Orientation toggle
-                      _CircleButton(
-                        icon: widget.isLandscape
-                            ? Icons.stay_current_portrait_rounded
-                            : Icons.stay_current_landscape_rounded,
-                        onTap: widget.onToggleOrientation,
                       ),
                     ],
                   ),

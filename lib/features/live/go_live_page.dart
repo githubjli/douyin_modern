@@ -1304,6 +1304,18 @@ class _LiveViewState extends State<_LiveView> {
             ),
           ),
 
+          // Orientation toggle — right side, row 2
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 56,
+            right: AppSpacing.sm,
+            child: _CircleButton(
+              icon: widget.isLandscape
+                  ? Icons.stay_current_portrait_rounded
+                  : Icons.stay_current_landscape_rounded,
+              onTap: widget.onToggleOrientation,
+            ),
+          ),
+
           // UI content
           SafeArea(
             child: Column(
@@ -1381,44 +1393,6 @@ class _LiveViewState extends State<_LiveView> {
                       _CircleButton(
                         icon: widget.isMuted ? Icons.mic_off : Icons.mic,
                         onTap: widget.onToggleMute,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      // Orientation toggle
-                      Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.sm),
-                        child: _CircleButton(
-                          icon: widget.isLandscape
-                              ? Icons.stay_current_portrait_rounded
-                              : Icons.stay_current_landscape_rounded,
-                          onTap: widget.onToggleOrientation,
-                        ),
-                      ),
-                      // End button — gated by server can_end
-                      GestureDetector(
-                        onTap: (widget.session?.canEnd ?? true)
-                            ? () => setState(() => _showEndConfirm = true)
-                            : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: (widget.session?.canEnd ?? true)
-                                ? Colors.redAccent.withAlpha(200)
-                                : Colors.grey.withAlpha(80),
-                            borderRadius:
-                                BorderRadius.circular(AppSpacing.radiusSm),
-                          ),
-                          child: const Text(
-                            'End',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
                       ),
                     ],
                   ),
@@ -1621,6 +1595,28 @@ class _LiveViewState extends State<_LiveView> {
                                   color: Colors.black,
                                   size: 18,
                                 ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      // End stream button
+                      GestureDetector(
+                        onTap: (widget.session?.canEnd ?? true)
+                            ? () => setState(() => _showEndConfirm = true)
+                            : null,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: (widget.session?.canEnd ?? true)
+                                ? Colors.redAccent.withAlpha(200)
+                                : Colors.grey.withAlpha(80),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.stop_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ],

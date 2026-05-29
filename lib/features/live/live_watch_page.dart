@@ -443,15 +443,21 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         if (msg.id > _lastChatId) _lastChatId = msg.id;
       });
       if (msg.isGift) {
+        final int giftId = (msg.payload['gift_id'] as num?)?.toInt() ?? 0;
+        final String giftCode = msg.payload['gift_code']?.toString() ?? '';
+        final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
+          (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
+          orElse: () => null,
+        );
         setState(() {
           _activeGifts.add(PendingGift(
             id: _nextGiftId++,
-            emoji: giftEmojiFromPayload(msg.payload),
+            emoji: catalogGift?.emoji ?? giftEmojiFromPayload(msg.payload),
             senderName: msg.senderName,
             label: msg.message,
-            iconUrl: _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
-            animationUrl: _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
-            animationType: msg.payload['animation_type']?.toString(),
+            iconUrl: catalogGift?.iconUrl ?? _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
+            animationUrl: catalogGift?.animationUrl ?? _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
+            animationType: catalogGift?.animationType ?? msg.payload['animation_type']?.toString(),
           ));
         });
       }
@@ -540,15 +546,21 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         });
         for (final msg in newMsgs) {
           if (msg.isGift && mounted) {
+            final int giftId = (msg.payload['gift_id'] as num?)?.toInt() ?? 0;
+            final String giftCode = msg.payload['gift_code']?.toString() ?? '';
+            final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
+              (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
+              orElse: () => null,
+            );
             setState(() {
               _activeGifts.add(PendingGift(
                 id: _nextGiftId++,
-                emoji: giftEmojiFromPayload(msg.payload),
+                emoji: catalogGift?.emoji ?? giftEmojiFromPayload(msg.payload),
                 senderName: msg.senderName,
                 label: msg.message,
-                iconUrl: _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
-                animationUrl: _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
-                animationType: msg.payload['animation_type']?.toString(),
+                iconUrl: catalogGift?.iconUrl ?? _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
+                animationUrl: catalogGift?.animationUrl ?? _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
+                animationType: catalogGift?.animationType ?? msg.payload['animation_type']?.toString(),
               ));
             });
           }
@@ -703,6 +715,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
             ),
           ),
           _buildTopBar(),
+          _buildOrientationButton(),
           if (_phase == _WatchPhase.loading ||
               _phase == _WatchPhase.connecting)
             _buildLoadingOverlay(),
@@ -801,28 +814,34 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
               _buildStreamerChip(),
               const Spacer(),
               _buildViewerBadge(),
-              const SizedBox(width: AppSpacing.xs),
-              GestureDetector(
-                onTap: _toggleOrientation,
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Icon(
-                    _isLandscape
-                        ? Icons.stay_current_portrait_rounded
-                        : Icons.stay_current_landscape_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-              ),
               const SizedBox(width: AppSpacing.sm),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrientationButton() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 56,
+      right: AppSpacing.sm,
+      child: GestureDetector(
+        onTap: _toggleOrientation,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.black45,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Icon(
+            _isLandscape
+                ? Icons.stay_current_portrait_rounded
+                : Icons.stay_current_landscape_rounded,
+            color: Colors.white,
+            size: 18,
           ),
         ),
       ),
@@ -1365,6 +1384,73 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
     );
   }
 
+  Future<void> _confirmAndSendFixed(_LiveGift gift, int quantity) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Send ${gift.name}?',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This will cost ${gift.coinCost * quantity} pts.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.brandGold),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Send', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop();
+      await widget.onSendFixed(gift, quantity);
+    }
+  }
+
+  Future<void> _confirmAndSendAmount(int amount, String paymentMethod) async {
+    final String methodLabel = paymentMethod == 'meow_points' ? 'pts' : 'credits';
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Send Gift?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This will spend $amount $methodLabel.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.brandGold),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Send', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop();
+      await widget.onSendAmount(amount, paymentMethod);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1464,10 +1550,7 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
       itemBuilder: (_, int i) {
         final _LiveGift gift = widget.gifts[i];
         return GestureDetector(
-          onTap: () async {
-            Navigator.of(context).pop();
-            await widget.onSendFixed(gift, 1);
-          },
+          onTap: () => _confirmAndSendFixed(gift, 1),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
@@ -1583,11 +1666,7 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
             child: FilledButton(
               style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brandGold),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await widget.onSendAmount(
-                    _selectedAmount, _paymentMethod);
-              },
+              onPressed: () => _confirmAndSendAmount(_selectedAmount, _paymentMethod),
               child: Text('Send $_selectedAmount',
                   style: const TextStyle(
                       color: Colors.black,

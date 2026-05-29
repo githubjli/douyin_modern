@@ -1,4 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../../app/theme/app_colors.dart';
 
@@ -8,11 +10,22 @@ class PendingGift {
     required this.emoji,
     required this.senderName,
     required this.label,
+    this.iconUrl,
+    this.animationUrl,
+    this.animationType,
   });
   final int id;
   final String emoji;
   final String senderName;
   final String label;
+  final String? iconUrl;
+  final String? animationUrl;
+  final String? animationType;
+
+  bool get hasLottie =>
+      animationType == 'lottie' &&
+      animationUrl != null &&
+      animationUrl!.isNotEmpty;
 }
 
 /// Returns the emoji for a gift based on the chat message payload or name.
@@ -36,12 +49,23 @@ class GiftBurst extends StatefulWidget {
     required this.senderName,
     required this.label,
     required this.onDone,
+    this.iconUrl,
+    this.animationUrl,
+    this.animationType,
   });
 
   final String emoji;
   final String senderName;
   final String label;
   final VoidCallback onDone;
+  final String? iconUrl;
+  final String? animationUrl;
+  final String? animationType;
+
+  bool get hasLottie =>
+      animationType == 'lottie' &&
+      animationUrl != null &&
+      animationUrl!.isNotEmpty;
 
   @override
   State<GiftBurst> createState() => _GiftBurstState();
@@ -80,6 +104,34 @@ class _GiftBurstState extends State<GiftBurst>
     super.dispose();
   }
 
+  Widget _buildIcon() {
+    // Lottie animation (highest priority)
+    if (widget.hasLottie) {
+      return Lottie.network(
+        widget.animationUrl!,
+        width: 48,
+        height: 48,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _buildIconFallback(),
+      );
+    }
+    // Static icon image
+    if (widget.iconUrl != null && widget.iconUrl!.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: widget.iconUrl!,
+        width: 48,
+        height: 48,
+        fit: BoxFit.contain,
+        errorWidget: (_, __, ___) => _buildIconFallback(),
+      );
+    }
+    return _buildIconFallback();
+  }
+
+  Widget _buildIconFallback() {
+    return Text(widget.emoji, style: const TextStyle(fontSize: 32));
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -103,8 +155,7 @@ class _GiftBurstState extends State<GiftBurst>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(widget.emoji,
-                    style: const TextStyle(fontSize: 26)),
+                _buildIcon(),
                 const SizedBox(width: 8),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

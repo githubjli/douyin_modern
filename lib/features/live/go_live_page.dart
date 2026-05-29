@@ -651,8 +651,20 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
         emoji: emoji,
         senderName: msg.senderName,
         label: msg.message,
+        iconUrl: _resolveGiftUrl(msg.payload['icon_url']?.toString()),
+        animationUrl: _resolveGiftUrl(msg.payload['animation_url']?.toString()),
+        animationType: msg.payload['animation_type']?.toString(),
       ));
     });
+  }
+
+  static String? _resolveGiftUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    final base = ApiClient.defaultBaseUrl.endsWith('/')
+        ? ApiClient.defaultBaseUrl.substring(0, ApiClient.defaultBaseUrl.length - 1)
+        : ApiClient.defaultBaseUrl;
+    return '$base${raw.startsWith('/') ? raw : '/$raw'}';
   }
 
   Future<void> _sendMessage() async {
@@ -763,6 +775,9 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
               emoji: g.emoji,
               senderName: g.senderName,
               label: g.label,
+              iconUrl: g.iconUrl,
+              animationUrl: g.animationUrl,
+              animationType: g.animationType,
               onDone: () {
                 if (mounted) setState(() => _activeGifts.removeWhere((x) => x.id == g.id));
               },

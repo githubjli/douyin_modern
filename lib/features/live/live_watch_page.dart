@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:video_player/video_player.dart';
@@ -448,6 +449,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
             emoji: giftEmojiFromPayload(msg.payload),
             senderName: msg.senderName,
             label: msg.message,
+            iconUrl: _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
+            animationUrl: _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
+            animationType: msg.payload['animation_type']?.toString(),
           ));
         });
       }
@@ -542,6 +546,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
                 emoji: giftEmojiFromPayload(msg.payload),
                 senderName: msg.senderName,
                 label: msg.message,
+                iconUrl: _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
+                animationUrl: _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
+                animationType: msg.payload['animation_type']?.toString(),
               ));
             });
           }
@@ -722,6 +729,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
                   emoji: g.emoji,
                   senderName: g.senderName,
                   label: g.label,
+                  iconUrl: g.iconUrl,
+                  animationUrl: g.animationUrl,
+                  animationType: g.animationType,
                   onDone: () {
                     if (mounted) {
                       setState(() => _activeGifts.removeWhere((x) => x.id == g.id));
@@ -1263,6 +1273,9 @@ class _LiveGift {
     required this.coinCost,
     required this.isActive,
     required this.sortOrder,
+    this.iconUrl,
+    this.animationUrl,
+    this.animationType,
   });
 
   final int id;
@@ -1272,17 +1285,39 @@ class _LiveGift {
   final int coinCost;
   final bool isActive;
   final int sortOrder;
+  final String? iconUrl;
+  final String? animationUrl;
+  final String? animationType; // 'lottie' | null
+
+  bool get hasLottie =>
+      animationType == 'lottie' &&
+      animationUrl != null &&
+      animationUrl!.isNotEmpty;
+
+  static String? _resolveUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    final base = ApiClient.defaultBaseUrl.endsWith('/')
+        ? ApiClient.defaultBaseUrl.substring(
+            0, ApiClient.defaultBaseUrl.length - 1)
+        : ApiClient.defaultBaseUrl;
+    return '$base${raw.startsWith('/') ? raw : '/$raw'}';
+  }
 
   factory _LiveGift.fromJson(Map<String, dynamic> json) {
     return _LiveGift(
       id: (json['id'] as num?)?.toInt() ?? 0,
       code: json['code']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
+      name: (json['display_name'] ?? json['name'])?.toString() ?? '',
       emoji: json['emoji']?.toString() ?? '🎁',
       coinCost: (json['coin_cost'] as num?)?.toInt() ??
+          (json['price'] as num?)?.toInt() ??
           (json['points_price'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] as bool? ?? true,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      iconUrl: _resolveUrl(json['icon_url']?.toString()),
+      animationUrl: _resolveUrl(json['animation_url']?.toString()),
+      animationType: json['animation_type']?.toString(),
     );
   }
 }
@@ -1321,6 +1356,12 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
   void dispose() {
     _tabs.dispose();
     super.dispose();
+  }
+
+  Widget _giftIconFallback(_LiveGift gift) {
+    return Center(
+      child: Text(gift.emoji, style: const TextStyle(fontSize: 26)),
+    );
   }
 
   @override
@@ -1435,8 +1476,25 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Text(gift.emoji,
-                    style: const TextStyle(fontSize: 26)),
+                // Icon: Lottie → network image → emoji fallback
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: gift.hasLottie
+                      ? Lottie.network(
+                          gift.animationUrl!,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => _giftIconFallback(gift),
+                        )
+                      : gift.iconUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: gift.iconUrl!,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) =>
+                                  _giftIconFallback(gift),
+                            )
+                          : _giftIconFallback(gift),
+                ),
                 const SizedBox(height: 3),
                 Text(gift.name,
                     style: const TextStyle(

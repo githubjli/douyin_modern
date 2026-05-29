@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -68,6 +69,9 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   // Title
   final TextEditingController _titleController = TextEditingController();
 
+  // Orientation
+  bool _isLandscape = false;
+
   // Gift animation
   final List<PendingGift> _activeGifts = [];
   int _nextGiftId = 0;
@@ -76,10 +80,20 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   void initState() {
     super.initState();
     _localRenderer.initialize();
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
   }
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _chatController.dispose();
     _titleController.dispose();
     _chatWs?.close();
@@ -89,6 +103,22 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       _amsClient?.close();
     }
     super.dispose();
+  }
+
+  void _toggleOrientation() {
+    final bool next = !_isLandscape;
+    setState(() => _isLandscape = next);
+    if (next) {
+      SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
   }
 
   // ── API calls ──────────────────────────────────────────────────────────────
@@ -687,11 +717,13 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           isFrontCamera: _isFrontCamera,
           canSwitchCamera: _localStream != null,
           isMuted: _isMuted,
+          isLandscape: _isLandscape,
           displayName: displayName,
           onSend: _sendMessage,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
           onToggleMute: _toggleMute,
+          onToggleOrientation: _toggleOrientation,
           formatDuration: _formatDuration,
         ),
       _ => _PrepareView(
@@ -703,12 +735,14 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           isFrontCamera: _isFrontCamera,
           canSwitchCamera: _localStream != null,
           isMuted: _isMuted,
+          isLandscape: _isLandscape,
           displayName: displayName,
           titleController: _titleController,
           onStart: _phase == _Phase.idle ? _quickStart : _goLive,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
           onToggleMute: _toggleMute,
+          onToggleOrientation: _toggleOrientation,
           onBack: () => Navigator.of(context).maybePop(),
         ),
     };
@@ -752,10 +786,12 @@ class _PrepareView extends StatelessWidget {
     required this.onBack,
     required this.onSwitchCamera,
     required this.onToggleMute,
+    required this.onToggleOrientation,
     required this.publishStarted,
     required this.isFrontCamera,
     required this.canSwitchCamera,
     required this.isMuted,
+    required this.isLandscape,
     required this.displayName,
     required this.titleController,
     this.localRenderer,
@@ -768,6 +804,7 @@ class _PrepareView extends StatelessWidget {
   final bool isFrontCamera;
   final bool canSwitchCamera;
   final bool isMuted;
+  final bool isLandscape;
   final String displayName;
   final TextEditingController titleController;
   final VoidCallback onStart;
@@ -775,6 +812,7 @@ class _PrepareView extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onSwitchCamera;
   final VoidCallback onToggleMute;
+  final VoidCallback onToggleOrientation;
   final RTCVideoRenderer? localRenderer;
 
   @override
@@ -858,11 +896,19 @@ class _PrepareView extends StatelessWidget {
                     _CircleButton(icon: Icons.flip_camera_ios_rounded, onTap: onSwitchCamera),
                     const SizedBox(width: AppSpacing.xs),
                   ],
-                  if (canSwitchCamera)
+                  if (canSwitchCamera) ...<Widget>[
                     _CircleButton(
                       icon: isMuted ? Icons.mic_off : Icons.mic,
                       onTap: onToggleMute,
                     ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  _CircleButton(
+                    icon: isLandscape
+                        ? Icons.stay_current_portrait_rounded
+                        : Icons.stay_current_landscape_rounded,
+                    onTap: onToggleOrientation,
+                  ),
                 ],
               ),
             ),
@@ -1113,11 +1159,13 @@ class _LiveView extends StatefulWidget {
     required this.isFrontCamera,
     required this.canSwitchCamera,
     required this.isMuted,
+    required this.isLandscape,
     required this.displayName,
     required this.onSend,
     required this.onEnd,
     required this.onSwitchCamera,
     required this.onToggleMute,
+    required this.onToggleOrientation,
     required this.formatDuration,
     this.localRenderer,
   });
@@ -1133,6 +1181,7 @@ class _LiveView extends StatefulWidget {
   final bool isFrontCamera;
   final bool canSwitchCamera;
   final bool isMuted;
+  final bool isLandscape;
   final String displayName;
   final int durationSeconds;
   final bool ending;
@@ -1140,6 +1189,7 @@ class _LiveView extends StatefulWidget {
   final VoidCallback onEnd;
   final VoidCallback onSwitchCamera;
   final VoidCallback onToggleMute;
+  final VoidCallback onToggleOrientation;
   final String Function(int) formatDuration;
 
   @override
@@ -1313,11 +1363,19 @@ class _LiveViewState extends State<_LiveView> {
                         const SizedBox(width: AppSpacing.xs),
                       ],
                       // Mute
+                      _CircleButton(
+                        icon: widget.isMuted ? Icons.mic_off : Icons.mic,
+                        onTap: widget.onToggleMute,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      // Orientation toggle
                       Padding(
                         padding: const EdgeInsets.only(right: AppSpacing.sm),
                         child: _CircleButton(
-                          icon: widget.isMuted ? Icons.mic_off : Icons.mic,
-                          onTap: widget.onToggleMute,
+                          icon: widget.isLandscape
+                              ? Icons.stay_current_portrait_rounded
+                              : Icons.stay_current_landscape_rounded,
+                          onTap: widget.onToggleOrientation,
                         ),
                       ),
                       // End button — gated by server can_end

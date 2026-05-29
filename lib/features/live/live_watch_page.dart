@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:video_player/video_player.dart';
@@ -100,6 +101,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
   Timer? _statusTimer;
   Timer? _chatFallbackTimer;
 
+  // ── Orientation ───────────────────────────────────────────────────────────
+  bool _isLandscape = false;
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   @override
@@ -107,11 +111,21 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
     super.initState();
     _remoteRenderer.initialize();
     _viewerCount = widget.item.viewerCount ?? 0;
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _loadWatchConfig();
   }
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _stopPolling();
     _webrtcTimeoutTimer?.cancel();
     _antGeneration++; // invalidate any in-flight callbacks
@@ -124,6 +138,22 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
     _chatInput.dispose();
     _chatScroll.dispose();
     super.dispose();
+  }
+
+  void _toggleOrientation() {
+    final bool next = !_isLandscape;
+    setState(() => _isLandscape = next);
+    if (next) {
+      SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
   }
 
   // ── Watch-config ──────────────────────────────────────────────────────────
@@ -761,6 +791,26 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
               _buildStreamerChip(),
               const Spacer(),
               _buildViewerBadge(),
+              const SizedBox(width: AppSpacing.xs),
+              GestureDetector(
+                onTap: _toggleOrientation,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Icon(
+                    _isLandscape
+                        ? Icons.stay_current_portrait_rounded
+                        : Icons.stay_current_landscape_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
               const SizedBox(width: AppSpacing.sm),
             ],
           ),

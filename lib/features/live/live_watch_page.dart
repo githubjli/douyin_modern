@@ -443,7 +443,8 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         if (msg.id > _lastChatId) _lastChatId = msg.id;
       });
       if (msg.isGift) {
-        final int giftId = (msg.payload['gift_id'] as num?)?.toInt() ?? 0;
+        final dynamic rawId = msg.payload['gift_id'];
+        final int giftId = rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '') ?? 0;
         final String giftCode = msg.payload['gift_code']?.toString() ?? '';
         final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
           (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
@@ -546,7 +547,8 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         });
         for (final msg in newMsgs) {
           if (msg.isGift && mounted) {
-            final int giftId = (msg.payload['gift_id'] as num?)?.toInt() ?? 0;
+            final dynamic rawId = msg.payload['gift_id'];
+            final int giftId = rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '') ?? 0;
             final String giftCode = msg.payload['gift_code']?.toString() ?? '';
             final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
               (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),

@@ -12,16 +12,20 @@ class PagedResult<T> {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Creator profile returned by GET /api/public/creators/{id}/
+/// Public user/creator profile returned by:
+///   GET /api/public/users/{id}/     — all users
+///   GET /api/public/creators/{id}/  — creators only (legacy)
 class PublicCreatorProfile {
   const PublicCreatorProfile({
     required this.id,
     required this.displayName,
+    this.username,
     this.avatarUrl,
     this.bio,
     this.isCreator = false,
     this.subscriberCount = 0,
     this.followerCount = 0,
+    this.followingCount = 0,
     this.videoCount = 0,
     this.likeCount = 0,
     this.viewerIsFollowing = false,
@@ -29,24 +33,54 @@ class PublicCreatorProfile {
 
   final int id;
   final String displayName;
+  final String? username;
   final String? avatarUrl;
   final String? bio;
   final bool isCreator;
   final int subscriberCount;
   final int followerCount;
+  final int followingCount;
   final int videoCount;
   final int likeCount;
   final bool viewerIsFollowing;
 
   factory PublicCreatorProfile.fromJson(Map<String, dynamic> json) {
+    // Display name: display_name > nickname > username
+    final String displayName = json['display_name']?.toString().trim().isNotEmpty == true
+        ? json['display_name'] as String
+        : json['nickname']?.toString().trim().isNotEmpty == true
+            ? json['nickname'] as String
+            : json['username']?.toString() ?? '';
+
+    // Avatar: avatar_url > avatar
+    final String? avatarUrl = (json['avatar_url'] as String?)?.trim().isNotEmpty == true
+        ? json['avatar_url'] as String
+        : (json['avatar'] as String?)?.trim().isNotEmpty == true
+            ? json['avatar'] as String
+            : null;
+
+    // Bio: bio > description
+    final String? bio = (json['bio'] as String?)?.trim().isNotEmpty == true
+        ? json['bio'] as String
+        : (json['description'] as String?)?.trim().isNotEmpty == true
+            ? json['description'] as String
+            : null;
+
+    // Follower count: follower_count > followers_count
+    final int followerCount =
+        (json['follower_count'] as num?)?.toInt() ??
+        (json['followers_count'] as num?)?.toInt() ?? 0;
+
     return PublicCreatorProfile(
       id: (json['id'] as num).toInt(),
-      displayName: json['display_name'] as String? ?? '',
-      avatarUrl: json['avatar_url'] as String?,
-      bio: json['bio'] as String?,
+      displayName: displayName,
+      username: json['username']?.toString(),
+      avatarUrl: avatarUrl,
+      bio: bio,
       isCreator: json['is_creator'] as bool? ?? false,
       subscriberCount: (json['subscriber_count'] as num?)?.toInt() ?? 0,
-      followerCount: (json['follower_count'] as num?)?.toInt() ?? 0,
+      followerCount: followerCount,
+      followingCount: (json['following_count'] as num?)?.toInt() ?? 0,
       videoCount: (json['video_count'] as num?)?.toInt() ?? 0,
       likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
       viewerIsFollowing: json['viewer_is_following'] as bool? ?? false,
@@ -57,11 +91,13 @@ class PublicCreatorProfile {
     return PublicCreatorProfile(
       id: id,
       displayName: displayName,
+      username: username,
       avatarUrl: avatarUrl,
       bio: bio,
       isCreator: isCreator,
       subscriberCount: subscriberCount,
       followerCount: followerCount ?? this.followerCount,
+      followingCount: followingCount,
       videoCount: videoCount,
       likeCount: likeCount,
       viewerIsFollowing: viewerIsFollowing ?? this.viewerIsFollowing,

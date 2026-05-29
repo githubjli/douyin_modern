@@ -60,6 +60,12 @@ class Endpoints {
       '/api/creators/$creatorId/follow/';
 
   // Public creator profile
+  static String publicUserProfile(int id) => '/api/public/users/$id/';
+
+  static String userFollowers(int id) => '/api/public/users/$id/followers/';
+
+  static String userFollowing(int id) => '/api/public/users/$id/following/';
+
   static String publicCreatorProfile(int id) => '/api/public/creators/$id/';
 
   static String publicCreatorVideos(int id) =>
@@ -116,6 +122,8 @@ class Endpoints {
   static String liveEnd(String id) => '/api/live/$id/end/';
 
   static String liveChatMessages(String id) => '/api/live/$id/chat/messages/';
+
+  static String liveGifts(String id) => '/api/live/$id/gifts/';
 
   static String liveGiftSend(String id) => '/api/live/$id/gifts/send/';
 

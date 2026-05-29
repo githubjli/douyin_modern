@@ -443,15 +443,21 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         if (msg.id > _lastChatId) _lastChatId = msg.id;
       });
       if (msg.isGift) {
+        final int giftId = (msg.payload['gift_id'] as num?)?.toInt() ?? 0;
+        final String giftCode = msg.payload['gift_code']?.toString() ?? '';
+        final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
+          (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
+          orElse: () => null,
+        );
         setState(() {
           _activeGifts.add(PendingGift(
             id: _nextGiftId++,
-            emoji: giftEmojiFromPayload(msg.payload),
+            emoji: catalogGift?.emoji ?? giftEmojiFromPayload(msg.payload),
             senderName: msg.senderName,
             label: msg.message,
-            iconUrl: _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
-            animationUrl: _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
-            animationType: msg.payload['animation_type']?.toString(),
+            iconUrl: catalogGift?.iconUrl ?? _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
+            animationUrl: catalogGift?.animationUrl ?? _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
+            animationType: catalogGift?.animationType ?? msg.payload['animation_type']?.toString(),
           ));
         });
       }
@@ -540,15 +546,21 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         });
         for (final msg in newMsgs) {
           if (msg.isGift && mounted) {
+            final int giftId = (msg.payload['gift_id'] as num?)?.toInt() ?? 0;
+            final String giftCode = msg.payload['gift_code']?.toString() ?? '';
+            final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
+              (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
+              orElse: () => null,
+            );
             setState(() {
               _activeGifts.add(PendingGift(
                 id: _nextGiftId++,
-                emoji: giftEmojiFromPayload(msg.payload),
+                emoji: catalogGift?.emoji ?? giftEmojiFromPayload(msg.payload),
                 senderName: msg.senderName,
                 label: msg.message,
-                iconUrl: _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
-                animationUrl: _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
-                animationType: msg.payload['animation_type']?.toString(),
+                iconUrl: catalogGift?.iconUrl ?? _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
+                animationUrl: catalogGift?.animationUrl ?? _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
+                animationType: catalogGift?.animationType ?? msg.payload['animation_type']?.toString(),
               ));
             });
           }

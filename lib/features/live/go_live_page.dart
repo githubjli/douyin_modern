@@ -40,6 +40,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   String? _error;
   Timer? _statusTimer;
   Timer? _durationTimer;
+  Timer? _chatFallbackTimer;
   int _durationSeconds = 0;
   int _lastChatId = 0;
   int _startRetries = 0;
@@ -176,9 +177,9 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       stream = await navigator.mediaDevices.getUserMedia(<String, dynamic>{
         'audio': true,
         'video': <String, dynamic>{
-          'width': <String, dynamic>{'ideal': 1280},
-          'height': <String, dynamic>{'ideal': 720},
-          'frameRate': <String, dynamic>{'ideal': 30},
+          'width': <String, dynamic>{'ideal': 854, 'max': 1280},
+          'height': <String, dynamic>{'ideal': 480, 'max': 720},
+          'frameRate': <String, dynamic>{'ideal': 24, 'max': 30},
           'facingMode': 'user',
         },
       });
@@ -434,6 +435,10 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _durationSeconds++);
     });
+    // Chat fallback: poll every 5 s when WS is not connected.
+    _chatFallbackTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!_chatWsConnected) _pollChat();
+    });
     _pollStatus();
     // Fetch initial chat history via REST, then hand off to WebSocket.
     _pollChat().then((_) => _connectChatWs());
@@ -442,6 +447,7 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   void _stopPolling() {
     _statusTimer?.cancel();
     _durationTimer?.cancel();
+    _chatFallbackTimer?.cancel();
     _chatWs?.close();
     _chatWs = null;
   }

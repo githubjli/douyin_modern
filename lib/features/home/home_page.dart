@@ -138,6 +138,12 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
     }
 
+    // When network fails and we already have live data, keep it so cached
+    // images (via CachedNetworkImage) remain visible instead of being replaced
+    // by mock placeholder data with no imageUrls.
+    if (portal == null && usingPortalFallback && _data != null && !_isEmpty(_data!)) {
+      portal = _data;
+    }
     portal ??= await widget.mockRepository.getHomePortalData();
     final HomePortalData loadedPortal = portal;
     final List<HomeVideoItem> localNewsVideos =

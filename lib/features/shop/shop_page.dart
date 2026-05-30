@@ -28,10 +28,13 @@ class ShopPage extends ConsumerStatefulWidget {
     super.key,
     this.useRemote = true,
     this.repository,
+    this.networkRefreshTrigger = 0,
   });
 
   final bool useRemote;
   final ShopRepository? repository;
+  /// Incremented by the shell when network connectivity is restored.
+  final int networkRefreshTrigger;
 
   @override
   ConsumerState<ShopPage> createState() => _ShopPageState();
@@ -61,6 +64,14 @@ class _ShopPageState extends ConsumerState<ShopPage> {
             ? RemoteShopRepository(apiClient: ApiClient())
             : const MockShopRepository());
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant ShopPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.networkRefreshTrigger != widget.networkRefreshTrigger) {
+      _load();
+    }
   }
 
   @override

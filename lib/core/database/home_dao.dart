@@ -4,14 +4,13 @@ import 'package:drift/drift.dart';
 
 import '../../features/home/domain/home_models.dart';
 import 'app_database.dart';
+import 'cache_config.dart';
 
 part 'home_dao.g.dart';
 
 @DriftAccessor(tables: [HomeCacheTable])
 class HomeDao extends DatabaseAccessor<AppDatabase> with _$HomeDaoMixin {
   HomeDao(super.db);
-
-  static const Duration _ttl = Duration(hours: 2);
 
   Future<void> save(HomePortalData data) =>
       into(homeCacheTable).insertOnConflictUpdate(
@@ -29,7 +28,7 @@ class HomeDao extends DatabaseAccessor<AppDatabase> with _$HomeDaoMixin {
         .getSingleOrNull();
     if (row == null) return null;
     final age = DateTime.now().millisecondsSinceEpoch - row.cachedAt;
-    if (age > _ttl.inMilliseconds) return null;
+    if (age > CacheConfig.ttl.inMilliseconds) return null;
     return _decode(row.json);
   }
 

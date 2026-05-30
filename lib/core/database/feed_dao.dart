@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../features/feed/domain/feed_item.dart';
 import 'app_database.dart';
+import 'cache_config.dart';
 
 part 'feed_dao.g.dart';
 
@@ -11,7 +12,6 @@ part 'feed_dao.g.dart';
 class FeedDao extends DatabaseAccessor<AppDatabase> with _$FeedDaoMixin {
   FeedDao(super.db);
 
-  static const Duration _ttl = Duration(hours: 2);
   static const String _lastIndexKey = 'last_index';
 
   // ------------------------------------------------------------------
@@ -73,7 +73,7 @@ class FeedDao extends DatabaseAccessor<AppDatabase> with _$FeedDaoMixin {
 
   bool _isExpired(int cachedAtMs) {
     final age = DateTime.now().millisecondsSinceEpoch - cachedAtMs;
-    return age > _ttl.inMilliseconds;
+    return age > CacheConfig.ttl.inMilliseconds;
   }
 
   // ------------------------------------------------------------------

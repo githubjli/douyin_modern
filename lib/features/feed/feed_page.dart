@@ -3,21 +3,23 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/route_observer.dart';
 import '../../app/theme/app_colors.dart';
+import '../../core/database/database_provider.dart';
+import '../../core/database/feed_dao.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../../shared/danmaku_overlay.dart';
 import '../drama_player/drama_player_page.dart';
-import 'data/feed_cache.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
 import 'domain/feed_item.dart';
 import 'domain/feed_repository.dart';
 
-class FeedPage extends StatefulWidget {
+class FeedPage extends ConsumerStatefulWidget {
   const FeedPage({
     super.key,
     this.enableVideo = true,
@@ -26,7 +28,6 @@ class FeedPage extends StatefulWidget {
     this.enableRemoteFeed = true,
     this.isActive = true,
     this.networkRefreshTrigger = 0,
-    this.feedCache,
   });
 
   final bool enableVideo;
@@ -37,22 +38,18 @@ class FeedPage extends StatefulWidget {
   /// Incremented by the shell when network connectivity is restored.
   /// FeedPage reloads automatically whenever this value changes.
   final int networkRefreshTrigger;
-  /// Injectable for tests; production code uses the default (SQLite-backed).
-  final FeedCache? feedCache;
 
   @override
-  State<FeedPage> createState() => _FeedPageState();
+  ConsumerState<FeedPage> createState() => _FeedPageState();
 }
 
-class _FeedPageState extends State<FeedPage> with RouteAware {
+class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   late final PageController _pageController;
   final Map<int, VideoPlayerController> _controllers =
       <int, VideoPlayerController>{};
 
   late final ApiClient _apiClient;
   late final FeedRepository _remoteRepository;
-
-  late final FeedCache _feedCache;
 
   int _currentIndex = 0;
   List<FeedItem> _items = const <FeedItem>[];
@@ -64,12 +61,13 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
   final Set<int> _viewedSeriesIds = <int>{};
   List<String> _danmakuComments = const <String>[];
 
+  FeedDao get _dao => ref.read(feedDaoProvider);
+
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
     _apiClient = ApiClient();
-    _feedCache = widget.feedCache ?? FeedCache();
     _remoteRepository = widget.remoteRepository ??
         RemoteFeedRepository(apiClient: _apiClient);
     _loadFeed();
@@ -98,9 +96,9 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
 
   Future<void> _loadFeed() async {
     // Step 1: show valid (within TTL) cache instantly — no spinner.
-    final List<FeedItem>? cached = await _feedCache.loadFeed();
+    final List<FeedItem>? cached = await _dao.loadFeed();
     if (cached != null && cached.isNotEmpty && mounted) {
-      final int lastIndex = await _feedCache.loadLastIndex();
+      final int lastIndex = await _dao.loadLastIndex();
       setState(() {
         _items = cached;
         _loading = false;
@@ -126,7 +124,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
             .toList();
 
         if (fresh.isNotEmpty) {
-          await _feedCache.saveFeed(fresh);
+          await _dao.saveFeed(fresh);
           if (!mounted) return;
           setState(() {
             _items = fresh;
@@ -157,9 +155,9 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
       });
     } else {
       // TTL expired or no cache — try loading stale cache before empty state.
-      final List<FeedItem>? stale = await _feedCache.loadStale();
+      final List<FeedItem>? stale = await _dao.loadStale();
       if (stale != null && stale.isNotEmpty && mounted) {
-        final int lastIndex = await _feedCache.loadLastIndex();
+        final int lastIndex = await _dao.loadLastIndex();
         setState(() {
           _items = stale;
           _loading = false;
@@ -190,7 +188,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     if (ctrl == null || !ctrl.value.isInitialized) return;
     final int seconds = ctrl.value.position.inSeconds;
     if (seconds > 0) {
-      unawaited(_feedCache.saveProgress(episodeId, seconds));
+      unawaited(_dao.saveProgress(episodeId, seconds));
     }
   }
 
@@ -268,7 +266,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     // Restore saved progress for this episode.
     final int? episodeId = _items[index].episodeId;
     if (episodeId != null) {
-      final int? savedSeconds = await _feedCache.loadProgress(episodeId);
+      final int? savedSeconds = await _dao.loadProgress(episodeId);
       if (savedSeconds != null && savedSeconds > 0) {
         final Duration total = controller.value.duration;
         final Duration seek = Duration(seconds: savedSeconds);
@@ -379,7 +377,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
           onPageChanged: (int index) {
             _saveCurrentProgress();
             _currentIndex = index;
-            unawaited(_feedCache.saveLastIndex(index));
+            unawaited(_dao.saveLastIndex(index));
             if (widget.enableVideo) {
               _activateIndex(index, autoPlay: widget.isActive);
             } else {

@@ -81,9 +81,16 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
-          if (from < 2) {
-            await m.createTable(homeCacheTable);
-            await m.createTable(shopCacheTable);
+          try {
+            if (from < 2) {
+              await m.createTable(homeCacheTable);
+              await m.createTable(shopCacheTable);
+            }
+          } catch (e, st) {
+            // Migration failure must not crash the app. Cache tables will be
+            // empty until the next successful network fetch rebuilds them.
+            // ignore: avoid_print
+            print('[DB] migration error from=$from to=$to: $e\n$st');
           }
         },
       );

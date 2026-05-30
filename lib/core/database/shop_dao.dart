@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../features/shop/domain/shop_models.dart';
 import 'app_database.dart';
+import 'cache_config.dart';
 
 part 'shop_dao.g.dart';
 
@@ -42,8 +43,6 @@ class ShopSnapshot {
 class ShopDao extends DatabaseAccessor<AppDatabase> with _$ShopDaoMixin {
   ShopDao(super.db);
 
-  static const Duration _ttl = Duration(hours: 2);
-
   Future<void> save(ShopSnapshot snapshot) =>
       into(shopCacheTable).insertOnConflictUpdate(
         ShopCacheTableCompanion(
@@ -59,7 +58,7 @@ class ShopDao extends DatabaseAccessor<AppDatabase> with _$ShopDaoMixin {
         .getSingleOrNull();
     if (row == null) return null;
     final age = DateTime.now().millisecondsSinceEpoch - row.cachedAt;
-    if (age > _ttl.inMilliseconds) return null;
+    if (age > CacheConfig.ttl.inMilliseconds) return null;
     return _decode(row.json);
   }
 

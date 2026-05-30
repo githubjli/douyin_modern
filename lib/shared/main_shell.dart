@@ -6,11 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../app/theme/app_colors.dart';
-import '../core/database/database_provider.dart';
 import '../core/network/connectivity_provider.dart';
 import '../features/creator_studio/pages/create_drama_page.dart';
 import '../features/creator_studio/pages/upload_video_page.dart';
-import '../features/feed/data/feed_cache.dart';
 import '../features/feed/feed_page.dart';
 import '../features/home/home_page.dart';
 import '../features/home/domain/home_repository.dart';
@@ -123,7 +121,6 @@ class MainShell extends ConsumerWidget {
 
     final int displayIndex = index >= 2 ? index - 1 : index;
     final int networkTrigger = ref.watch(networkRefreshTriggerProvider);
-    final feedCache = FeedCache(db: ref.watch(appDatabaseProvider));
     final List<Widget> displayPages = <Widget>[
       HomePage(
         useRemote: enableRemoteHome,
@@ -137,7 +134,6 @@ class MainShell extends ConsumerWidget {
         enableRemoteFeed: enableRemoteFeed,
         isActive: index == 1,
         networkRefreshTrigger: networkTrigger,
-        feedCache: feedCache,
       ),
       MembershipPage(
         useRemote: enableRemoteMembership,

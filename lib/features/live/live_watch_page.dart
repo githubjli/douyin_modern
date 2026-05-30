@@ -573,6 +573,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
               ));
             });
           }
+          if (msg.isProduct && mounted) _handleProductMessage(msg);
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_chatScroll.hasClients) {
@@ -1132,8 +1133,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
   }
 
   void _handleProductMessage(LiveChatMessage msg) {
+    if (msg.payload.isEmpty) return;
     try {
-      final ShopProduct product = ShopProduct.fromJson(msg.payload);
+      final ShopProduct product = ShopProduct.fromLivePayload(msg.payload);
       if (!_featuredProducts.any((p) => p.id == product.id)) {
         setState(() => _featuredProducts.add(product));
       }

@@ -84,13 +84,36 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   final List<ShopProduct> _pinnedProducts = [];
 
   void _toggleProduct(ShopProduct p) {
-    setState(() {
-      if (_pinnedProducts.any((x) => x.id == p.id)) {
-        _pinnedProducts.removeWhere((x) => x.id == p.id);
-      } else if (_pinnedProducts.length < 5) {
-        _pinnedProducts.add(p);
+    final bool isAdding = !_pinnedProducts.any((x) => x.id == p.id);
+    if (isAdding) {
+      if (_pinnedProducts.length >= 5) return;
+      setState(() => _pinnedProducts.add(p));
+      _broadcastProduct(p);
+    } else {
+      setState(() => _pinnedProducts.removeWhere((x) => x.id == p.id));
+    }
+  }
+
+  Future<void> _broadcastProduct(ShopProduct p) async {
+    final String? id = _session?.id;
+    if (id == null || id.isEmpty) return;
+    try {
+      await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveChatMessages(id),
+        data: <String, dynamic>{'message_type': 'product', 'product_id': p.id},
+        authenticated: true,
+      );
+    } catch (e) {
+      debugPrint('[GoLive] Failed to broadcast product ${p.id}: $e');
+      if (mounted) {
+        setState(() => _pinnedProducts.removeWhere((x) => x.id == p.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to feature product. Please try again.'),
+          ),
+        );
       }
-    });
+    }
   }
 
   Future<void> _showProductPicker() async {

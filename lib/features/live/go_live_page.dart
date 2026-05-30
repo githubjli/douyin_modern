@@ -99,13 +99,16 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     final String? id = _session?.id;
     if (id == null || id.isEmpty) return;
     try {
+      // Step 1: bind product to live session
+      await _bindProduct(id, p.id);
+      // Step 2: send product chat message so viewers see it
       await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveChatMessages(id),
         data: <String, dynamic>{'message_type': 'product', 'product_id': p.id},
         authenticated: true,
       );
     } catch (e) {
-      debugPrint('[GoLive] Failed to broadcast product ${p.id}: $e');
+      debugPrint('[GoLive] Failed to feature product ${p.id}: $e');
       final String msg = e is ApiError
           ? e.message
           : e.toString().replaceFirst('Exception: ', '');
@@ -115,6 +118,28 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           SnackBar(content: Text(msg)),
         );
       }
+    }
+  }
+
+  /// Bind product to live session. If the binding already exists the backend
+  /// returns a 400 with a known message — treat that as success so the chat
+  /// message can still be sent.
+  Future<void> _bindProduct(String liveId, int productId) async {
+    try {
+      await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveProductsManage(liveId),
+        data: <String, dynamic>{
+          'product_id': productId,
+          'sort_order': 0,
+          'is_pinned': false,
+          'is_active': true,
+        },
+        authenticated: true,
+      );
+    } on ApiError catch (e) {
+      // "Active product binding already exists" → binding is in place, continue.
+      if (e.message.toLowerCase().contains('already exists')) return;
+      rethrow;
     }
   }
 

@@ -99,13 +99,16 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
     final String? id = _session?.id;
     if (id == null || id.isEmpty) return;
     try {
+      // Step 1: bind product to live session
+      await _bindProduct(id, p.id);
+      // Step 2: send product chat message so viewers see it
       await ref.read(apiClientProvider).post<dynamic>(
         Endpoints.liveChatMessages(id),
         data: <String, dynamic>{'message_type': 'product', 'product_id': p.id},
         authenticated: true,
       );
     } catch (e) {
-      debugPrint('[GoLive] Failed to broadcast product ${p.id}: $e');
+      debugPrint('[GoLive] Failed to feature product ${p.id}: $e');
       final String msg = e is ApiError
           ? e.message
           : e.toString().replaceFirst('Exception: ', '');
@@ -115,6 +118,28 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           SnackBar(content: Text(msg)),
         );
       }
+    }
+  }
+
+  /// Bind product to live session. If the binding already exists the backend
+  /// returns a 400 with a known message — treat that as success so the chat
+  /// message can still be sent.
+  Future<void> _bindProduct(String liveId, int productId) async {
+    try {
+      await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveProductsManage(liveId),
+        data: <String, dynamic>{
+          'product_id': productId,
+          'sort_order': 0,
+          'is_pinned': false,
+          'is_active': true,
+        },
+        authenticated: true,
+      );
+    } on ApiError catch (e) {
+      // "Active product binding already exists" → binding is in place, continue.
+      if (e.message.toLowerCase().contains('already exists')) return;
+      rethrow;
     }
   }
 
@@ -2243,13 +2268,19 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
   bool _loading = true;
   String? _error;
 
-  // Local copy of pinned ids so toggling updates immediately without rebuild.
-  late Set<int> _localPinnedIds;
+  // Pending selection — changes only committed on Confirm.
+  late Set<int> _selectedIds;
+
+  // Map for O(1) lookup when building confirm list.
+  final Map<int, ShopProduct> _productMap = <int, ShopProduct>{};
+
+  int get _newCount =>
+      _selectedIds.where((id) => !widget.pinnedIds.contains(id)).length;
 
   @override
   void initState() {
     super.initState();
-    _localPinnedIds = Set<int>.from(widget.pinnedIds);
+    _selectedIds = Set<int>.from(widget.pinnedIds);
     _load();
   }
 
@@ -2261,6 +2292,9 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
       if (!mounted) return;
       setState(() {
         _products = page.items;
+        for (final p in page.items) {
+          _productMap[p.id] = p;
+        }
         _loading = false;
       });
     } catch (e) {
@@ -2270,6 +2304,24 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
         _loading = false;
       });
     }
+  }
+
+  void _confirm() {
+    // Only broadcast newly added products (not already pinned).
+    for (final id in _selectedIds) {
+      if (!widget.pinnedIds.contains(id)) {
+        final ShopProduct? p = _productMap[id];
+        if (p != null) widget.onToggle(p);
+      }
+    }
+    // Also remove products that were unpinned in this session.
+    for (final id in widget.pinnedIds) {
+      if (!_selectedIds.contains(id)) {
+        final ShopProduct? p = _productMap[id];
+        if (p != null) widget.onToggle(p);
+      }
+    }
+    Navigator.of(context).pop();
   }
 
   @override
@@ -2303,11 +2355,8 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: <Widget>[
-              const Icon(
-                Icons.shopping_bag_outlined,
-                color: AppColors.brandGold,
-                size: 18,
-              ),
+              const Icon(Icons.shopping_bag_outlined,
+                  color: AppColors.brandGold, size: 18),
               const SizedBox(width: AppSpacing.xs),
               const Text(
                 'Feature Products',
@@ -2319,11 +2368,8 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
               ),
               const Spacer(),
               Text(
-                '${_localPinnedIds.length}/5 selected',
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
-                ),
+                '${_selectedIds.length}/5 selected',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ],
           ),
@@ -2333,39 +2379,42 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
               padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
               child: Center(
                 child: CircularProgressIndicator(
-                  color: AppColors.brandGold,
-                  strokeWidth: 2,
-                ),
+                    color: AppColors.brandGold, strokeWidth: 2),
               ),
             )
           else if (_error != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
               child: Center(
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.white54),
-                ),
+                child: Text(_error!,
+                    style: const TextStyle(color: Colors.white54)),
               ),
             )
           else
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
+              constraints: const BoxConstraints(maxHeight: 320),
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: _products.length,
-                separatorBuilder: (_, __) => const Divider(
-                  height: 1,
-                  color: Colors.white12,
-                ),
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, color: Colors.white12),
                 itemBuilder: (_, int i) {
                   final ShopProduct p = _products[i];
-                  final bool pinned = _localPinnedIds.contains(p.id);
+                  final bool selected = _selectedIds.contains(p.id);
                   final bool maxReached =
-                      _localPinnedIds.length >= 5 && !pinned;
+                      _selectedIds.length >= 5 && !selected;
                   return ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 4, horizontal: 0),
+                    onTap: maxReached
+                        ? null
+                        : () => setState(() {
+                              if (selected) {
+                                _selectedIds.remove(p.id);
+                              } else {
+                                _selectedIds.add(p.id);
+                              }
+                            }),
                     leading: p.thumbnailUrl != null
                         ? ClipRoundedRect(
                             radius: 6,
@@ -2383,11 +2432,8 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
                               color: Colors.white10,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Icon(
-                              Icons.inventory_2_outlined,
-                              color: Colors.white38,
-                              size: 22,
-                            ),
+                            child: const Icon(Icons.inventory_2_outlined,
+                                color: Colors.white38, size: 22),
                           ),
                     title: Text(
                       p.name,
@@ -2404,52 +2450,62 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
                           ? '${p.meowPointsPrice} MP'
                           : p.price,
                       style: TextStyle(
-                        color: maxReached
-                            ? Colors.white24
-                            : AppColors.brandGold,
+                        color: maxReached ? Colors.white24 : AppColors.brandGold,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    trailing: GestureDetector(
-                      onTap: maxReached
-                          ? null
-                          : () {
-                              widget.onToggle(p);
-                              setState(() {
-                                if (pinned) {
-                                  _localPinnedIds.remove(p.id);
-                                } else {
-                                  _localPinnedIds.add(p.id);
-                                }
-                              });
-                            },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: pinned
-                              ? AppColors.brandGold
-                              : Colors.white.withAlpha(maxReached ? 15 : 30),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: pinned
-                                ? AppColors.brandGold
-                                : Colors.white24,
-                          ),
+                    trailing: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.brandGold
+                            : Colors.white.withAlpha(maxReached ? 15 : 30),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color:
+                              selected ? AppColors.brandGold : Colors.white24,
                         ),
-                        child: Icon(
-                          pinned ? Icons.check : Icons.add,
-                          size: 14,
-                          color: pinned ? Colors.black : Colors.white,
-                        ),
+                      ),
+                      child: Icon(
+                        selected ? Icons.check : Icons.add,
+                        size: 14,
+                        color: selected ? Colors.black : Colors.white,
                       ),
                     ),
                   );
                 },
               ),
             ),
+          const SizedBox(height: AppSpacing.md),
+          // Confirm button
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: ElevatedButton(
+              onPressed: (_loading || _newCount == 0) ? null : _confirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brandGold,
+                disabledBackgroundColor: Colors.white12,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+              child: Text(
+                _newCount > 0
+                    ? 'Feature $_newCount product${_newCount > 1 ? 's' : ''}'
+                    : 'Select products to feature',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

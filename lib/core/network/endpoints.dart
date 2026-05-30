@@ -123,6 +123,11 @@ class Endpoints {
 
   static String liveChatMessages(String id) => '/api/live/$id/chat/messages/';
 
+  static String liveProductsManage(String id) =>
+      '/api/live/$id/products/manage/';
+
+  static String liveProducts(String id) => '/api/live/$id/products/';
+
   static String liveGifts(String id) => '/api/live/$id/gifts/';
 
   static String liveGiftSend(String id) => '/api/live/$id/gifts/send/';

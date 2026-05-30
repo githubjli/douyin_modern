@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,16 +14,16 @@ import 'package:meow_media/features/auth/application/auth_providers.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
 import 'package:meow_media/features/auth/domain/auth_session.dart';
 
-/// Builds a ProviderScope that replaces the real SQLite database with an
-/// in-memory instance so widget tests don't access the file system.
+/// Builds a ProviderScope with a fresh in-memory database per test,
+/// ensuring no state leaks between tests.
 Widget _scoped({
   required Widget child,
   List<dynamic> overrides = const [],
 }) {
-  final db = AppDatabase(NativeDatabase.memory());
   return ProviderScope(
     overrides: [
-      appDatabaseProvider.overrideWithValue(db),
+      appDatabaseProvider
+          .overrideWithValue(AppDatabase(NativeDatabase.memory())),
       ...overrides.cast(),
     ],
     child: child,
@@ -30,6 +31,11 @@ Widget _scoped({
 }
 
 void main() {
+  // Suppress Drift's multiple-instance warning in tests — each test
+  // intentionally gets its own fresh in-memory DB to prevent state pollution.
+  setUpAll(() {
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  });
   testWidgets('app shell renders polished bottom navigation',
       (WidgetTester tester) async {
     await tester.pumpWidget(

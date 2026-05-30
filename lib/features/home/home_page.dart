@@ -57,6 +57,7 @@ class HomePage extends ConsumerStatefulWidget {
     this.mockRepository = const MockHomeRepository(),
     this.onSignInPressed,
     this.onSubscribePressed,
+    this.networkRefreshTrigger = 0,
   });
 
   final bool useRemote;
@@ -64,6 +65,8 @@ class HomePage extends ConsumerStatefulWidget {
   final HomeRepository mockRepository;
   final VoidCallback? onSignInPressed;
   final VoidCallback? onSubscribePressed;
+  /// Incremented by the shell when network connectivity is restored.
+  final int networkRefreshTrigger;
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -111,6 +114,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     _remoteRepo =
         widget.remoteRepository ?? RemoteHomeRepository(apiClient: ApiClient());
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.networkRefreshTrigger != widget.networkRefreshTrigger) {
+      _load();
+    }
   }
 
   Future<void> _load() async {

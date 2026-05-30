@@ -290,7 +290,10 @@ class ApiClient {
       if (data['message'] is String) {
         message = data['message'] as String;
       } else if (data['detail'] is String) {
-        message = data['detail'] as String;
+        message = _stripPythonList(data['detail'] as String);
+      } else if (data['detail'] is List) {
+        final List<dynamic> list = data['detail'] as List<dynamic>;
+        if (list.isNotEmpty) message = list.first.toString();
       } else {
         // Field-level validation errors: {"email": ["msg"], "password": ["msg"]}
         final StringBuffer sb = StringBuffer();
@@ -311,5 +314,18 @@ class ApiClient {
     }
 
     return ApiError(message: message, statusCode: statusCode, code: code);
+  }
+
+  /// Strips Python-style list strings that Django sometimes serialises into
+  /// the `detail` field: "['msg']" → "msg"
+  static String _stripPythonList(String s) {
+    final String t = s.trim();
+    if (t.startsWith("['") && t.endsWith("']")) {
+      return t.substring(2, t.length - 2);
+    }
+    if (t.startsWith('["') && t.endsWith('"]')) {
+      return t.substring(2, t.length - 2);
+    }
+    return s;
   }
 }

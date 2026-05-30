@@ -97,17 +97,29 @@ class _ShopPageState extends State<ShopPage> {
       productPage = results[2] as ShopProductPage;
     } catch (_) {
       if (!widget.useRemote) rethrow;
-      try {
-        const MockShopRepository mock = MockShopRepository();
-        final results = await Future.wait(<Future<dynamic>>[
-          mock.getBanners(),
-          mock.getCategories(),
-          mock.getProducts(page: 1),
-        ]);
-        banners = results[0] as List<ShopBanner>;
-        categories = results[1] as List<ShopCategory>;
-        productPage = results[2] as ShopProductPage;
-      } catch (_) {}
+      // If we already have live data, keep it so cached images stay visible.
+      if (_banners.isNotEmpty || _products.isNotEmpty) {
+        banners = _banners;
+        categories = _categories;
+        productPage = ShopProductPage(
+          items: _products,
+          count: _totalCount,
+          page: _page,
+          pageSize: 20,
+        );
+      } else {
+        try {
+          const MockShopRepository mock = MockShopRepository();
+          final results = await Future.wait(<Future<dynamic>>[
+            mock.getBanners(),
+            mock.getCategories(),
+            mock.getProducts(page: 1),
+          ]);
+          banners = results[0] as List<ShopBanner>;
+          categories = results[1] as List<ShopCategory>;
+          productPage = results[2] as ShopProductPage;
+        } catch (_) {}
+      }
     }
 
     if (!mounted) return;

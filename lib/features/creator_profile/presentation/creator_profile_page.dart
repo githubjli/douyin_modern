@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
@@ -1150,7 +1151,7 @@ class _Thumbnail extends StatelessWidget {
         ),
       );
     }
-    return CachedNetworkImage(
+    return AppCachedImage(
       imageUrl: trimmed,
       fit: BoxFit.cover,
       placeholder: (_, __) => const ColoredBox(color: Color(0xFF343332)),

@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -846,7 +846,7 @@ class _VipCardCover extends StatelessWidget {
     if (trimmedUrl == null || trimmedUrl.isEmpty) {
       return _VipGradient(colors: colors ?? _defaultVipGradientColors);
     }
-    return CachedNetworkImage(
+    return AppCachedImage(
       imageUrl: trimmedUrl,
       fit: BoxFit.cover,
       placeholder: (_, __) =>

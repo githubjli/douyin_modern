@@ -279,8 +279,14 @@ class $FeedProgressTableTable extends FeedProgressTable
   late final GeneratedColumn<int> positionSeconds = GeneratedColumn<int>(
       'position_seconds', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _savedAtMeta =
+      const VerificationMeta('savedAt');
   @override
-  List<GeneratedColumn> get $columns => [episodeId, positionSeconds];
+  late final GeneratedColumn<int> savedAt = GeneratedColumn<int>(
+      'saved_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [episodeId, positionSeconds, savedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -304,6 +310,12 @@ class $FeedProgressTableTable extends FeedProgressTable
     } else if (isInserting) {
       context.missing(_positionSecondsMeta);
     }
+    if (data.containsKey('saved_at')) {
+      context.handle(_savedAtMeta,
+          savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta));
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
     return context;
   }
 
@@ -317,6 +329,8 @@ class $FeedProgressTableTable extends FeedProgressTable
           .read(DriftSqlType.int, data['${effectivePrefix}episode_id'])!,
       positionSeconds: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}position_seconds'])!,
+      savedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}saved_at'])!,
     );
   }
 
@@ -330,13 +344,17 @@ class FeedProgressTableData extends DataClass
     implements Insertable<FeedProgressTableData> {
   final int episodeId;
   final int positionSeconds;
+  final int savedAt;
   const FeedProgressTableData(
-      {required this.episodeId, required this.positionSeconds});
+      {required this.episodeId,
+      required this.positionSeconds,
+      required this.savedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['episode_id'] = Variable<int>(episodeId);
     map['position_seconds'] = Variable<int>(positionSeconds);
+    map['saved_at'] = Variable<int>(savedAt);
     return map;
   }
 
@@ -344,6 +362,7 @@ class FeedProgressTableData extends DataClass
     return FeedProgressTableCompanion(
       episodeId: Value(episodeId),
       positionSeconds: Value(positionSeconds),
+      savedAt: Value(savedAt),
     );
   }
 
@@ -353,6 +372,7 @@ class FeedProgressTableData extends DataClass
     return FeedProgressTableData(
       episodeId: serializer.fromJson<int>(json['episodeId']),
       positionSeconds: serializer.fromJson<int>(json['positionSeconds']),
+      savedAt: serializer.fromJson<int>(json['savedAt']),
     );
   }
   @override
@@ -361,13 +381,16 @@ class FeedProgressTableData extends DataClass
     return <String, dynamic>{
       'episodeId': serializer.toJson<int>(episodeId),
       'positionSeconds': serializer.toJson<int>(positionSeconds),
+      'savedAt': serializer.toJson<int>(savedAt),
     };
   }
 
-  FeedProgressTableData copyWith({int? episodeId, int? positionSeconds}) =>
+  FeedProgressTableData copyWith(
+          {int? episodeId, int? positionSeconds, int? savedAt}) =>
       FeedProgressTableData(
         episodeId: episodeId ?? this.episodeId,
         positionSeconds: positionSeconds ?? this.positionSeconds,
+        savedAt: savedAt ?? this.savedAt,
       );
   FeedProgressTableData copyWithCompanion(FeedProgressTableCompanion data) {
     return FeedProgressTableData(
@@ -375,6 +398,7 @@ class FeedProgressTableData extends DataClass
       positionSeconds: data.positionSeconds.present
           ? data.positionSeconds.value
           : this.positionSeconds,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
     );
   }
 
@@ -382,48 +406,59 @@ class FeedProgressTableData extends DataClass
   String toString() {
     return (StringBuffer('FeedProgressTableData(')
           ..write('episodeId: $episodeId, ')
-          ..write('positionSeconds: $positionSeconds')
+          ..write('positionSeconds: $positionSeconds, ')
+          ..write('savedAt: $savedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(episodeId, positionSeconds);
+  int get hashCode => Object.hash(episodeId, positionSeconds, savedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is FeedProgressTableData &&
           other.episodeId == this.episodeId &&
-          other.positionSeconds == this.positionSeconds);
+          other.positionSeconds == this.positionSeconds &&
+          other.savedAt == this.savedAt);
 }
 
 class FeedProgressTableCompanion
     extends UpdateCompanion<FeedProgressTableData> {
   final Value<int> episodeId;
   final Value<int> positionSeconds;
+  final Value<int> savedAt;
   const FeedProgressTableCompanion({
     this.episodeId = const Value.absent(),
     this.positionSeconds = const Value.absent(),
+    this.savedAt = const Value.absent(),
   });
   FeedProgressTableCompanion.insert({
     this.episodeId = const Value.absent(),
     required int positionSeconds,
-  }) : positionSeconds = Value(positionSeconds);
+    required int savedAt,
+  })  : positionSeconds = Value(positionSeconds),
+        savedAt = Value(savedAt);
   static Insertable<FeedProgressTableData> custom({
     Expression<int>? episodeId,
     Expression<int>? positionSeconds,
+    Expression<int>? savedAt,
   }) {
     return RawValuesInsertable({
       if (episodeId != null) 'episode_id': episodeId,
       if (positionSeconds != null) 'position_seconds': positionSeconds,
+      if (savedAt != null) 'saved_at': savedAt,
     });
   }
 
   FeedProgressTableCompanion copyWith(
-      {Value<int>? episodeId, Value<int>? positionSeconds}) {
+      {Value<int>? episodeId,
+      Value<int>? positionSeconds,
+      Value<int>? savedAt}) {
     return FeedProgressTableCompanion(
       episodeId: episodeId ?? this.episodeId,
       positionSeconds: positionSeconds ?? this.positionSeconds,
+      savedAt: savedAt ?? this.savedAt,
     );
   }
 
@@ -436,6 +471,9 @@ class FeedProgressTableCompanion
     if (positionSeconds.present) {
       map['position_seconds'] = Variable<int>(positionSeconds.value);
     }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<int>(savedAt.value);
+    }
     return map;
   }
 
@@ -443,7 +481,8 @@ class FeedProgressTableCompanion
   String toString() {
     return (StringBuffer('FeedProgressTableCompanion(')
           ..write('episodeId: $episodeId, ')
-          ..write('positionSeconds: $positionSeconds')
+          ..write('positionSeconds: $positionSeconds, ')
+          ..write('savedAt: $savedAt')
           ..write(')'))
         .toString();
   }
@@ -1249,11 +1288,13 @@ typedef $$FeedProgressTableTableCreateCompanionBuilder
     = FeedProgressTableCompanion Function({
   Value<int> episodeId,
   required int positionSeconds,
+  required int savedAt,
 });
 typedef $$FeedProgressTableTableUpdateCompanionBuilder
     = FeedProgressTableCompanion Function({
   Value<int> episodeId,
   Value<int> positionSeconds,
+  Value<int> savedAt,
 });
 
 class $$FeedProgressTableTableFilterComposer
@@ -1271,6 +1312,9 @@ class $$FeedProgressTableTableFilterComposer
   ColumnFilters<int> get positionSeconds => $composableBuilder(
       column: $table.positionSeconds,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get savedAt => $composableBuilder(
+      column: $table.savedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$FeedProgressTableTableOrderingComposer
@@ -1288,6 +1332,9 @@ class $$FeedProgressTableTableOrderingComposer
   ColumnOrderings<int> get positionSeconds => $composableBuilder(
       column: $table.positionSeconds,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get savedAt => $composableBuilder(
+      column: $table.savedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$FeedProgressTableTableAnnotationComposer
@@ -1304,6 +1351,9 @@ class $$FeedProgressTableTableAnnotationComposer
 
   GeneratedColumn<int> get positionSeconds => $composableBuilder(
       column: $table.positionSeconds, builder: (column) => column);
+
+  GeneratedColumn<int> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
 }
 
 class $$FeedProgressTableTableTableManager extends RootTableManager<
@@ -1337,18 +1387,22 @@ class $$FeedProgressTableTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<int> episodeId = const Value.absent(),
             Value<int> positionSeconds = const Value.absent(),
+            Value<int> savedAt = const Value.absent(),
           }) =>
               FeedProgressTableCompanion(
             episodeId: episodeId,
             positionSeconds: positionSeconds,
+            savedAt: savedAt,
           ),
           createCompanionCallback: ({
             Value<int> episodeId = const Value.absent(),
             required int positionSeconds,
+            required int savedAt,
           }) =>
               FeedProgressTableCompanion.insert(
             episodeId: episodeId,
             positionSeconds: positionSeconds,
+            savedAt: savedAt,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

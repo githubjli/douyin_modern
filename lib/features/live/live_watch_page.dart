@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
@@ -786,7 +787,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
     // Thumbnail while loading / connecting / ended
     final String? cover = _config?.coverUrl ?? widget.item.thumbnailUrl;
     if (cover != null && cover.isNotEmpty) {
-      return CachedNetworkImage(
+      return AppCachedImage(
         imageUrl: cover,
         fit: BoxFit.cover,
         errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
@@ -1573,7 +1574,7 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
                           errorBuilder: (_, __, ___) => _giftIconFallback(gift),
                         )
                       : gift.iconUrl != null
-                          ? CachedNetworkImage(
+                          ? AppCachedImage(
                               imageUrl: gift.iconUrl!,
                               fit: BoxFit.contain,
                               errorWidget: (_, __, ___) =>

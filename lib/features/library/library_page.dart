@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -613,7 +613,7 @@ class _LibCard extends StatelessWidget {
   Widget _thumb() {
     final String? url = imageUrl?.trim();
     if (url != null && url.isNotEmpty) {
-      return CachedNetworkImage(
+      return AppCachedImage(
         imageUrl: url,
         fit: BoxFit.cover,
         errorWidget: (_, __, ___) => _iconBox(),

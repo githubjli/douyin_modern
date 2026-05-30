@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -136,7 +136,7 @@ class _GiftBurstState extends State<GiftBurst>
     }
     // Static icon image
     if (widget.iconUrl != null && widget.iconUrl!.isNotEmpty) {
-      return CachedNetworkImage(
+      return AppCachedImage(
         imageUrl: widget.iconUrl!,
         width: 48,
         height: 48,

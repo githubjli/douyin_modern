@@ -95,13 +95,38 @@ class FeedDao extends DatabaseAccessor<AppDatabase> with _$FeedDaoMixin {
   // Per-episode playback progress
   // ------------------------------------------------------------------
 
-  Future<void> saveProgress(int episodeId, int positionSeconds) =>
-      into(feedProgressTable).insertOnConflictUpdate(
-        FeedProgressTableCompanion(
-          episodeId: Value(episodeId),
-          positionSeconds: Value(positionSeconds),
-        ),
-      );
+  Future<void> saveProgress(int episodeId, int positionSeconds) async {
+    await into(feedProgressTable).insertOnConflictUpdate(
+      FeedProgressTableCompanion(
+        episodeId: Value(episodeId),
+        positionSeconds: Value(positionSeconds),
+        savedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+    await _pruneProgress();
+  }
+
+  /// Deletes oldest progress rows when the table exceeds [CacheConfig.maxProgressRows].
+  Future<void> _pruneProgress() async {
+    final count = await (selectOnly(feedProgressTable)
+          ..addColumns([feedProgressTable.episodeId.count()]))
+        .map((row) => row.read(feedProgressTable.episodeId.count())!)
+        .getSingle();
+
+    if (count <= CacheConfig.maxProgressRows) return;
+
+    final excess = count - CacheConfig.maxProgressRows;
+    // Find episodeIds of the oldest rows.
+    final oldest = await (select(feedProgressTable)
+          ..orderBy([(t) => OrderingTerm.asc(t.savedAt)])
+          ..limit(excess))
+        .get();
+
+    final ids = oldest.map((r) => r.episodeId).toList();
+    await (delete(feedProgressTable)
+          ..where((t) => t.episodeId.isIn(ids)))
+        .go();
+  }
 
   Future<int?> loadProgress(int episodeId) async {
     final row = await (select(feedProgressTable)

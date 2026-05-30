@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -212,7 +212,7 @@ class _VideoCard extends StatelessWidget {
               width: 100,
               height: 72,
               child: video.thumbnailUrl != null
-                  ? CachedNetworkImage(
+                  ? AppCachedImage(
                       imageUrl: video.thumbnailUrl!,
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => const _ThumbnailPlaceholder(),

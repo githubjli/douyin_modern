@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -211,10 +212,10 @@ class _VideoCard extends StatelessWidget {
               width: 100,
               height: 72,
               child: video.thumbnailUrl != null
-                  ? Image.network(
-                      video.thumbnailUrl!,
+                  ? CachedNetworkImage(
+                      imageUrl: video.thumbnailUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const _ThumbnailPlaceholder(),
+                      errorWidget: (_, __, ___) => const _ThumbnailPlaceholder(),
                     )
                   : const _ThumbnailPlaceholder(),
             ),

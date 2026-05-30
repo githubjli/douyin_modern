@@ -158,13 +158,12 @@ class _ProductCover extends StatelessWidget {
     if (url == null || url.isEmpty) {
       return _ProductCoverPlaceholder();
     }
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       fit: BoxFit.cover,
       width: double.infinity,
-      errorBuilder: (_, __, ___) => _ProductCoverPlaceholder(),
-      loadingBuilder: (_, Widget child, ImageChunkEvent? progress) =>
-          progress == null ? child : _ProductCoverPlaceholder(),
+      placeholder: (_, __) => _ProductCoverPlaceholder(),
+      errorWidget: (_, __, ___) => _ProductCoverPlaceholder(),
     );
   }
 }

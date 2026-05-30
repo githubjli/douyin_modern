@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -845,20 +846,13 @@ class _VipCardCover extends StatelessWidget {
     if (trimmedUrl == null || trimmedUrl.isEmpty) {
       return _VipGradient(colors: colors ?? _defaultVipGradientColors);
     }
-    return Image.network(
-      trimmedUrl,
+    return CachedNetworkImage(
+      imageUrl: trimmedUrl,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) {
-        return _VipGradient(colors: colors ?? _defaultVipGradientColors);
-      },
-      loadingBuilder: (
-        BuildContext context,
-        Widget child,
-        ImageChunkEvent? loadingProgress,
-      ) {
-        if (loadingProgress == null) return child;
-        return _VipGradient(colors: colors ?? _defaultVipGradientColors);
-      },
+      placeholder: (_, __) =>
+          _VipGradient(colors: colors ?? _defaultVipGradientColors),
+      errorWidget: (_, __, ___) =>
+          _VipGradient(colors: colors ?? _defaultVipGradientColors),
     );
   }
 }

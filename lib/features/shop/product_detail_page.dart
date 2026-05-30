@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -889,13 +890,12 @@ class _ProductDetailImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       fit: BoxFit.cover,
       width: double.infinity,
-      errorBuilder: (_, __, ___) => _ProductImagePlaceholder(),
-      loadingBuilder: (_, Widget child, ImageChunkEvent? progress) =>
-          progress == null ? child : _ProductImagePlaceholder(),
+      placeholder: (_, __) => _ProductImagePlaceholder(),
+      errorWidget: (_, __, ___) => _ProductImagePlaceholder(),
     );
   }
 }

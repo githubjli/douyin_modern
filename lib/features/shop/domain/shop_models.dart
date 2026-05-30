@@ -112,6 +112,18 @@ class ShopProduct {
         if (meowCreditPrice != null) 'meowCreditPrice': meowCreditPrice,
       };
 
+  /// Parse a product embedded inside a live chat message payload.
+  /// Field names differ from the shop API (title vs name, price_amount vs price, etc.)
+  factory ShopProduct.fromLivePayload(Map<String, dynamic> j) => ShopProduct(
+        id: (j['id'] as num).toInt(),
+        name: (j['name'] ?? j['title'] ?? '').toString(),
+        price: (j['price'] ?? j['price_amount'] ?? '0').toString(),
+        soldCount: 0,
+        stock: (j['stock'] as num?)?.toInt() ?? 0,
+        thumbnailUrl: (j['thumbnail_url'] ?? j['cover_image_url']) as String?,
+        description: j['description'] as String?,
+      );
+
   factory ShopProduct.fromJson(Map<String, dynamic> j) => ShopProduct(
         id: j['id'] as int,
         name: j['name'] as String,

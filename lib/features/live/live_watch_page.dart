@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
@@ -13,11 +12,14 @@ import '../../core/webrtc/ams_rtc_client.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
+import '../../app/widgets/app_cached_image.dart' show AppCachedImage;
 import '../../core/network/api_error.dart';
 import '../../core/network/endpoints.dart';
 import '../auth/application/auth_providers.dart';
 import '../creator_profile/presentation/creator_profile_page.dart';
 import '../home/domain/home_models.dart';
+import '../shop/domain/shop_models.dart';
+import '../shop/product_detail_page.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/network/api_client.dart';
 import 'data/live_chat_ws_client.dart';
@@ -105,6 +107,9 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
 
   // ── Orientation ───────────────────────────────────────────────────────────
   bool _isLandscape = false;
+
+  // ── Shop — products featured by the streamer ───────────────────────────────
+  final List<ShopProduct> _featuredProducts = <ShopProduct>[];
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -463,6 +468,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
           ));
         });
       }
+      if (msg.isProduct) _handleProductMessage(msg);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_chatScroll.hasClients) {
           _chatScroll.animateTo(
@@ -567,6 +573,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
               ));
             });
           }
+          if (msg.isProduct && mounted) _handleProductMessage(msg);
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_chatScroll.hasClients) {
@@ -732,6 +739,57 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
           if (_phase == _WatchPhase.failed ||
               _phase == _WatchPhase.error)
             _buildErrorOverlay(),
+          // Shop FAB — visible when streamer has featured products
+          if (_featuredProducts.isNotEmpty)
+            Positioned(
+              right: 16,
+              bottom: 160,
+              child: GestureDetector(
+                onTap: _showProductSheet,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: AppColors.brandGold.withValues(alpha: 0.6)),
+                      ),
+                      child: const Icon(
+                        Icons.shopping_bag_outlined,
+                        color: AppColors.brandGold,
+                        size: 22,
+                      ),
+                    ),
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brandGold,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${_featuredProducts.length}',
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // Gift burst overlay
           if (_activeGifts.isNotEmpty)
             Positioned(
@@ -1070,6 +1128,47 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _handleProductMessage(LiveChatMessage msg) {
+    if (msg.payload.isEmpty) return;
+    try {
+      final ShopProduct product = ShopProduct.fromLivePayload(msg.payload);
+      if (!_featuredProducts.any((p) => p.id == product.id)) {
+        setState(() => _featuredProducts.add(product));
+      }
+    } catch (_) {
+      // malformed product payload — ignore
+    }
+  }
+
+  void _showProductSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _LiveProductSheet(
+        products: _featuredProducts,
+        onProductTap: (ShopProduct p) {
+          Navigator.of(context).pop();
+          showModalBottomSheet<void>(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (_) => DraggableScrollableSheet(
+              initialChildSize: 0.88,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              builder: (_, ScrollController sc) => ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppSpacing.radiusLg)),
+                child: ProductDetailPage(product: p),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1728,3 +1827,138 @@ class _PayMethodChip extends StatelessWidget {
     );
   }
 }
+
+// ── Live product sheet (viewer side) ─────────────────────────────────────────
+
+class _LiveProductSheet extends StatelessWidget {
+  const _LiveProductSheet({
+    required this.products,
+    required this.onProductTap,
+  });
+
+  final List<ShopProduct> products;
+  final void Function(ShopProduct) onProductTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final double bottomPad = MediaQuery.of(context).padding.bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.sm, 0, AppSpacing.sm, AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1C),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.md + bottomPad),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // Handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: <Widget>[
+              const Icon(Icons.shopping_bag_outlined,
+                  color: AppColors.brandGold, size: 18),
+              const SizedBox(width: AppSpacing.xs),
+              const Text(
+                'Products in this Live',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 400),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: products.length,
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: Colors.white12),
+              itemBuilder: (_, int i) {
+                final ShopProduct p = products[i];
+                return ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+                  onTap: () => onProductTap(p),
+                  leading: p.thumbnailUrl != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: AppCachedImage(
+                            imageUrl: p.thumbnailUrl!,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.inventory_2_outlined,
+                              color: Colors.white38, size: 26),
+                        ),
+                  title: Text(
+                    p.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    p.meowPointsPrice != null
+                        ? '${p.meowPointsPrice} MP'
+                        : p.price,
+                    style: const TextStyle(
+                      color: AppColors.brandGold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.brandGold,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Buy',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

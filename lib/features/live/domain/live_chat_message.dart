@@ -61,9 +61,12 @@ class LiveChatMessage {
       isPinned: json['is_pinned'] as bool? ?? false,
       userId: userId,
       userAvatarUrl: (avatarUrl != null && avatarUrl.isNotEmpty) ? avatarUrl : null,
+      // backend returns both `payload` and `product`; prefer payload, fall back to product
       payload: json['payload'] is Map<String, dynamic>
           ? json['payload'] as Map<String, dynamic>
-          : const <String, dynamic>{},
+          : json['product'] is Map<String, dynamic>
+              ? json['product'] as Map<String, dynamic>
+              : const <String, dynamic>{},
     );
   }
 

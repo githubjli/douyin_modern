@@ -15,6 +15,8 @@ import '../../core/webrtc/ams_rtc_client.dart';
 import '../auth/application/auth_providers.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/network/api_client.dart';
+import '../shop/data/remote_shop_repository.dart';
+import '../shop/domain/shop_models.dart';
 import 'data/live_chat_ws_client.dart';
 import 'domain/live_chat_message.dart';
 import 'domain/live_session.dart';
@@ -77,6 +79,54 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
   final List<PendingGift> _activeGifts = [];
   int _nextGiftId = 0;
   List<_GiftCatalogEntry> _giftCatalog = const [];
+
+  // Shop — products pinned to this live session (max 5)
+  final List<ShopProduct> _pinnedProducts = [];
+
+  void _toggleProduct(ShopProduct p) {
+    final bool isAdding = !_pinnedProducts.any((x) => x.id == p.id);
+    if (isAdding) {
+      if (_pinnedProducts.length >= 5) return;
+      setState(() => _pinnedProducts.add(p));
+      _broadcastProduct(p);
+    } else {
+      setState(() => _pinnedProducts.removeWhere((x) => x.id == p.id));
+    }
+  }
+
+  Future<void> _broadcastProduct(ShopProduct p) async {
+    final String? id = _session?.id;
+    if (id == null || id.isEmpty) return;
+    try {
+      await ref.read(apiClientProvider).post<dynamic>(
+        Endpoints.liveChatMessages(id),
+        data: <String, dynamic>{'message_type': 'product', 'product_id': p.id},
+        authenticated: true,
+      );
+    } catch (e) {
+      debugPrint('[GoLive] Failed to broadcast product ${p.id}: $e');
+      if (mounted) {
+        setState(() => _pinnedProducts.removeWhere((x) => x.id == p.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to feature product. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showProductPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ProductPickerSheet(
+        pinnedIds: _pinnedProducts.map((p) => p.id).toSet(),
+        onToggle: _toggleProduct,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -761,11 +811,13 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
           isMuted: _isMuted,
           isLandscape: _isLandscape,
           displayName: displayName,
+          pinnedProducts: _pinnedProducts,
           onSend: _sendMessage,
           onEnd: _endLive,
           onSwitchCamera: _switchCamera,
           onToggleMute: _toggleMute,
           onToggleOrientation: _toggleOrientation,
+          onShowProducts: _showProductPicker,
           formatDuration: _formatDuration,
         ),
       _ => _PrepareView(
@@ -1206,11 +1258,13 @@ class _LiveView extends StatefulWidget {
     required this.isMuted,
     required this.isLandscape,
     required this.displayName,
+    required this.pinnedProducts,
     required this.onSend,
     required this.onEnd,
     required this.onSwitchCamera,
     required this.onToggleMute,
     required this.onToggleOrientation,
+    required this.onShowProducts,
     required this.formatDuration,
     this.localRenderer,
   });
@@ -1230,11 +1284,13 @@ class _LiveView extends StatefulWidget {
   final String displayName;
   final int durationSeconds;
   final bool ending;
+  final List<ShopProduct> pinnedProducts;
   final VoidCallback onSend;
   final VoidCallback onEnd;
   final VoidCallback onSwitchCamera;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleOrientation;
+  final VoidCallback onShowProducts;
   final String Function(int) formatDuration;
 
   @override
@@ -1549,6 +1605,10 @@ class _LiveViewState extends State<_LiveView> {
                     ),
                   ),
 
+                // Pinned products strip
+                if (widget.pinnedProducts.isNotEmpty)
+                  _PinnedProductsStrip(products: widget.pinnedProducts),
+
                 // Chat input
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -1625,6 +1685,55 @@ class _LiveViewState extends State<_LiveView> {
                                   color: Colors.black,
                                   size: 18,
                                 ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      // Product picker button
+                      GestureDetector(
+                        onTap: _isLiveActive ? widget.onShowProducts : null,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: <Widget>[
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: _isLiveActive
+                                    ? Colors.white.withAlpha(30)
+                                    : Colors.grey.withAlpha(80),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            if (widget.pinnedProducts.isNotEmpty)
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.brandGold,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${widget.pinnedProducts.length}',
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
@@ -2037,5 +2146,323 @@ class _GiftCatalogEntry {
       animationType: json['animation_type']?.toString(),
     );
   }
+}
+
+// ── Pinned products strip (streamer side) ─────────────────────────────────────
+
+class _PinnedProductsStrip extends StatelessWidget {
+  const _PinnedProductsStrip({required this.products});
+  final List<ShopProduct> products;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, 4),
+      child: SizedBox(
+        height: 56,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: products.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (_, int i) {
+            final ShopProduct p = products[i];
+            return Container(
+              width: 180,
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.brandGold.withAlpha(80)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: <Widget>[
+                  const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: AppColors.brandGold,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          p.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          p.meowPointsPrice != null
+                              ? '${p.meowPointsPrice} MP'
+                              : p.price,
+                          style: const TextStyle(
+                            color: AppColors.brandGold,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ── Product picker bottom sheet ───────────────────────────────────────────────
+
+class _ProductPickerSheet extends ConsumerStatefulWidget {
+  const _ProductPickerSheet({
+    required this.pinnedIds,
+    required this.onToggle,
+  });
+
+  final Set<int> pinnedIds;
+  final void Function(ShopProduct) onToggle;
+
+  @override
+  ConsumerState<_ProductPickerSheet> createState() =>
+      _ProductPickerSheetState();
+}
+
+class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
+  List<ShopProduct> _products = const <ShopProduct>[];
+  bool _loading = true;
+  String? _error;
+
+  // Local copy of pinned ids so toggling updates immediately without rebuild.
+  late Set<int> _localPinnedIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _localPinnedIds = Set<int>.from(widget.pinnedIds);
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final RemoteShopRepository repo =
+          RemoteShopRepository(apiClient: ref.read(apiClientProvider));
+      final page = await repo.getProducts(pageSize: 50);
+      if (!mounted) return;
+      setState(() {
+        _products = page.items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load products';
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double bottomPad = MediaQuery.of(context).viewInsets.bottom +
+        MediaQuery.of(context).padding.bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.sm, 0, AppSpacing.sm, AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1C),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.md + bottomPad),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // Handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: <Widget>[
+              const Icon(
+                Icons.shopping_bag_outlined,
+                color: AppColors.brandGold,
+                size: 18,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              const Text(
+                'Feature Products',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${_localPinnedIds.length}/5 selected',
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.brandGold,
+                  strokeWidth: 2,
+                ),
+              ),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.white54),
+                ),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _products.length,
+                separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  color: Colors.white12,
+                ),
+                itemBuilder: (_, int i) {
+                  final ShopProduct p = _products[i];
+                  final bool pinned = _localPinnedIds.contains(p.id);
+                  final bool maxReached =
+                      _localPinnedIds.length >= 5 && !pinned;
+                  return ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                    leading: p.thumbnailUrl != null
+                        ? ClipRoundedRect(
+                            radius: 6,
+                            child: AppCachedImage(
+                              imageUrl: p.thumbnailUrl!,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white10,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(
+                              Icons.inventory_2_outlined,
+                              color: Colors.white38,
+                              size: 22,
+                            ),
+                          ),
+                    title: Text(
+                      p.name,
+                      style: TextStyle(
+                        color: maxReached ? Colors.white38 : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      p.meowPointsPrice != null
+                          ? '${p.meowPointsPrice} MP'
+                          : p.price,
+                      style: TextStyle(
+                        color: maxReached
+                            ? Colors.white24
+                            : AppColors.brandGold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    trailing: GestureDetector(
+                      onTap: maxReached
+                          ? null
+                          : () {
+                              widget.onToggle(p);
+                              setState(() {
+                                if (pinned) {
+                                  _localPinnedIds.remove(p.id);
+                                } else {
+                                  _localPinnedIds.add(p.id);
+                                }
+                              });
+                            },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: pinned
+                              ? AppColors.brandGold
+                              : Colors.white.withAlpha(maxReached ? 15 : 30),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: pinned
+                                ? AppColors.brandGold
+                                : Colors.white24,
+                          ),
+                        ),
+                        child: Icon(
+                          pinned ? Icons.check : Icons.add,
+                          size: 14,
+                          color: pinned ? Colors.black : Colors.white,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class ClipRoundedRect extends StatelessWidget {
+  const ClipRoundedRect({required this.child, required this.radius, super.key});
+  final Widget child;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: child,
+      );
 }
 

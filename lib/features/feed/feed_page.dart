@@ -26,6 +26,7 @@ class FeedPage extends StatefulWidget {
     this.enableRemoteFeed = true,
     this.isActive = true,
     this.networkRefreshTrigger = 0,
+    this.feedCache,
   });
 
   final bool enableVideo;
@@ -36,6 +37,8 @@ class FeedPage extends StatefulWidget {
   /// Incremented by the shell when network connectivity is restored.
   /// FeedPage reloads automatically whenever this value changes.
   final int networkRefreshTrigger;
+  /// Injectable for tests; production code uses the default (SQLite-backed).
+  final FeedCache? feedCache;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -66,7 +69,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     super.initState();
     _pageController = PageController();
     _apiClient = ApiClient();
-    _feedCache = FeedCache();
+    _feedCache = widget.feedCache ?? FeedCache();
     _remoteRepository = widget.remoteRepository ??
         RemoteFeedRepository(apiClient: _apiClient);
     _loadFeed();

@@ -1,7 +1,10 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meow_media/app/app.dart';
+import 'package:meow_media/core/database/app_database.dart';
+import 'package:meow_media/core/database/database_provider.dart';
 import 'package:meow_media/features/home/domain/home_models.dart';
 import 'package:meow_media/features/home/domain/home_repository.dart';
 import 'package:meow_media/features/video_detail/video_detail_page.dart';
@@ -11,6 +14,22 @@ import 'package:meow_media/features/auth/domain/auth_repository.dart';
 import 'package:meow_media/features/auth/domain/auth_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Builds a ProviderScope that replaces the real SQLite database with an
+/// in-memory instance so widget tests don't access the file system.
+Widget _scoped({
+  required Widget child,
+  List<dynamic> overrides = const [],
+}) {
+  final db = AppDatabase(NativeDatabase.memory());
+  return ProviderScope(
+    overrides: [
+      appDatabaseProvider.overrideWithValue(db),
+      ...overrides.cast(),
+    ],
+    child: child,
+  );
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -18,8 +37,8 @@ void main() {
   testWidgets('app shell renders polished bottom navigation',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MeowMediaApp(
+      _scoped(
+        child: const MeowMediaApp(
           enableFeedVideo: false,
           enableRemoteFeed: false,
           enableRemoteHome: false,
@@ -74,7 +93,7 @@ void main() {
   testWidgets('Membership guest Sign in switches to Profile tab',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-      ProviderScope(
+      _scoped(
         overrides: [
           authRepositoryProvider.overrideWithValue(_SignedOutAuthRepository()),
         ],
@@ -123,7 +142,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ProviderScope(
+      _scoped(
         overrides: [
           authRepositoryProvider.overrideWithValue(_SignedOutAuthRepository()),
         ],

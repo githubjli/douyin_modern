@@ -25,6 +25,7 @@ class FeedPage extends StatefulWidget {
     this.remoteRepository,
     this.enableRemoteFeed = true,
     this.isActive = true,
+    this.networkRefreshTrigger = 0,
   });
 
   final bool enableVideo;
@@ -32,6 +33,9 @@ class FeedPage extends StatefulWidget {
   final FeedRepository? remoteRepository;
   final bool enableRemoteFeed;
   final bool isActive;
+  /// Incremented by the shell when network connectivity is restored.
+  /// FeedPage reloads automatically whenever this value changes.
+  final int networkRefreshTrigger;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -90,7 +94,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
   }
 
   Future<void> _loadFeed() async {
-    // Step 1: show cached content instantly, no spinner.
+    // Step 1: show valid (within TTL) cache instantly — no spinner.
     final List<FeedItem>? cached = await _feedCache.loadFeed();
     if (cached != null && cached.isNotEmpty && mounted) {
       final int lastIndex = await _feedCache.loadLastIndex();
@@ -143,18 +147,34 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     // Step 3: network failed or returned nothing.
     if (!mounted) return;
     if (_items.isNotEmpty) {
-      // Already showing cache — just update the banner.
+      // Already showing (TTL-valid) cache — just update banner.
       setState(() {
         _isOffline = true;
-        _notice = '无网络连接，显示上次缓存内容';
+        _notice = '无网络连接，显示缓存内容';
       });
     } else {
-      // No cache at all — show offline empty state.
-      setState(() {
-        _loading = false;
-        _isOffline = true;
-        _notice = null;
-      });
+      // TTL expired or no cache — try loading stale cache before empty state.
+      final List<FeedItem>? stale = await _feedCache.loadStale();
+      if (stale != null && stale.isNotEmpty && mounted) {
+        final int lastIndex = await _feedCache.loadLastIndex();
+        setState(() {
+          _items = stale;
+          _loading = false;
+          _isOffline = true;
+          _notice = '无网络连接，显示上次缓存内容';
+        });
+        final int startIndex = lastIndex.clamp(0, stale.length - 1);
+        if (widget.enableVideo) {
+          await _activateIndex(startIndex, autoPlay: widget.isActive);
+        }
+      } else if (mounted) {
+        // Truly no cache — show offline empty state.
+        setState(() {
+          _loading = false;
+          _isOffline = true;
+          _notice = null;
+        });
+      }
     }
   }
 
@@ -288,6 +308,12 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
   @override
   void didUpdateWidget(covariant FeedPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Network restored → reload feed (respects TTL; will be fast if cache is fresh).
+    if (oldWidget.networkRefreshTrigger != widget.networkRefreshTrigger) {
+      unawaited(_loadFeed());
+    }
+
     if (oldWidget.isActive == widget.isActive || !widget.enableVideo || _items.isEmpty) {
       return;
     }

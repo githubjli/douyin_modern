@@ -3,7 +3,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 import '../app/theme/app_colors.dart';
+import '../core/network/connectivity_provider.dart';
 import '../features/creator_studio/pages/create_drama_page.dart';
 import '../features/creator_studio/pages/upload_video_page.dart';
 import '../features/feed/feed_page.dart';
@@ -33,6 +36,20 @@ class MainShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final int index = ref.watch(selectedTabProvider);
+
+    // Fire a refresh trigger whenever the device regains connectivity.
+    ref.listen<AsyncValue<List<ConnectivityResult>>>(
+      connectivityProvider,
+      (previous, next) {
+        final bool wasOnline =
+            previous?.value?.any((r) => r != ConnectivityResult.none) ?? true;
+        final bool isOnline =
+            next.value?.any((r) => r != ConnectivityResult.none) ?? true;
+        if (!wasOnline && isOnline) {
+          ref.read(networkRefreshTriggerProvider.notifier).increment();
+        }
+      },
+    );
 
     void goToTab(int value) {
       final NavigatorState navigator = Navigator.of(context);
@@ -103,17 +120,20 @@ class MainShell extends ConsumerWidget {
     }
 
     final int displayIndex = index >= 2 ? index - 1 : index;
+    final int networkTrigger = ref.watch(networkRefreshTriggerProvider);
     final List<Widget> displayPages = <Widget>[
       HomePage(
         useRemote: enableRemoteHome,
         remoteRepository: homeRepository,
         onSignInPressed: () => goToTab(4),
         onSubscribePressed: () => goToTab(3),
+        networkRefreshTrigger: networkTrigger,
       ),
       FeedPage(
         enableVideo: enableFeedVideo,
         enableRemoteFeed: enableRemoteFeed,
         isActive: index == 1,
+        networkRefreshTrigger: networkTrigger,
       ),
       MembershipPage(
         useRemote: enableRemoteMembership,

@@ -21,9 +21,12 @@ class FeedItemsTable extends Table {
 }
 
 /// Per-episode playback progress.
+/// `savedAt` (epoch-ms) is used to prune oldest entries when the table
+/// exceeds [CacheConfig.maxProgressRows].
 class FeedProgressTable extends Table {
   IntColumn get episodeId => integer()();
   IntColumn get positionSeconds => integer()();
+  IntColumn get savedAt => integer()();
 
   @override
   Set<Column<Object>> get primaryKey => {episodeId};
@@ -75,7 +78,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -85,6 +88,11 @@ class AppDatabase extends _$AppDatabase {
             if (from < 2) {
               await m.createTable(homeCacheTable);
               await m.createTable(shopCacheTable);
+            }
+            if (from < 3) {
+              // Add savedAt column; existing rows get epoch 0 (treated as
+              // oldest — will be pruned first on next saveProgress call).
+              await m.addColumn(feedProgressTable, feedProgressTable.savedAt);
             }
           } catch (e, st) {
             // Migration failure must not crash the app. Cache tables will be

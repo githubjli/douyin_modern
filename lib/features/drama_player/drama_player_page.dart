@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -958,7 +958,7 @@ class _LockedEpisodeOverlay extends StatelessWidget {
       children: <Widget>[
         // Thumbnail background
         if (thumb != null && thumb.isNotEmpty)
-          CachedNetworkImage(
+          AppCachedImage(
             imageUrl: thumb,
             fit: BoxFit.cover,
             errorWidget: (_, __, ___) => const _LockedBg(),

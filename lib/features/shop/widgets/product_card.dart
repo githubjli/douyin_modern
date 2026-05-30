@@ -158,7 +158,7 @@ class _ProductCover extends StatelessWidget {
     if (url == null || url.isEmpty) {
       return _ProductCoverPlaceholder();
     }
-    return CachedNetworkImage(
+    return AppCachedImage(
       imageUrl: url,
       fit: BoxFit.cover,
       width: double.infinity,

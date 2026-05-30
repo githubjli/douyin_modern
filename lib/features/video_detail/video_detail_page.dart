@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
@@ -1253,7 +1253,7 @@ class _VideoDetailCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? trimmed = imageUrl?.trim();
     if (trimmed == null || trimmed.isEmpty) return const _VideoPlaceholder();
-    return CachedNetworkImage(
+    return AppCachedImage(
       imageUrl: trimmed,
       fit: BoxFit.cover,
       placeholder: (_, __) => const _VideoPlaceholder(),
@@ -2264,7 +2264,7 @@ class _OwnerAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? url = avatarUrl?.trim();
     if (url != null && url.isNotEmpty) {
-      return CachedNetworkImage(
+      return AppCachedImage(
         imageUrl: url,
         width: size,
         height: size,

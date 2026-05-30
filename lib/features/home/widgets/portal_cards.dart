@@ -130,7 +130,7 @@ class _CardCover extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-      child: CachedNetworkImage(
+      child: AppCachedImage(
         imageUrl: trimmedUrl,
         fit: BoxFit.cover,
         width: double.infinity,

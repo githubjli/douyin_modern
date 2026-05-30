@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -153,7 +153,7 @@ class _OrderCard extends StatelessWidget {
                     width: 56,
                     height: 56,
                     child: product.thumbnailUrl != null
-                        ? CachedNetworkImage(
+                        ? AppCachedImage(
                             imageUrl: product.thumbnailUrl!,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => _ThumbPlaceholder(),

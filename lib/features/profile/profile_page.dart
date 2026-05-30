@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1203,7 +1203,7 @@ class _ProfileHeader extends StatelessWidget {
                   ),
                   child: avatarUrl != null
                       ? ClipOval(
-                          child: CachedNetworkImage(
+                          child: AppCachedImage(
                             imageUrl: avatarUrl,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) =>
@@ -2001,7 +2001,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               )
                             : hasAvatar
                                 ? ClipOval(
-                                    child: CachedNetworkImage(
+                                    child: AppCachedImage(
                                       imageUrl: _avatarUrl,
                                       fit: BoxFit.cover,
                                       errorWidget: (_, __, ___) =>

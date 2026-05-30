@@ -118,7 +118,7 @@ class _ShopBannerCover extends StatelessWidget {
     if (url == null || url.isEmpty) {
       return _ShopBannerPlaceholder();
     }
-    return CachedNetworkImage(
+    return AppCachedImage(
       imageUrl: url,
       fit: BoxFit.cover,
       width: double.infinity,

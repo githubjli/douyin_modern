@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -222,7 +222,7 @@ class _OrderCard extends StatelessWidget {
                     width: 52,
                     height: 52,
                     child: order.productThumbnailSnapshot != null
-                        ? CachedNetworkImage(
+                        ? AppCachedImage(
                             imageUrl: order.productThumbnailSnapshot!,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) =>

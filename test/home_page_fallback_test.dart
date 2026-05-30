@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,12 @@ import 'package:meow_media/features/video_detail/video_detail_page.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Suppress Drift's multiple-instance warning in tests. Each test gets its
+  // own fresh in-memory DB to avoid state leaking between tests.
+  setUpAll(() {
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  });
 
   const HomePortalData emptyPortal = HomePortalData(
     featured: <HomeVideoItem>[],

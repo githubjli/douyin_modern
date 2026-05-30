@@ -10,6 +10,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../core/network/api_error.dart';
 import '../../core/network/endpoints.dart';
 import '../../core/webrtc/ams_rtc_client.dart';
 import '../auth/application/auth_providers.dart';
@@ -105,12 +106,13 @@ class _GoLivePageState extends ConsumerState<GoLivePage> {
       );
     } catch (e) {
       debugPrint('[GoLive] Failed to broadcast product ${p.id}: $e');
+      final String msg = e is ApiError
+          ? e.message
+          : e.toString().replaceFirst('Exception: ', '');
       if (mounted) {
         setState(() => _pinnedProducts.removeWhere((x) => x.id == p.id));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to feature product. Please try again.'),
-          ),
+          SnackBar(content: Text(msg)),
         );
       }
     }

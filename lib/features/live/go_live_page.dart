@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1783,10 +1784,10 @@ class _EndedView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: Image.network(
-                      cover,
+                    child: CachedNetworkImage(
+                      imageUrl: cover,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
+                      errorWidget: (_, __, ___) =>
                           const _LiveEndedPlaceholder(),
                     ),
                   ),

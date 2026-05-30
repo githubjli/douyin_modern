@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -200,10 +201,10 @@ class _DramaCard extends StatelessWidget {
               width: 76,
               height: 100,
               child: drama.coverUrl != null
-                  ? Image.network(
-                      drama.coverUrl!,
+                  ? CachedNetworkImage(
+                      imageUrl: drama.coverUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
+                      errorWidget: (_, __, ___) =>
                           const _CoverPlaceholder(),
                     )
                   : const _CoverPlaceholder(),

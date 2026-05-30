@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -221,10 +222,10 @@ class _OrderCard extends StatelessWidget {
                     width: 52,
                     height: 52,
                     child: order.productThumbnailSnapshot != null
-                        ? Image.network(
-                            order.productThumbnailSnapshot!,
+                        ? CachedNetworkImage(
+                            imageUrl: order.productThumbnailSnapshot!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
+                            errorWidget: (_, __, ___) =>
                                 _OrderThumbPlaceholder(),
                           )
                         : _OrderThumbPlaceholder(),

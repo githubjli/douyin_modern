@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
@@ -1252,18 +1253,11 @@ class _VideoDetailCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? trimmed = imageUrl?.trim();
     if (trimmed == null || trimmed.isEmpty) return const _VideoPlaceholder();
-    return Image.network(
-      trimmed,
+    return CachedNetworkImage(
+      imageUrl: trimmed,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const _VideoPlaceholder(),
-      loadingBuilder: (
-        BuildContext context,
-        Widget child,
-        ImageChunkEvent? progress,
-      ) {
-        if (progress == null) return child;
-        return const _VideoPlaceholder();
-      },
+      placeholder: (_, __) => const _VideoPlaceholder(),
+      errorWidget: (_, __, ___) => const _VideoPlaceholder(),
     );
   }
 }
@@ -2270,12 +2264,12 @@ class _OwnerAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? url = avatarUrl?.trim();
     if (url != null && url.isNotEmpty) {
-      return Image.network(
-        url,
+      return CachedNetworkImage(
+        imageUrl: url,
         width: size,
         height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
+        errorWidget: (_, __, ___) => _fallback(),
       );
     }
     return _fallback();

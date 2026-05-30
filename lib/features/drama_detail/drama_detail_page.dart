@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -637,19 +638,12 @@ class _DramaCover extends StatelessWidget {
       return const _DramaCoverPlaceholder();
     }
 
-    return Image.network(
-      trimmedUrl,
+    return CachedNetworkImage(
+      imageUrl: trimmedUrl,
       fit: BoxFit.cover,
       width: double.infinity,
-      errorBuilder: (_, __, ___) => const _DramaCoverPlaceholder(),
-      loadingBuilder: (
-        BuildContext context,
-        Widget child,
-        ImageChunkEvent? loadingProgress,
-      ) {
-        if (loadingProgress == null) return child;
-        return const _DramaCoverPlaceholder();
-      },
+      placeholder: (_, __) => const _DramaCoverPlaceholder(),
+      errorWidget: (_, __, ___) => const _DramaCoverPlaceholder(),
     );
   }
 }

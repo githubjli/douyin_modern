@@ -118,13 +118,12 @@ class _ShopBannerCover extends StatelessWidget {
     if (url == null || url.isEmpty) {
       return _ShopBannerPlaceholder();
     }
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       fit: BoxFit.cover,
       width: double.infinity,
-      errorBuilder: (_, __, ___) => _ShopBannerPlaceholder(),
-      loadingBuilder: (_, Widget child, ImageChunkEvent? progress) =>
-          progress == null ? child : _ShopBannerPlaceholder(),
+      placeholder: (_, __) => _ShopBannerPlaceholder(),
+      errorWidget: (_, __, ___) => _ShopBannerPlaceholder(),
     );
   }
 }

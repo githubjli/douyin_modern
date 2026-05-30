@@ -11,6 +11,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../../shared/danmaku_overlay.dart';
 import '../drama_player/drama_player_page.dart';
+import 'data/feed_cache.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
 import 'domain/feed_item.dart';
@@ -44,10 +45,13 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
   late final ApiClient _apiClient;
   late final FeedRepository _remoteRepository;
 
+  late final FeedCache _feedCache;
+
   int _currentIndex = 0;
   List<FeedItem> _items = const <FeedItem>[];
   bool _loading = true;
   String? _notice;
+  bool _isOffline = false;
   bool _resumeOnTabActive = false;
   bool _danmakuEnabled = true;
   final Set<int> _viewedSeriesIds = <int>{};
@@ -58,6 +62,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     super.initState();
     _pageController = PageController();
     _apiClient = ApiClient();
+    _feedCache = FeedCache();
     _remoteRepository = widget.remoteRepository ??
         RemoteFeedRepository(apiClient: _apiClient);
     _loadFeed();
@@ -85,51 +90,84 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
   }
 
   Future<void> _loadFeed() async {
-    if (mounted) {
+    // Step 1: show cached content instantly, no spinner.
+    final List<FeedItem>? cached = await _feedCache.loadFeed();
+    if (cached != null && cached.isNotEmpty && mounted) {
+      final int lastIndex = await _feedCache.loadLastIndex();
       setState(() {
-        _loading = true;
-        _notice = null;
+        _items = cached;
+        _loading = false;
+        _isOffline = false;
+        _notice = '正在更新内容…';
       });
+      final int startIndex = lastIndex.clamp(0, cached.length - 1);
+      if (widget.enableVideo) {
+        await _activateIndex(startIndex, autoPlay: widget.isActive);
+      }
+    } else if (mounted) {
+      setState(() => _loading = true);
     }
 
-    List<FeedItem> items = const <FeedItem>[];
-
+    // Step 2: fetch from network in background.
     if (widget.enableRemoteFeed) {
       try {
-        final List<FeedItem> remoteItems = await _remoteRepository.getShortsFeed();
-        items = remoteItems
+        final List<FeedItem> remoteItems =
+            await _remoteRepository.getShortsFeed();
+        final List<FeedItem> fresh = remoteItems
             .where((FeedItem item) =>
                 item.videoUrl.isNotEmpty && item.isLocked != true)
             .toList();
-        if (items.isEmpty) {
-          _notice = 'Using local fallback feed.';
-          assert(() {
-            debugPrint('[ShortFeed] fallback reason: remote returned zero playable drama episodes');
-            return true;
-          }());
+
+        if (fresh.isNotEmpty) {
+          await _feedCache.saveFeed(fresh);
+          if (!mounted) return;
+          setState(() {
+            _items = fresh;
+            _loading = false;
+            _isOffline = false;
+            _notice = null;
+          });
+          if (widget.enableVideo) {
+            await _activateIndex(0, autoPlay: widget.isActive);
+          }
+          return;
         }
       } catch (error) {
-        _notice = 'Network unavailable. Using local feed.';
         assert(() {
-          debugPrint('[ShortFeed] fallback reason: remote fetch error - $error');
+          debugPrint('[ShortFeed] network error: $error');
           return true;
         }());
       }
     }
 
-    if (items.isEmpty) {
-      final List<FeedItem> mockItems = await widget.mockRepository.getShortsFeed();
-      items = mockItems;
-    }
-
+    // Step 3: network failed or returned nothing.
     if (!mounted) return;
-    setState(() {
-      _items = items;
-      _loading = false;
-    });
+    if (_items.isNotEmpty) {
+      // Already showing cache — just update the banner.
+      setState(() {
+        _isOffline = true;
+        _notice = '无网络连接，显示上次缓存内容';
+      });
+    } else {
+      // No cache at all — show offline empty state.
+      setState(() {
+        _loading = false;
+        _isOffline = true;
+        _notice = null;
+      });
+    }
+  }
 
-    if (widget.enableVideo && _items.isNotEmpty) {
-      await _activateIndex(0, autoPlay: widget.isActive);
+  void _saveCurrentProgress() {
+    final FeedItem? item =
+        _currentIndex < _items.length ? _items[_currentIndex] : null;
+    final int? episodeId = item?.episodeId;
+    if (episodeId == null) return;
+    final VideoPlayerController? ctrl = _controllers[_currentIndex];
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+    final int seconds = ctrl.value.position.inSeconds;
+    if (seconds > 0) {
+      unawaited(_feedCache.saveProgress(episodeId, seconds));
     }
   }
 
@@ -203,6 +241,20 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     _controllers[index] = controller;
     await controller.initialize();
     await controller.setLooping(true);
+
+    // Restore saved progress for this episode.
+    final int? episodeId = _items[index].episodeId;
+    if (episodeId != null) {
+      final int? savedSeconds = await _feedCache.loadProgress(episodeId);
+      if (savedSeconds != null && savedSeconds > 0) {
+        final Duration total = controller.value.duration;
+        final Duration seek = Duration(seconds: savedSeconds);
+        // Only seek if there's meaningful progress and it's not at the very end.
+        if (total > Duration.zero && seek < total - const Duration(seconds: 3)) {
+          await controller.seekTo(seek);
+        }
+      }
+    }
   }
 
   Future<void> _disposeNonVisible(int visibleIndex) async {
@@ -266,6 +318,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
 
   @override
   void dispose() {
+    _saveCurrentProgress();
     appRouteObserver.unsubscribe(this);
     _pageController.dispose();
     for (final VideoPlayerController controller in _controllers.values) {
@@ -285,7 +338,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
     }
 
     if (_items.isEmpty) {
-      return const ColoredBox(color: Colors.black);
+      return _OfflineEmptyState(onRetry: _loadFeed);
     }
 
     return Stack(
@@ -295,7 +348,9 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
           scrollDirection: Axis.vertical,
           itemCount: _items.length,
           onPageChanged: (int index) {
+            _saveCurrentProgress();
             _currentIndex = index;
+            unawaited(_feedCache.saveLastIndex(index));
             if (widget.enableVideo) {
               _activateIndex(index, autoPlay: widget.isActive);
             } else {
@@ -362,19 +417,7 @@ class _FeedPageState extends State<FeedPage> with RouteAware {
             top: 12,
             left: 12,
             right: 12,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  _notice!,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
-            ),
+            child: _NoticeBanner(message: _notice!, isOffline: _isOffline),
           ),
       ],
     );
@@ -1424,5 +1467,105 @@ double? _parseDecimal(dynamic v) {
 String _fmtBalance(double v) {
   if (v == v.truncateToDouble()) return v.toInt().toString();
   return v.toStringAsFixed(2);
+}
+
+// ---------------------------------------------------------------------------
+// Offline empty state — shown when there's no cache and no network.
+// ---------------------------------------------------------------------------
+
+class _OfflineEmptyState extends StatelessWidget {
+  const _OfflineEmptyState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.wifi_off, color: Colors.white54, size: 64),
+            const SizedBox(height: 16),
+            const Text(
+              '无网络连接',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '请检查网络后重试',
+              style: TextStyle(color: Colors.white54, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white12,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 32, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              child: const Text(
+                '重新加载',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notice banner — updating vs offline use different accent colours.
+// ---------------------------------------------------------------------------
+
+class _NoticeBanner extends StatelessWidget {
+  const _NoticeBanner({required this.message, required this.isOffline});
+
+  final String message;
+  final bool isOffline;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg = isOffline
+        ? Colors.orange.withValues(alpha: 0.85)
+        : Colors.black.withValues(alpha: 0.55);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              isOffline ? Icons.wifi_off : Icons.sync,
+              color: Colors.white,
+              size: 14,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                message,
+                style:
+                    const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 

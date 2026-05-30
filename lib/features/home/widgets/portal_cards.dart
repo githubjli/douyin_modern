@@ -130,16 +130,12 @@ class _CardCover extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-      child: Image.network(
-        trimmedUrl,
+      child: CachedNetworkImage(
+        imageUrl: trimmedUrl,
         fit: BoxFit.cover,
         width: double.infinity,
-        errorBuilder: (_, __, ___) => _CardCoverPlaceholder(kind: kind),
-        loadingBuilder: (BuildContext context, Widget child,
-            ImageChunkEvent? loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _CardCoverPlaceholder(kind: kind);
-        },
+        placeholder: (_, __) => _CardCoverPlaceholder(kind: kind),
+        errorWidget: (_, __, ___) => _CardCoverPlaceholder(kind: kind),
       ),
     );
   }

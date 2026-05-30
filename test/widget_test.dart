@@ -9,8 +9,12 @@ import 'package:meow_media/shared/main_shell.dart';
 import 'package:meow_media/features/auth/application/auth_providers.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
 import 'package:meow_media/features/auth/domain/auth_session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   testWidgets('app shell renders polished bottom navigation',
       (WidgetTester tester) async {
     await tester.pumpWidget(

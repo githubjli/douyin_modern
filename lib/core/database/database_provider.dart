@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_database.dart';
 import 'feed_dao.dart';
+import 'home_dao.dart';
+import 'shop_dao.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -11,4 +13,12 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 
 final feedDaoProvider = Provider<FeedDao>((ref) {
   return FeedDao(ref.watch(appDatabaseProvider));
+});
+
+final homeDaoProvider = Provider<HomeDao>((ref) {
+  return HomeDao(ref.watch(appDatabaseProvider));
+});
+
+final shopDaoProvider = Provider<ShopDao>((ref) {
+  return ShopDao(ref.watch(appDatabaseProvider));
 });

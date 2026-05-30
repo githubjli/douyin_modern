@@ -38,17 +38,55 @@ class FeedMetaTable extends Table {
   Set<Column<Object>> get primaryKey => {key};
 }
 
+/// Home portal snapshot — single-row cache keyed by `id = 1`.
+class HomeCacheTable extends Table {
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  TextColumn get json => text()(); // HomePortalData.toJson()
+  IntColumn get cachedAt => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Shop snapshot — banners, categories, first-page products in one JSON blob.
+class ShopCacheTable extends Table {
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  TextColumn get json => text()();
+  IntColumn get cachedAt => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
 
-@DriftDatabase(tables: [FeedItemsTable, FeedProgressTable, FeedMetaTable])
+@DriftDatabase(
+    tables: [
+      FeedItemsTable,
+      FeedProgressTable,
+      FeedMetaTable,
+      HomeCacheTable,
+      ShopCacheTable,
+    ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(homeCacheTable);
+            await m.createTable(shopCacheTable);
+          }
+        },
+      );
 
   static LazyDatabase _openConnection() {
     return LazyDatabase(() async {

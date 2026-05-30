@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../core/database/database_provider.dart';
+import '../../core/database/shop_dao.dart';
 import '../../core/network/api_client.dart';
 import '../shipping/presentation/address_list_page.dart';
 import 'data/mock_shop_repository.dart';
@@ -20,7 +23,7 @@ part 'widgets/product_card.dart';
 part 'widgets/product_grid.dart';
 part 'widgets/shop_state_widgets.dart';
 
-class ShopPage extends StatefulWidget {
+class ShopPage extends ConsumerStatefulWidget {
   const ShopPage({
     super.key,
     this.useRemote = true,
@@ -31,10 +34,10 @@ class ShopPage extends StatefulWidget {
   final ShopRepository? repository;
 
   @override
-  State<ShopPage> createState() => _ShopPageState();
+  ConsumerState<ShopPage> createState() => _ShopPageState();
 }
 
-class _ShopPageState extends State<ShopPage> {
+class _ShopPageState extends ConsumerState<ShopPage> {
   late final ShopRepository _repo;
   final PageController _bannerController = PageController();
   final TextEditingController _searchController = TextEditingController();
@@ -75,7 +78,22 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    final ShopDao shopDao = ref.read(shopDaoProvider);
+
+    // Step 1: show SQLite cache instantly (if within TTL).
+    final ShopSnapshot? cached = await shopDao.load();
+    if (cached != null && mounted) {
+      setState(() {
+        _banners = cached.banners;
+        _categories = cached.categories;
+        _products = cached.productPage.items;
+        _totalCount = cached.productPage.count;
+        _page = cached.productPage.page;
+        _loading = false;
+      });
+    } else if (mounted) {
+      setState(() => _loading = true);
+    }
 
     List<ShopBanner> banners = const <ShopBanner>[];
     List<ShopCategory> categories = const <ShopCategory>[];
@@ -95,10 +113,21 @@ class _ShopPageState extends State<ShopPage> {
       banners = results[0] as List<ShopBanner>;
       categories = results[1] as List<ShopCategory>;
       productPage = results[2] as ShopProductPage;
+      // Persist fresh data.
+      await shopDao.save(ShopSnapshot(
+        banners: banners,
+        categories: categories,
+        productPage: productPage,
+      ));
     } catch (_) {
       if (!widget.useRemote) rethrow;
-      // If we already have live data, keep it so cached images stay visible.
-      if (_banners.isNotEmpty || _products.isNotEmpty) {
+      // Offline: stale cache → in-memory → mock.
+      final ShopSnapshot? stale = await shopDao.loadStale();
+      if (stale != null) {
+        banners = stale.banners;
+        categories = stale.categories;
+        productPage = stale.productPage;
+      } else if (_banners.isNotEmpty || _products.isNotEmpty) {
         banners = _banners;
         categories = _categories;
         productPage = ShopProductPage(

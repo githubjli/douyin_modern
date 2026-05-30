@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/database/database_provider.dart';
+import '../../core/database/home_dao.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_assets.dart';
 import '../../app/theme/app_spacing.dart';
@@ -129,6 +131,22 @@ class _HomePageState extends ConsumerState<HomePage> {
     final bool authenticated = _shouldUseAuthenticatedFeed(
       ref.read(authControllerProvider),
     );
+    final HomeDao homeDao = ref.read(homeDaoProvider);
+
+    // Step 1: show SQLite cache immediately (if within TTL).
+    final HomePortalData? cached = await homeDao.load();
+    if (cached != null && !_isEmpty(cached) && mounted &&
+        loadGeneration == _loadGeneration) {
+      setState(() {
+        _data = cached;
+        _videoItems = cached.latestVideos;
+        _newsVideoItems = _localNewsVideos(cached.latestVideos);
+        _videosNextUrl = cached.videosNextUrl;
+        _loading = false;
+        _notice = '正在更新内容…';
+      });
+    }
+
     HomePortalData? portal;
     String? notice;
     bool usingPortalFallback = !widget.useRemote;
@@ -142,6 +160,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           usingPortalFallback = true;
         } else {
           portal = remotePortal;
+          await homeDao.save(portal); // persist fresh data
         }
       } catch (_) {
         notice = 'Network unavailable. Showing local content.';
@@ -149,11 +168,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
     }
 
-    // When network fails and we already have live data, keep it so cached
-    // images (via CachedNetworkImage) remain visible instead of being replaced
-    // by mock placeholder data with no imageUrls.
-    if (portal == null && usingPortalFallback && _data != null && !_isEmpty(_data!)) {
-      portal = _data;
+    // Offline fallback chain: stale cache → in-memory _data → mock
+    if (portal == null && usingPortalFallback) {
+      portal = await homeDao.loadStale() ?? _data;
     }
     portal ??= await widget.mockRepository.getHomePortalData();
     final HomePortalData loadedPortal = portal;

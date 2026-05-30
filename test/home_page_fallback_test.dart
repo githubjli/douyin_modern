@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/core/database/app_database.dart';
+import 'package:meow_media/core/database/database_provider.dart';
 import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/features/auth/application/auth_providers.dart';
 import 'package:meow_media/features/auth/domain/auth_repository.dart';
@@ -39,6 +42,8 @@ void main() {
 
     final ProviderContainer container = ProviderContainer(
       overrides: [
+        appDatabaseProvider
+            .overrideWithValue(AppDatabase(NativeDatabase.memory())),
         authRepositoryProvider.overrideWithValue(
           authRepository ?? _AuthRepositoryFake(isSignedIn: true),
         ),

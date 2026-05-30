@@ -640,6 +640,436 @@ class FeedMetaTableCompanion extends UpdateCompanion<FeedMetaTableData> {
   }
 }
 
+class $HomeCacheTableTable extends HomeCacheTable
+    with TableInfo<$HomeCacheTableTable, HomeCacheTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HomeCacheTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _jsonMeta = const VerificationMeta('json');
+  @override
+  late final GeneratedColumn<String> json = GeneratedColumn<String>(
+      'json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cachedAtMeta =
+      const VerificationMeta('cachedAt');
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+      'cached_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, json, cachedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'home_cache_table';
+  @override
+  VerificationContext validateIntegrity(Insertable<HomeCacheTableData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('json')) {
+      context.handle(
+          _jsonMeta, json.isAcceptableOrUnknown(data['json']!, _jsonMeta));
+    } else if (isInserting) {
+      context.missing(_jsonMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(_cachedAtMeta,
+          cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta));
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HomeCacheTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HomeCacheTableData(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      json: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}json'])!,
+      cachedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}cached_at'])!,
+    );
+  }
+
+  @override
+  $HomeCacheTableTable createAlias(String alias) {
+    return $HomeCacheTableTable(attachedDatabase, alias);
+  }
+}
+
+class HomeCacheTableData extends DataClass
+    implements Insertable<HomeCacheTableData> {
+  final int id;
+  final String json;
+  final int cachedAt;
+  const HomeCacheTableData(
+      {required this.id, required this.json, required this.cachedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['json'] = Variable<String>(json);
+    map['cached_at'] = Variable<int>(cachedAt);
+    return map;
+  }
+
+  HomeCacheTableCompanion toCompanion(bool nullToAbsent) {
+    return HomeCacheTableCompanion(
+      id: Value(id),
+      json: Value(json),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory HomeCacheTableData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HomeCacheTableData(
+      id: serializer.fromJson<int>(json['id']),
+      json: serializer.fromJson<String>(json['json']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'json': serializer.toJson<String>(json),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+    };
+  }
+
+  HomeCacheTableData copyWith({int? id, String? json, int? cachedAt}) =>
+      HomeCacheTableData(
+        id: id ?? this.id,
+        json: json ?? this.json,
+        cachedAt: cachedAt ?? this.cachedAt,
+      );
+  HomeCacheTableData copyWithCompanion(HomeCacheTableCompanion data) {
+    return HomeCacheTableData(
+      id: data.id.present ? data.id.value : this.id,
+      json: data.json.present ? data.json.value : this.json,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeCacheTableData(')
+          ..write('id: $id, ')
+          ..write('json: $json, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, json, cachedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HomeCacheTableData &&
+          other.id == this.id &&
+          other.json == this.json &&
+          other.cachedAt == this.cachedAt);
+}
+
+class HomeCacheTableCompanion extends UpdateCompanion<HomeCacheTableData> {
+  final Value<int> id;
+  final Value<String> json;
+  final Value<int> cachedAt;
+  const HomeCacheTableCompanion({
+    this.id = const Value.absent(),
+    this.json = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+  });
+  HomeCacheTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String json,
+    required int cachedAt,
+  })  : json = Value(json),
+        cachedAt = Value(cachedAt);
+  static Insertable<HomeCacheTableData> custom({
+    Expression<int>? id,
+    Expression<String>? json,
+    Expression<int>? cachedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (json != null) 'json': json,
+      if (cachedAt != null) 'cached_at': cachedAt,
+    });
+  }
+
+  HomeCacheTableCompanion copyWith(
+      {Value<int>? id, Value<String>? json, Value<int>? cachedAt}) {
+    return HomeCacheTableCompanion(
+      id: id ?? this.id,
+      json: json ?? this.json,
+      cachedAt: cachedAt ?? this.cachedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (json.present) {
+      map['json'] = Variable<String>(json.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeCacheTableCompanion(')
+          ..write('id: $id, ')
+          ..write('json: $json, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ShopCacheTableTable extends ShopCacheTable
+    with TableInfo<$ShopCacheTableTable, ShopCacheTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ShopCacheTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _jsonMeta = const VerificationMeta('json');
+  @override
+  late final GeneratedColumn<String> json = GeneratedColumn<String>(
+      'json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cachedAtMeta =
+      const VerificationMeta('cachedAt');
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+      'cached_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, json, cachedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shop_cache_table';
+  @override
+  VerificationContext validateIntegrity(Insertable<ShopCacheTableData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('json')) {
+      context.handle(
+          _jsonMeta, json.isAcceptableOrUnknown(data['json']!, _jsonMeta));
+    } else if (isInserting) {
+      context.missing(_jsonMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(_cachedAtMeta,
+          cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta));
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ShopCacheTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ShopCacheTableData(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      json: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}json'])!,
+      cachedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}cached_at'])!,
+    );
+  }
+
+  @override
+  $ShopCacheTableTable createAlias(String alias) {
+    return $ShopCacheTableTable(attachedDatabase, alias);
+  }
+}
+
+class ShopCacheTableData extends DataClass
+    implements Insertable<ShopCacheTableData> {
+  final int id;
+  final String json;
+  final int cachedAt;
+  const ShopCacheTableData(
+      {required this.id, required this.json, required this.cachedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['json'] = Variable<String>(json);
+    map['cached_at'] = Variable<int>(cachedAt);
+    return map;
+  }
+
+  ShopCacheTableCompanion toCompanion(bool nullToAbsent) {
+    return ShopCacheTableCompanion(
+      id: Value(id),
+      json: Value(json),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory ShopCacheTableData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ShopCacheTableData(
+      id: serializer.fromJson<int>(json['id']),
+      json: serializer.fromJson<String>(json['json']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'json': serializer.toJson<String>(json),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+    };
+  }
+
+  ShopCacheTableData copyWith({int? id, String? json, int? cachedAt}) =>
+      ShopCacheTableData(
+        id: id ?? this.id,
+        json: json ?? this.json,
+        cachedAt: cachedAt ?? this.cachedAt,
+      );
+  ShopCacheTableData copyWithCompanion(ShopCacheTableCompanion data) {
+    return ShopCacheTableData(
+      id: data.id.present ? data.id.value : this.id,
+      json: data.json.present ? data.json.value : this.json,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ShopCacheTableData(')
+          ..write('id: $id, ')
+          ..write('json: $json, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, json, cachedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ShopCacheTableData &&
+          other.id == this.id &&
+          other.json == this.json &&
+          other.cachedAt == this.cachedAt);
+}
+
+class ShopCacheTableCompanion extends UpdateCompanion<ShopCacheTableData> {
+  final Value<int> id;
+  final Value<String> json;
+  final Value<int> cachedAt;
+  const ShopCacheTableCompanion({
+    this.id = const Value.absent(),
+    this.json = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+  });
+  ShopCacheTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String json,
+    required int cachedAt,
+  })  : json = Value(json),
+        cachedAt = Value(cachedAt);
+  static Insertable<ShopCacheTableData> custom({
+    Expression<int>? id,
+    Expression<String>? json,
+    Expression<int>? cachedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (json != null) 'json': json,
+      if (cachedAt != null) 'cached_at': cachedAt,
+    });
+  }
+
+  ShopCacheTableCompanion copyWith(
+      {Value<int>? id, Value<String>? json, Value<int>? cachedAt}) {
+    return ShopCacheTableCompanion(
+      id: id ?? this.id,
+      json: json ?? this.json,
+      cachedAt: cachedAt ?? this.cachedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (json.present) {
+      map['json'] = Variable<String>(json.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ShopCacheTableCompanion(')
+          ..write('id: $id, ')
+          ..write('json: $json, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -647,12 +1077,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FeedProgressTableTable feedProgressTable =
       $FeedProgressTableTable(this);
   late final $FeedMetaTableTable feedMetaTable = $FeedMetaTableTable(this);
+  late final $HomeCacheTableTable homeCacheTable = $HomeCacheTableTable(this);
+  late final $ShopCacheTableTable shopCacheTable = $ShopCacheTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [feedItemsTable, feedProgressTable, feedMetaTable];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        feedItemsTable,
+        feedProgressTable,
+        feedMetaTable,
+        homeCacheTable,
+        shopCacheTable
+      ];
 }
 
 typedef $$FeedItemsTableTableCreateCompanionBuilder = FeedItemsTableCompanion
@@ -1064,6 +1501,282 @@ typedef $$FeedMetaTableTableProcessedTableManager = ProcessedTableManager<
     ),
     FeedMetaTableData,
     PrefetchHooks Function()>;
+typedef $$HomeCacheTableTableCreateCompanionBuilder = HomeCacheTableCompanion
+    Function({
+  Value<int> id,
+  required String json,
+  required int cachedAt,
+});
+typedef $$HomeCacheTableTableUpdateCompanionBuilder = HomeCacheTableCompanion
+    Function({
+  Value<int> id,
+  Value<String> json,
+  Value<int> cachedAt,
+});
+
+class $$HomeCacheTableTableFilterComposer
+    extends Composer<_$AppDatabase, $HomeCacheTableTable> {
+  $$HomeCacheTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get json => $composableBuilder(
+      column: $table.json, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+      column: $table.cachedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$HomeCacheTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $HomeCacheTableTable> {
+  $$HomeCacheTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get json => $composableBuilder(
+      column: $table.json, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+      column: $table.cachedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$HomeCacheTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HomeCacheTableTable> {
+  $$HomeCacheTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get json =>
+      $composableBuilder(column: $table.json, builder: (column) => column);
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+}
+
+class $$HomeCacheTableTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $HomeCacheTableTable,
+    HomeCacheTableData,
+    $$HomeCacheTableTableFilterComposer,
+    $$HomeCacheTableTableOrderingComposer,
+    $$HomeCacheTableTableAnnotationComposer,
+    $$HomeCacheTableTableCreateCompanionBuilder,
+    $$HomeCacheTableTableUpdateCompanionBuilder,
+    (
+      HomeCacheTableData,
+      BaseReferences<_$AppDatabase, $HomeCacheTableTable, HomeCacheTableData>
+    ),
+    HomeCacheTableData,
+    PrefetchHooks Function()> {
+  $$HomeCacheTableTableTableManager(
+      _$AppDatabase db, $HomeCacheTableTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HomeCacheTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HomeCacheTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HomeCacheTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> json = const Value.absent(),
+            Value<int> cachedAt = const Value.absent(),
+          }) =>
+              HomeCacheTableCompanion(
+            id: id,
+            json: json,
+            cachedAt: cachedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String json,
+            required int cachedAt,
+          }) =>
+              HomeCacheTableCompanion.insert(
+            id: id,
+            json: json,
+            cachedAt: cachedAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$HomeCacheTableTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $HomeCacheTableTable,
+    HomeCacheTableData,
+    $$HomeCacheTableTableFilterComposer,
+    $$HomeCacheTableTableOrderingComposer,
+    $$HomeCacheTableTableAnnotationComposer,
+    $$HomeCacheTableTableCreateCompanionBuilder,
+    $$HomeCacheTableTableUpdateCompanionBuilder,
+    (
+      HomeCacheTableData,
+      BaseReferences<_$AppDatabase, $HomeCacheTableTable, HomeCacheTableData>
+    ),
+    HomeCacheTableData,
+    PrefetchHooks Function()>;
+typedef $$ShopCacheTableTableCreateCompanionBuilder = ShopCacheTableCompanion
+    Function({
+  Value<int> id,
+  required String json,
+  required int cachedAt,
+});
+typedef $$ShopCacheTableTableUpdateCompanionBuilder = ShopCacheTableCompanion
+    Function({
+  Value<int> id,
+  Value<String> json,
+  Value<int> cachedAt,
+});
+
+class $$ShopCacheTableTableFilterComposer
+    extends Composer<_$AppDatabase, $ShopCacheTableTable> {
+  $$ShopCacheTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get json => $composableBuilder(
+      column: $table.json, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+      column: $table.cachedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ShopCacheTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $ShopCacheTableTable> {
+  $$ShopCacheTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get json => $composableBuilder(
+      column: $table.json, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+      column: $table.cachedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ShopCacheTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ShopCacheTableTable> {
+  $$ShopCacheTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get json =>
+      $composableBuilder(column: $table.json, builder: (column) => column);
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+}
+
+class $$ShopCacheTableTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ShopCacheTableTable,
+    ShopCacheTableData,
+    $$ShopCacheTableTableFilterComposer,
+    $$ShopCacheTableTableOrderingComposer,
+    $$ShopCacheTableTableAnnotationComposer,
+    $$ShopCacheTableTableCreateCompanionBuilder,
+    $$ShopCacheTableTableUpdateCompanionBuilder,
+    (
+      ShopCacheTableData,
+      BaseReferences<_$AppDatabase, $ShopCacheTableTable, ShopCacheTableData>
+    ),
+    ShopCacheTableData,
+    PrefetchHooks Function()> {
+  $$ShopCacheTableTableTableManager(
+      _$AppDatabase db, $ShopCacheTableTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ShopCacheTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ShopCacheTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ShopCacheTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> json = const Value.absent(),
+            Value<int> cachedAt = const Value.absent(),
+          }) =>
+              ShopCacheTableCompanion(
+            id: id,
+            json: json,
+            cachedAt: cachedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String json,
+            required int cachedAt,
+          }) =>
+              ShopCacheTableCompanion.insert(
+            id: id,
+            json: json,
+            cachedAt: cachedAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ShopCacheTableTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ShopCacheTableTable,
+    ShopCacheTableData,
+    $$ShopCacheTableTableFilterComposer,
+    $$ShopCacheTableTableOrderingComposer,
+    $$ShopCacheTableTableAnnotationComposer,
+    $$ShopCacheTableTableCreateCompanionBuilder,
+    $$ShopCacheTableTableUpdateCompanionBuilder,
+    (
+      ShopCacheTableData,
+      BaseReferences<_$AppDatabase, $ShopCacheTableTable, ShopCacheTableData>
+    ),
+    ShopCacheTableData,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1074,4 +1787,8 @@ class $AppDatabaseManager {
       $$FeedProgressTableTableTableManager(_db, _db.feedProgressTable);
   $$FeedMetaTableTableTableManager get feedMetaTable =>
       $$FeedMetaTableTableTableManager(_db, _db.feedMetaTable);
+  $$HomeCacheTableTableTableManager get homeCacheTable =>
+      $$HomeCacheTableTableTableManager(_db, _db.homeCacheTable);
+  $$ShopCacheTableTableTableManager get shopCacheTable =>
+      $$ShopCacheTableTableTableManager(_db, _db.shopCacheTable);
 }

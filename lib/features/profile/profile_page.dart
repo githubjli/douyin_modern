@@ -90,6 +90,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _loadProfile() async {
+    if (_loadingProfile) return;  // prevent concurrent loads
     setState(() {
       _loadingProfile = true;
       _error = null;
@@ -332,7 +333,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
 
     return SafeArea(
-      child: ListView(
+      child: RefreshIndicator(
+        onRefresh: _refreshProfile,
+        color: AppColors.brandGold,
+        child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
           if (isChecking || isSignedIn) ...<Widget>[
@@ -380,6 +384,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
           ],
         ],
+        ),
       ),
     );
   }

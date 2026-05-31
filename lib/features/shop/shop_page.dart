@@ -55,6 +55,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
   int _page = 1;
   int _totalCount = 0;
   bool _loadingMore = false;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -89,11 +90,13 @@ class _ShopPageState extends ConsumerState<ShopPage> {
   }
 
   Future<void> _load() async {
+    final int generation = ++_loadGeneration;
     final ShopDao shopDao = ref.read(shopDaoProvider);
 
     // Step 1: show SQLite cache instantly (if within TTL).
     final ShopSnapshot? cached = await shopDao.load();
-    if (cached != null && mounted) {
+    if (generation != _loadGeneration || !mounted) return;
+    if (cached != null) {
       setState(() {
         _banners = cached.banners;
         _categories = cached.categories;
@@ -102,7 +105,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
         _page = cached.productPage.page;
         _loading = false;
       });
-    } else if (mounted) {
+    } else {
       setState(() => _loading = true);
     }
 
@@ -121,6 +124,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
         _repo.getCategories(),
         _repo.getProducts(page: 1, category: _selectedSlug),
       ]);
+      if (generation != _loadGeneration || !mounted) return;
       banners = results[0] as List<ShopBanner>;
       categories = results[1] as List<ShopCategory>;
       productPage = results[2] as ShopProductPage;
@@ -134,6 +138,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
       if (!widget.useRemote) rethrow;
       // Offline: stale cache → in-memory → mock.
       final ShopSnapshot? stale = await shopDao.loadStale();
+      if (generation != _loadGeneration || !mounted) return;
       if (stale != null) {
         banners = stale.banners;
         categories = stale.categories;
@@ -155,6 +160,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
             mock.getCategories(),
             mock.getProducts(page: 1),
           ]);
+          if (generation != _loadGeneration || !mounted) return;
           banners = results[0] as List<ShopBanner>;
           categories = results[1] as List<ShopCategory>;
           productPage = results[2] as ShopProductPage;
@@ -162,7 +168,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
       }
     }
 
-    if (!mounted) return;
+    if (generation != _loadGeneration || !mounted) return;
     setState(() {
       _banners = banners;
       _categories = categories;

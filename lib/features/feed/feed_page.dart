@@ -220,6 +220,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
       _pendingItems = const <FeedItem>[];
       _notice = null;
     });
+    unawaited(_dao.saveLastIndex(0));
     _pageController.animateToPage(
       0,
       duration: const Duration(milliseconds: 350),

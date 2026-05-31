@@ -10,5 +10,7 @@ final kycRepositoryProvider = Provider<KycRepository>((ref) {
 });
 
 final kycProfileProvider = FutureProvider<KycProfile>((ref) async {
+  // Watch auth so cached KYC data is not served to a different user.
+  ref.watch(authControllerProvider);
   return ref.watch(kycRepositoryProvider).getProfile();
 });

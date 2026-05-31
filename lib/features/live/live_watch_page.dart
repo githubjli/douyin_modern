@@ -123,6 +123,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
       DeviceOrientation.portraitDown,
     ]);
     _loadWatchConfig();
+    _loadFeaturedProducts();
   }
 
   @override
@@ -1130,6 +1131,39 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         ),
       ),
     );
+  }
+
+  /// Pre-load products that the streamer has already bound to this live session.
+  /// Falls back silently — real-time product messages fill the list anyway.
+  Future<void> _loadFeaturedProducts() async {
+    try {
+      final response = await ref.read(apiClientProvider).get<dynamic>(
+        Endpoints.liveProducts(widget.item.id),
+        authenticated: false,
+      );
+      if (!mounted) return;
+      final dynamic data = response.data;
+      final List<dynamic> items = data is Map<String, dynamic>
+          ? (data['results'] as List<dynamic>? ?? <dynamic>[])
+          : data is List<dynamic>
+              ? data
+              : <dynamic>[];
+      setState(() {
+        for (final item in items.whereType<Map<String, dynamic>>()) {
+          // Each item has shape: { binding_id, product: {...}, is_active, ... }
+          final dynamic productJson = item['product'];
+          if (productJson is! Map<String, dynamic>) continue;
+          try {
+            final ShopProduct p = ShopProduct.fromLivePayload(productJson);
+            if (!_featuredProducts.any((x) => x.id == p.id)) {
+              _featuredProducts.add(p);
+            }
+          } catch (_) {}
+        }
+      });
+    } catch (e) {
+      debugPrint('[LiveWatch] Failed to preload products: $e');
+    }
   }
 
   void _handleProductMessage(LiveChatMessage msg) {

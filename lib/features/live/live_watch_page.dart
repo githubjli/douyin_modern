@@ -97,7 +97,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
   int _nextGiftId = 0;
 
   // ── Gift catalog + wallet ─────────────────────────────────────────────────
-  List<_LiveGift> _giftCatalog = const <_LiveGift>[];
+  List<LiveGiftCatalogEntry> _giftCatalog = const <LiveGiftCatalogEntry>[];
   double _pointsBalance = 0;
   double _creditsBalance = 0;
 
@@ -372,7 +372,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         setState(() {
           _giftCatalog = list
               .whereType<Map<String, dynamic>>()
-              .map(_LiveGift.fromJson)
+              .map(LiveGiftCatalogEntry.fromJson)
               .where((g) => g.isActive)
               .toList()
             ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -449,26 +449,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
         }
         if (msg.id > _lastChatId) _lastChatId = msg.id;
       });
-      if (msg.isGift) {
-        final dynamic rawId = msg.payload['gift_id'];
-        final int giftId = rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '') ?? 0;
-        final String giftCode = msg.payload['gift_code']?.toString() ?? '';
-        final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
-          (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
-          orElse: () => null,
-        );
-        setState(() {
-          _activeGifts.add(PendingGift(
-            id: _nextGiftId++,
-            emoji: catalogGift?.emoji ?? giftEmojiFromPayload(msg.payload),
-            senderName: msg.senderName,
-            label: msg.message,
-            iconUrl: catalogGift?.iconUrl ?? _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
-            animationUrl: catalogGift?.animationUrl ?? _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
-            animationType: catalogGift?.animationType ?? msg.payload['animation_type']?.toString(),
-          ));
-        });
-      }
+      if (msg.isGift) _triggerGiftBurst(msg);
       if (msg.isProduct) _handleProductMessage(msg);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_chatScroll.hasClients) {
@@ -554,26 +535,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
           _lastChatId = fetched.last.id; // track highest seen ID
         });
         for (final msg in newMsgs) {
-          if (msg.isGift && mounted) {
-            final dynamic rawId = msg.payload['gift_id'];
-            final int giftId = rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '') ?? 0;
-            final String giftCode = msg.payload['gift_code']?.toString() ?? '';
-            final _LiveGift? catalogGift = _giftCatalog.cast<_LiveGift?>().firstWhere(
-              (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
-              orElse: () => null,
-            );
-            setState(() {
-              _activeGifts.add(PendingGift(
-                id: _nextGiftId++,
-                emoji: catalogGift?.emoji ?? giftEmojiFromPayload(msg.payload),
-                senderName: msg.senderName,
-                label: msg.message,
-                iconUrl: catalogGift?.iconUrl ?? _LiveGift._resolveUrl(msg.payload['icon_url']?.toString()),
-                animationUrl: catalogGift?.animationUrl ?? _LiveGift._resolveUrl(msg.payload['animation_url']?.toString()),
-                animationType: catalogGift?.animationType ?? msg.payload['animation_type']?.toString(),
-              ));
-            });
-          }
+          if (msg.isGift && mounted) _triggerGiftBurst(msg);
           if (msg.isProduct && mounted) _handleProductMessage(msg);
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -617,7 +579,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
     if (mounted) setState(() => _sendingMessage = false);
   }
 
-  Future<void> _sendFixedGift(_LiveGift gift, int quantity) async {
+  Future<void> _sendFixedGift(LiveGiftCatalogEntry gift, int quantity) async {
     if (_sendingGift) return;
     setState(() => _sendingGift = true);
     try {
@@ -795,7 +757,7 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
           if (_activeGifts.isNotEmpty)
             Positioned(
               right: 16,
-              bottom: 80,
+              bottom: 96,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -1166,6 +1128,33 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
     }
   }
 
+  void _triggerGiftBurst(LiveChatMessage msg) {
+    final dynamic rawId = msg.payload['gift_id'];
+    final int giftId = rawId is num
+        ? rawId.toInt()
+        : int.tryParse(rawId?.toString() ?? '') ?? 0;
+    final String giftCode = msg.payload['gift_code']?.toString() ?? '';
+    final LiveGiftCatalogEntry? cat =
+        _giftCatalog.cast<LiveGiftCatalogEntry?>().firstWhere(
+      (g) => g!.id == giftId || (giftCode.isNotEmpty && g.code == giftCode),
+      orElse: () => null,
+    );
+    setState(() {
+      _activeGifts.add(PendingGift(
+        id: _nextGiftId++,
+        emoji: cat?.emoji ?? giftEmojiFromPayload(msg.payload),
+        senderName: msg.senderName,
+        label: msg.message,
+        iconUrl: cat?.iconUrl ??
+            resolveGiftUrl(msg.payload['icon_url']?.toString()),
+        animationUrl: cat?.animationUrl ??
+            resolveGiftUrl(msg.payload['animation_url']?.toString()),
+        animationType:
+            cat?.animationType ?? msg.payload['animation_type']?.toString(),
+      ));
+    });
+  }
+
   void _handleProductMessage(LiveChatMessage msg) {
     if (msg.payload.isEmpty) return;
     try {
@@ -1417,67 +1406,6 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
   }
 }
 
-// ── Gift data model ────────────────────────────────────────────────────────────
-
-class _LiveGift {
-  const _LiveGift({
-    required this.id,
-    required this.code,
-    required this.name,
-    required this.emoji,
-    required this.coinCost,
-    required this.isActive,
-    required this.sortOrder,
-    this.iconUrl,
-    this.animationUrl,
-    this.animationType,
-  });
-
-  final int id;
-  final String code;
-  final String name;
-  final String emoji;
-  final int coinCost;
-  final bool isActive;
-  final int sortOrder;
-  final String? iconUrl;
-  final String? animationUrl;
-  final String? animationType; // 'lottie' | null
-
-  bool get hasLottie {
-    final url = animationUrl;
-    if (url == null || url.isEmpty) return false;
-    return animationType == 'lottie' || url.toLowerCase().endsWith('.json');
-  }
-
-  static String? _resolveUrl(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-    final base = ApiClient.defaultBaseUrl.endsWith('/')
-        ? ApiClient.defaultBaseUrl.substring(
-            0, ApiClient.defaultBaseUrl.length - 1)
-        : ApiClient.defaultBaseUrl;
-    return '$base${raw.startsWith('/') ? raw : '/$raw'}';
-  }
-
-  factory _LiveGift.fromJson(Map<String, dynamic> json) {
-    return _LiveGift(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      code: json['code']?.toString() ?? '',
-      name: (json['display_name'] ?? json['name'])?.toString() ?? '',
-      emoji: json['emoji']?.toString() ?? '🎁',
-      coinCost: (json['coin_cost'] as num?)?.toInt() ??
-          (json['price'] as num?)?.toInt() ??
-          (json['points_price'] as num?)?.toInt() ?? 0,
-      isActive: json['is_active'] as bool? ?? true,
-      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
-      iconUrl: _resolveUrl(json['icon_url']?.toString()),
-      animationUrl: _resolveUrl(json['animation_url']?.toString()),
-      animationType: json['animation_type']?.toString(),
-    );
-  }
-}
-
 // ── Gift picker sheet ──────────────────────────────────────────────────────────
 
 const List<int> _kAmounts = <int>[1, 10, 30, 100, 200, 500];
@@ -1491,10 +1419,10 @@ class _GiftPickerSheet extends StatefulWidget {
     required this.onSendAmount,
   });
 
-  final List<_LiveGift> gifts;
+  final List<LiveGiftCatalogEntry> gifts;
   final double pointsBalance;
   final double creditsBalance;
-  final Future<void> Function(_LiveGift gift, int quantity) onSendFixed;
+  final Future<void> Function(LiveGiftCatalogEntry gift, int quantity) onSendFixed;
   final Future<void> Function(int amount, String paymentMethod) onSendAmount;
 
   @override
@@ -1514,13 +1442,13 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
     super.dispose();
   }
 
-  Widget _giftIconFallback(_LiveGift gift) {
+  Widget _giftIconFallback(LiveGiftCatalogEntry gift) {
     return Center(
       child: Text(gift.emoji, style: const TextStyle(fontSize: 26)),
     );
   }
 
-  Future<void> _confirmAndSendFixed(_LiveGift gift, int quantity) async {
+  Future<void> _confirmAndSendFixed(LiveGiftCatalogEntry gift, int quantity) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1684,7 +1612,7 @@ class _GiftPickerSheetState extends State<_GiftPickerSheet>
       ),
       itemCount: widget.gifts.length,
       itemBuilder: (_, int i) {
-        final _LiveGift gift = widget.gifts[i];
+        final LiveGiftCatalogEntry gift = widget.gifts[i];
         return GestureDetector(
           onTap: () => _confirmAndSendFixed(gift, 1),
           child: Container(

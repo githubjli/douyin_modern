@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/network/api_client.dart';
 
 class PendingGift {
   PendingGift({
@@ -27,6 +28,67 @@ class PendingGift {
     if (url == null || url.isEmpty) return false;
     // Accept explicit animation_type or detect by .json extension.
     return animationType == 'lottie' || url.toLowerCase().endsWith('.json');
+  }
+}
+
+/// Resolves a relative gift asset URL to an absolute URL using the API base.
+String? resolveGiftUrl(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  final String base = ApiClient.defaultBaseUrl.endsWith('/')
+      ? ApiClient.defaultBaseUrl
+            .substring(0, ApiClient.defaultBaseUrl.length - 1)
+      : ApiClient.defaultBaseUrl;
+  return '$base${raw.startsWith('/') ? raw : '/$raw'}';
+}
+
+/// Shared gift catalog entry — used by both GoLivePage and LiveWatchPage.
+class LiveGiftCatalogEntry {
+  const LiveGiftCatalogEntry({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.emoji,
+    required this.coinCost,
+    required this.isActive,
+    required this.sortOrder,
+    this.iconUrl,
+    this.animationUrl,
+    this.animationType,
+  });
+
+  final int id;
+  final String code;
+  final String name;
+  final String emoji;
+  final int coinCost;
+  final bool isActive;
+  final int sortOrder;
+  final String? iconUrl;
+  final String? animationUrl;
+  final String? animationType;
+
+  bool get hasLottie {
+    final url = animationUrl;
+    if (url == null || url.isEmpty) return false;
+    return animationType == 'lottie' || url.toLowerCase().endsWith('.json');
+  }
+
+  factory LiveGiftCatalogEntry.fromJson(Map<String, dynamic> json) {
+    return LiveGiftCatalogEntry(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      code: json['code']?.toString() ?? '',
+      name: (json['display_name'] ?? json['name'])?.toString() ?? '',
+      emoji: json['emoji']?.toString() ?? '🎁',
+      coinCost: (json['coin_cost'] as num?)?.toInt() ??
+          (json['price'] as num?)?.toInt() ??
+          (json['points_price'] as num?)?.toInt() ?? 0,
+      isActive: json['is_active'] as bool? ?? true,
+      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      iconUrl: resolveGiftUrl(json['icon_url']?.toString()),
+      animationUrl: resolveGiftUrl(json['animation_url']?.toString()),
+      animationType: json['animation_type']?.toString(),
+    );
   }
 }
 

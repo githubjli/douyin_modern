@@ -192,6 +192,11 @@ class Endpoints {
   static String shopOrderRefundRequests(String orderNo) =>
       '/api/product-orders/$orderNo/refund-requests/';
 
+  // ── Cart / Wishlist ───────────────────────────────────────────────────────
+  static const String cartItems = '/api/cart/items/';
+  static String cartItemDetail(int id) => '/api/cart/items/$id/';
+  static const String cartCount = '/api/cart/count/';
+
   // ── Seller Store ──────────────────────────────────────────────────────────
   static const String sellerStoreMe       = '/api/store/me/';
   static const String sellerProducts      = '/api/store/me/products/';

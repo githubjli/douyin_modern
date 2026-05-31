@@ -14,6 +14,8 @@ import '../meow_points/application/meow_points_providers.dart';
 import '../shipping/data/shipping_address_repository.dart';
 import '../shipping/domain/shipping_address.dart';
 import '../shipping/presentation/address_list_page.dart';
+import 'cart_page.dart';
+import 'data/cart_repository.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
@@ -47,6 +49,10 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   bool _detailLoading = true;
   int _quantity = 1;
 
+  // Cart / wishlist state
+  int? _cartItemId;       // non-null when product is saved
+  bool _cartLoading = false;
+
   late final PageController _imageController;
 
   ShopPaymentAsset? _defaultAsset(ShopProduct p) {
@@ -66,12 +72,72 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             ? RemoteShopRepository(apiClient: ref.read(apiClientProvider))
             : const MockShopRepository());
     _loadDetail();
+    _loadCartStatus();
   }
 
   @override
   void dispose() {
     _imageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCartStatus() async {
+    if (!widget.useRemote) return;
+    try {
+      final CartRepository cartRepo = ref.read(cartRepositoryProvider);
+      final List<CartItem> items = await cartRepo.getItems();
+      if (!mounted) return;
+      final CartItem? match = items.cast<CartItem?>().firstWhere(
+            (CartItem? c) => c!.product.id == widget.product.id,
+            orElse: () => null,
+          );
+      setState(() => _cartItemId = match?.id);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleCart() async {
+    if (_cartLoading) return;
+    final bool isAuthenticated =
+        ref.read(authControllerProvider).isSignedIn;
+    if (!isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to save items')),
+      );
+      return;
+    }
+    setState(() => _cartLoading = true);
+    try {
+      final CartRepository cartRepo = ref.read(cartRepositoryProvider);
+      if (_cartItemId != null) {
+        await cartRepo.removeItem(_cartItemId!);
+        if (!mounted) return;
+        setState(() => _cartItemId = null);
+        ref.invalidate(cartCountProvider);
+      } else {
+        final CartItem item = await cartRepo.addItem(widget.product.id);
+        if (!mounted) return;
+        setState(() => _cartItemId = item.id);
+        ref.invalidate(cartCountProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Saved to your wishlist'),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(builder: (_) => const CartPage()),
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _cartLoading = false);
+    }
   }
 
   Future<void> _loadDetail() async {
@@ -182,6 +248,15 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         child: const Center(child: _GlassIconButton(icon: Icons.arrow_back_rounded)),
       ),
       actions: <Widget>[
+        // Wishlist heart button
+        GestureDetector(
+          onTap: _cartLoading ? null : _toggleCart,
+          child: _GlassIconButton(
+            icon: _cartItemId != null ? Icons.favorite : Icons.favorite_border,
+            color: _cartItemId != null ? Colors.redAccent : null,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
         _GlassCartMenuButton(repo: _repo),
         const SizedBox(width: AppSpacing.sm),
       ],
@@ -743,9 +818,10 @@ class _BuyButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _GlassIconButton extends StatelessWidget {
-  const _GlassIconButton({required this.icon});
+  const _GlassIconButton({required this.icon, this.color});
 
   final IconData icon;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -759,7 +835,7 @@ class _GlassIconButton extends StatelessWidget {
             color: Color(0x33000000),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Icon(icon, color: color ?? Colors.white, size: 20),
         ),
       ),
     );
@@ -797,28 +873,19 @@ class _GlassCartMenuButton extends StatelessWidget {
                 builder: (_) => const AddressListPage(),
               ),
             );
+          case 'cart':
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const CartPage(),
+              ),
+            );
         }
       },
       itemBuilder: (_) => <PopupMenuEntry<String>>[
         _menuItem('orders', Icons.receipt_long_outlined, 'My Orders'),
         _menuItem('addresses', Icons.location_on_outlined, 'My Addresses'),
         const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Row(
-            children: <Widget>[
-              const Icon(Icons.shopping_cart_outlined,
-                  size: 18, color: AppColors.mutedOliveText),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                'Cart  (coming soon)',
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.mutedOliveText,
-                ),
-              ),
-            ],
-          ),
-        ),
+        _menuItem('cart', Icons.favorite_outline, 'Saved Items'),
       ],
       // Cart glass icon is the visible trigger — no separate ⋮ button
       child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),

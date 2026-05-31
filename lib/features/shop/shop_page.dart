@@ -10,6 +10,8 @@ import '../../core/database/database_provider.dart';
 import '../../core/database/shop_dao.dart';
 import '../../core/network/api_client.dart';
 import '../shipping/presentation/address_list_page.dart';
+import 'cart_page.dart';
+import 'data/cart_repository.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
@@ -305,6 +307,12 @@ class _ShopPageState extends ConsumerState<ShopPage> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => const AddressListPage(),
+                        ),
+                      );
+                    case _ShopMenuAction.cart:
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const CartPage(),
                         ),
                       );
                   }

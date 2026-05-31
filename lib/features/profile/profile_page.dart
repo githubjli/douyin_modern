@@ -37,6 +37,7 @@ import '../library/library_page.dart';
 import '../seller/application/seller_application_providers.dart';
 import '../seller/domain/seller_models.dart';
 import '../seller/pages/my_products_page.dart';
+import '../seller/pages/my_store_page.dart';
 import '../seller/pages/seller_application_page.dart';
 import '../seller/pages/seller_orders_page.dart';
 import 'data/remote_profile_repository.dart';
@@ -389,6 +390,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
               onSellerApplication: () {
+                // Verified (isSeller) → go to My Store
+                if (_profile?.isSeller == true) {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const MyStorePage(),
+                    ),
+                  );
+                  return;
+                }
                 final SellerApplication? existing =
                     ref.read(sellerApplicationProvider).value;
                 if (existing != null &&
@@ -1139,6 +1149,15 @@ class _SignedInProfileBody extends StatelessWidget {
             label: 'Seller Store',
             items: <_MenuItem>[
               _MenuItem(
+                icon: Icons.store_outlined,
+                label: 'My Store',
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyStorePage(),
+                  ),
+                ),
+              ),
+              _MenuItem(
                 icon: Icons.storefront_outlined,
                 label: 'My Products',
                 onTap: () => Navigator.of(context).push<void>(
@@ -1197,14 +1216,15 @@ class _SignedInProfileBody extends StatelessWidget {
               onTap: onKycDetails,
               trailing: _KycChip(status: _kycStatusFromString(kycStatus)),
             ),
-            if (!isSeller)
-              _MenuItem(
-                icon: Icons.storefront_outlined,
-                label: 'Apply to Sell',
-                onTap: onSellerApplication,
-                trailing: _SellerApplicationChip(
-                    application: sellerApplication),
+            _MenuItem(
+              icon: Icons.storefront_outlined,
+              label: isSeller ? 'My Store' : 'Apply to Sell',
+              onTap: onSellerApplication,
+              trailing: _SellerApplicationChip(
+                application: sellerApplication,
+                isSeller: isSeller,
               ),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
@@ -1888,51 +1908,41 @@ class _KycChip extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SellerApplicationChip extends StatelessWidget {
-  const _SellerApplicationChip({this.application});
+  const _SellerApplicationChip({this.application, this.isSeller = false});
   final SellerApplication? application;
+  final bool isSeller;
 
   @override
   Widget build(BuildContext context) {
+    // isSeller=true means backend approved + store created → Verified
+    if (isSeller) {
+      return _chip('Verified', Colors.green);
+    }
     if (application == null) {
-      return Container(
+      return _chip('Apply', AppColors.brandGold);
+    }
+    return switch (application!.status) {
+      SellerApplicationStatus.pending  => _chip('Pending', Colors.orange),
+      SellerApplicationStatus.approved => _chip('Verified', Colors.green),
+      SellerApplicationStatus.rejected => _chip('Rejected', Colors.redAccent),
+    };
+  }
+
+  Widget _chip(String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.brandGold.withValues(alpha: 0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
-          'Apply',
+          label,
           style: AppTextStyles.caption.copyWith(
-            color: AppColors.brandGold,
+            color: color,
             fontWeight: FontWeight.w700,
             fontSize: 11,
           ),
         ),
       );
-    }
-
-    final (String label, Color color) = switch (application!.status) {
-      SellerApplicationStatus.pending => ('Pending', Colors.orange),
-      SellerApplicationStatus.approved => ('Approved', Colors.green),
-      SellerApplicationStatus.rejected => ('Rejected', Colors.redAccent),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.caption.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 11,
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

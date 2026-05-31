@@ -16,3 +16,15 @@ final sellerApplicationProvider =
   if (session?.isSignedIn != true) return null;
   return ref.watch(sellerRepositoryProvider).getMyApplication();
 });
+
+/// Nullable — null when user has no store yet (404).
+/// Watches auth state so the cache resets on login/logout.
+final sellerStoreProvider = FutureProvider<SellerStore?>((ref) async {
+  final session = ref.watch(authControllerProvider).session;
+  if (session?.isSignedIn != true) return null;
+  try {
+    return await ref.watch(sellerRepositoryProvider).getStore();
+  } catch (_) {
+    return null;
+  }
+});

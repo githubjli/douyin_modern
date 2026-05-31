@@ -220,6 +220,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
       _pendingItems = const <FeedItem>[];
       _notice = null;
     });
+    unawaited(_dao.saveLastIndex(0));
     _pageController.animateToPage(
       0,
       duration: const Duration(milliseconds: 350),
@@ -319,6 +320,14 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
 
     await _disposeNonVisible(index);
     if (mounted) setState(() {});
+
+    // Silently pre-initialise adjacent videos so swiping in either direction
+    // doesn't hit a cold-start init delay.
+    for (final int adj in [index + 1, index - 1]) {
+      if (adj >= 0 && adj < _items.length && !_controllers.containsKey(adj)) {
+        unawaited(_ensureController(adj));
+      }
+    }
   }
 
   Future<void> _ensureController(int index) async {
@@ -355,8 +364,10 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   }
 
   Future<void> _disposeNonVisible(int visibleIndex) async {
-    final List<int> stale =
-        _controllers.keys.where((int key) => key != visibleIndex).toList();
+    // Keep prev + current + next so back-navigation doesn't re-init from scratch.
+    final List<int> stale = _controllers.keys
+        .where((int key) => (key - visibleIndex).abs() > 1)
+        .toList();
     for (final int key in stale) {
       final VideoPlayerController? controller = _controllers.remove(key);
       if (controller != null) {
@@ -572,6 +583,8 @@ class _FeedBackground extends StatelessWidget {
     }
 
     if (controller == null || !controller!.value.isInitialized) {
+      // controller != null means it exists but is still initialising — show spinner.
+      final bool initialising = controller != null;
       final String? thumb = item.thumbnailUrl;
       if (thumb != null && thumb.isNotEmpty) {
         return AppCachedImage(
@@ -579,10 +592,11 @@ class _FeedBackground extends StatelessWidget {
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
-          errorWidget: (context, url, error) => _Placeholder(item: item),
+          placeholder: (context, url) => _Placeholder(item: item, showSpinner: initialising),
+          errorWidget: (context, url, error) => _Placeholder(item: item, showSpinner: initialising),
         );
       }
-      return _Placeholder(item: item);
+      return _Placeholder(item: item, showSpinner: initialising);
     }
 
     return FittedBox(
@@ -599,18 +613,35 @@ class _FeedBackground extends StatelessWidget {
 // Gradient placeholder shown while the video controller is initialising
 // and no thumbnail URL is available (or thumbnail fails to load).
 class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.item});
+  const _Placeholder({required this.item, this.showSpinner = false});
   final FeedItem item;
+  final bool showSpinner;
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: item.placeholderGradient,
+  Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: item.placeholderGradient,
+              ),
+            ),
           ),
-        ),
+          if (showSpinner)
+            const Center(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+                ),
+              ),
+            ),
+        ],
       );
 }
 

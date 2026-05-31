@@ -34,7 +34,10 @@ import '../meow_points/meow_points_page.dart';
 import '../kyc/application/kyc_providers.dart';
 import '../kyc/presentation/kyc_page.dart';
 import '../library/library_page.dart';
+import '../seller/application/seller_application_providers.dart';
+import '../seller/domain/seller_models.dart';
 import '../seller/pages/my_products_page.dart';
+import '../seller/pages/seller_application_page.dart';
 import '../seller/pages/seller_orders_page.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
@@ -359,6 +362,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               profile: _profile,
               wallet: ref.watch(meowPointsWalletProvider).value,
               kycStatus: ref.watch(kycProfileProvider).value?.status,
+              sellerApplication:
+                  ref.watch(sellerApplicationProvider).value,
               onLogout: _logout,
               onRefresh: _refreshProfile,
               onEdit: _openEditProfile,
@@ -383,6 +388,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   builder: (_) => const GoLivePage(),
                 ),
               ),
+              onSellerApplication: () {
+                final SellerApplication? existing =
+                    ref.read(sellerApplicationProvider).value;
+                if (existing != null &&
+                    existing.status != SellerApplicationStatus.rejected) {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          SellerApplicationStatusPage(application: existing),
+                    ),
+                  );
+                } else {
+                  Navigator.of(context)
+                      .push<bool?>(
+                        MaterialPageRoute<bool?>(
+                          builder: (_) => const SellerApplicationPage(),
+                        ),
+                      )
+                      .then((submitted) {
+                    if (submitted == true) {
+                      ref.invalidate(sellerApplicationProvider);
+                    }
+                  });
+                }
+              },
             ),
           ],
         ],
@@ -962,14 +992,17 @@ class _SignedInProfileBody extends StatelessWidget {
     required this.onCreditDetails,
     required this.onKycDetails,
     required this.onGoLive,
+    required this.onSellerApplication,
     this.creditBalance,
     this.kycStatus,
+    this.sellerApplication,
   });
 
   final UserProfile? profile;
   final MeowPointWallet? wallet;
   final String? creditBalance;
   final String? kycStatus;
+  final SellerApplication? sellerApplication;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefresh;
   final VoidCallback onEdit;
@@ -977,6 +1010,7 @@ class _SignedInProfileBody extends StatelessWidget {
   final VoidCallback onCreditDetails;
   final VoidCallback onKycDetails;
   final VoidCallback onGoLive;
+  final VoidCallback onSellerApplication;
 
   @override
   Widget build(BuildContext context) {
@@ -1163,6 +1197,14 @@ class _SignedInProfileBody extends StatelessWidget {
               onTap: onKycDetails,
               trailing: _KycChip(status: _kycStatusFromString(kycStatus)),
             ),
+            if (!isSeller)
+              _MenuItem(
+                icon: Icons.storefront_outlined,
+                label: 'Apply to Sell',
+                onTap: onSellerApplication,
+                trailing: _SellerApplicationChip(
+                    application: sellerApplication),
+              ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
@@ -1833,6 +1875,58 @@ class _KycChip extends StatelessWidget {
         label,
         style: AppTextStyles.caption.copyWith(
           color: fg,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Seller application status chip
+// ---------------------------------------------------------------------------
+
+class _SellerApplicationChip extends StatelessWidget {
+  const _SellerApplicationChip({this.application});
+  final SellerApplication? application;
+
+  @override
+  Widget build(BuildContext context) {
+    if (application == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.brandGold.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          'Apply',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.brandGold,
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+      );
+    }
+
+    final (String label, Color color) = switch (application!.status) {
+      SellerApplicationStatus.pending => ('Pending', Colors.orange),
+      SellerApplicationStatus.approved => ('Approved', Colors.green),
+      SellerApplicationStatus.rejected => ('Rejected', Colors.redAccent),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(
+          color: color,
           fontWeight: FontWeight.w700,
           fontSize: 11,
         ),

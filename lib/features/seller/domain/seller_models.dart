@@ -1,3 +1,56 @@
+// ── Seller Application ────────────────────────────────────────────────────────
+
+enum SellerApplicationStatus { pending, approved, rejected }
+
+class SellerApplication {
+  const SellerApplication({
+    required this.id,
+    required this.storeName,
+    required this.businessType,
+    required this.businessDescription,
+    required this.contactPhone,
+    required this.contactEmail,
+    required this.status,
+    this.businessLicenseUrl,
+    this.rejectionReason,
+    this.submittedAt,
+    this.reviewedAt,
+  });
+
+  final int id;
+  final String storeName;
+  final String businessType;
+  final String businessDescription;
+  final String contactPhone;
+  final String contactEmail;
+  final SellerApplicationStatus status;
+  final String? businessLicenseUrl;
+  final String? rejectionReason;
+  final String? submittedAt;
+  final String? reviewedAt;
+
+  factory SellerApplication.fromJson(Map<String, dynamic> j) =>
+      SellerApplication(
+        id: j['id'] as int? ?? 0,
+        storeName: j['store_name'] as String? ?? '',
+        businessType: j['business_type'] as String? ?? 'individual',
+        businessDescription: j['business_description'] as String? ?? '',
+        contactPhone: j['contact_phone'] as String? ?? '',
+        contactEmail: j['contact_email'] as String? ?? '',
+        status: _parseStatus(j['status'] as String?),
+        businessLicenseUrl: j['business_license_url'] as String?,
+        rejectionReason: j['rejection_reason'] as String?,
+        submittedAt: j['submitted_at'] as String?,
+        reviewedAt: j['reviewed_at'] as String?,
+      );
+
+  static SellerApplicationStatus _parseStatus(String? s) => switch (s) {
+        'approved' => SellerApplicationStatus.approved,
+        'rejected' => SellerApplicationStatus.rejected,
+        _ => SellerApplicationStatus.pending,
+      };
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 class SellerStore {

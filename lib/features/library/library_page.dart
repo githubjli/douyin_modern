@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 
@@ -206,8 +207,7 @@ class _LibraryTabViewState extends State<_LibraryTabView>
         ),
       );
     }
-    return RefreshIndicator(
-      color: AppColors.brandGold,
+    return AppRefreshIndicator(
       onRefresh: _refresh,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -219,7 +219,8 @@ class _LibraryTabViewState extends State<_LibraryTabView>
               padding: EdgeInsets.all(16),
               child: Center(
                 child: CircularProgressIndicator(
-                    color: AppColors.brandGold, strokeWidth: 2),
+                  color: AppColors.brandGold,
+                ),
               ),
             );
           }
@@ -387,7 +388,6 @@ class _OrderCard extends StatelessWidget {
           Text(
             '$amount $currency',
             style: const TextStyle(
-                color: AppColors.brandGold,
                 fontWeight: FontWeight.w600,
                 fontSize: 13),
           ),
@@ -571,7 +571,6 @@ class _LibCard extends StatelessWidget {
                               child: Text(
                                 badge!,
                                 style: const TextStyle(
-                                  color: AppColors.brandGold,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),

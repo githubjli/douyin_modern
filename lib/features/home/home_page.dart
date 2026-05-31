@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -250,9 +251,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       onSignInPressed: widget.onSignInPressed,
       onSubscribePressed: widget.onSubscribePressed,
       child: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.brandGold,
-          backgroundColor: AppColors.cardBackground,
+        child: AppRefreshIndicator(
           onRefresh: _load,
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),

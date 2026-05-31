@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 export 'membership_repository_provider.dart';
 
+import '../../../core/database/database_provider.dart';
+import '../../../core/database/membership_videos_dao.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../home/data/remote_home_repository.dart';
 import '../../home/domain/home_models.dart';
@@ -53,9 +55,6 @@ final membershipPageRepoProvider = Provider<MembershipRepository>(
   (ref) => ref.watch(membershipRepositoryProvider),
 );
 
-final membershipPageMockRepoProvider = Provider<MembershipRepository>(
-  (ref) => ref.watch(membershipRepositoryProvider),
-);
 
 final membershipPageManualRepoProvider = Provider<ManualMembershipRepository>(
   (ref) => RemoteManualMembershipRepository(
@@ -80,19 +79,17 @@ final membershipPlansProvider =
     FutureProvider.autoDispose<List<MembershipPlan>>(
   (ref) async {
     final MembershipRepository repo = ref.watch(membershipPageRepoProvider);
-    final MembershipRepository mockRepo =
-        ref.watch(membershipPageMockRepoProvider);
     try {
       final List<MembershipPlan> plans = await repo.getPlans();
       if (plans.isNotEmpty) return plans;
     } catch (_) {
-      // Fall through to bundled mock plans.
+      // Network unavailable — return empty so _displayPlans() falls back to
+      // the built-in THB placeholder prices instead of stale mock data.
     }
-    return mockRepo.getPlans();
+    return const <MembershipPlan>[];
   },
   dependencies: [
     membershipPageRepoProvider,
-    membershipPageMockRepoProvider,
   ],
 );
 
@@ -106,28 +103,45 @@ final membershipVipVideosProvider =
     final bool useRemote = ref.watch(membershipPageUseRemoteProvider);
     if (!useRemote) return const <HomeVideoItem>[];
 
+    final MembershipVideosDao dao = ref.read(membershipVideosDaoProvider);
     final RemoteHomeRepository videoRepo =
         ref.watch(membershipPageVideoRepoProvider);
+
+    // Try network; on success save to SQLite and return fresh data.
     try {
-      final HomeVideoPage page = await videoRepo.getVideoPage(
-        accessType: 'membership',
-        pageSize: 12,
-        authenticated: true,
-      );
-      final List<HomeVideoItem> filtered = _membershipVideos(page.items);
-      if (filtered.isNotEmpty) return filtered.take(12).toList();
+      List<HomeVideoItem> fresh = const <HomeVideoItem>[];
+      try {
+        final HomeVideoPage page = await videoRepo.getVideoPage(
+          accessType: 'membership',
+          pageSize: 12,
+          authenticated: true,
+        );
+        fresh = _membershipVideos(page.items);
+      } catch (_) {
+        // Fall through to unfiltered fetch.
+      }
+      if (fresh.isEmpty) {
+        final HomeVideoPage page = await videoRepo.getVideoPage(
+          pageSize: 24,
+          authenticated: true,
+        );
+        fresh = _membershipVideos(page.items).take(12).toList();
+      } else {
+        fresh = fresh.take(12).toList();
+      }
+      if (fresh.isNotEmpty) {
+        await dao.save(fresh);
+        return fresh;
+      }
     } catch (_) {
-      // Fall through to unfiltered fetch.
+      // Network unavailable — fall through to cache.
     }
-    try {
-      final HomeVideoPage page = await videoRepo.getVideoPage(
-        pageSize: 24,
-        authenticated: true,
-      );
-      return _membershipVideos(page.items).take(12).toList();
-    } catch (_) {
-      return const <HomeVideoItem>[];
-    }
+
+    // Network failed: return TTL-valid cache, then stale, then empty.
+    final List<HomeVideoItem>? cached = await dao.load();
+    if (cached != null && cached.isNotEmpty) return cached;
+    final List<HomeVideoItem>? stale = await dao.loadStale();
+    return stale ?? const <HomeVideoItem>[];
   },
   dependencies: [
     membershipPageVipFutureProvider,

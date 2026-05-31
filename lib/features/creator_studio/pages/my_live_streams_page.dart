@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -122,8 +123,7 @@ class _MyLiveStreamsPageState extends State<MyLiveStreamsPage> {
               ? _ErrorView(message: _error!, onRetry: _refresh)
               : _items.isEmpty
                   ? const _EmptyView()
-                  : RefreshIndicator(
-                      color: AppColors.brandGold,
+                  : AppRefreshIndicator(
                       onRefresh: _refresh,
                       child: ListView.separated(
                         controller: _scrollController,

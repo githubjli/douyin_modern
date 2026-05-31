@@ -141,7 +141,7 @@ class MainShell extends ConsumerWidget {
         onSignInPressed: () => goToTab(4),
         onSubscribePressed: () => goToTab(3),
       ),
-      const ProfilePage(),
+      ProfilePage(networkRefreshTrigger: networkTrigger),
     ];
 
     return Scaffold(

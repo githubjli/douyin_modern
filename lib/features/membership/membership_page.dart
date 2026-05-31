@@ -71,7 +71,6 @@ class MembershipPage extends ConsumerWidget {
     return ProviderScope(
       overrides: [
         membershipPageRepoProvider.overrideWithValue(_resolveRepo(ref)),
-        membershipPageMockRepoProvider.overrideWithValue(mockRepository),
         membershipPageManualRepoProvider
             .overrideWithValue(_resolveManualRepo(ref)),
         membershipPageVideoRepoProvider
@@ -131,8 +130,11 @@ class _MembershipBodyState extends ConsumerState<_MembershipBody> {
   void didUpdateWidget(covariant _MembershipBody oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.isActive && widget.isActive) {
+      // Plans and pending codes are cheap/auth-sensitive — refresh on every
+      // tab visit. VIP videos are NOT invalidated here: the provider now
+      // serves from SQLite cache instantly, so forcing a re-fetch on every
+      // tab switch would defeat the offline-first strategy.
       ref.invalidate(membershipPlansProvider);
-      ref.invalidate(membershipVipVideosProvider);
       ref.invalidate(membershipPendingCodesProvider);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;

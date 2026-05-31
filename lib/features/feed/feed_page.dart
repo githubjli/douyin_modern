@@ -53,6 +53,9 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
 
   int _currentIndex = 0;
   List<FeedItem> _items = const <FeedItem>[];
+  // Fetched-but-not-yet-applied fresh items. Shown as a "new videos" chip
+  // so the user can choose when to apply them instead of being interrupted.
+  List<FeedItem> _pendingItems = const <FeedItem>[];
   bool _loading = true;
   String? _notice;
   bool _isOffline = false;
@@ -60,6 +63,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   bool _danmakuEnabled = true;
   final Set<int> _viewedSeriesIds = <int>{};
   List<String> _danmakuComments = const <String>[];
+  int _loadGeneration = 0;
 
   FeedDao get _dao => ref.read(feedDaoProvider);
 
@@ -95,10 +99,15 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   }
 
   Future<void> _loadFeed() async {
+    final int generation = ++_loadGeneration;
+
     // Step 1: show valid (within TTL) cache instantly — no spinner.
     final List<FeedItem>? cached = await _dao.loadFeed();
-    if (cached != null && cached.isNotEmpty && mounted) {
+    if (generation != _loadGeneration || !mounted) return;
+
+    if (cached != null && cached.isNotEmpty) {
       final int lastIndex = await _dao.loadLastIndex();
+      if (generation != _loadGeneration || !mounted) return;
       setState(() {
         _items = cached;
         _loading = false;
@@ -106,8 +115,9 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
         _notice = '正在更新内容…';
       });
       final int startIndex = lastIndex.clamp(0, cached.length - 1);
+      // Don't await — video init must not block the network fetch below.
       if (widget.enableVideo) {
-        await _activateIndex(startIndex, autoPlay: widget.isActive);
+        unawaited(_activateIndex(startIndex, autoPlay: widget.isActive));
       }
     } else if (mounted) {
       setState(() => _loading = true);
@@ -118,6 +128,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
       try {
         final List<FeedItem> remoteItems =
             await _remoteRepository.getShortsFeed();
+        if (generation != _loadGeneration || !mounted) return;
         final List<FeedItem> fresh = remoteItems
             .where((FeedItem item) =>
                 item.videoUrl.isNotEmpty && item.isLocked != true)
@@ -125,15 +136,28 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
 
         if (fresh.isNotEmpty) {
           await _dao.saveFeed(fresh);
-          if (!mounted) return;
-          setState(() {
-            _items = fresh;
-            _loading = false;
-            _isOffline = false;
-            _notice = null;
-          });
-          if (widget.enableVideo) {
-            await _activateIndex(0, autoPlay: widget.isActive);
+          if (generation != _loadGeneration || !mounted) return;
+
+          if (_items.isEmpty) {
+            // No content yet — apply immediately.
+            setState(() {
+              _items = fresh;
+              _loading = false;
+              _isOffline = false;
+              _notice = null;
+              _pendingItems = const <FeedItem>[];
+            });
+            if (widget.enableVideo) {
+              unawaited(_activateIndex(0, autoPlay: widget.isActive));
+            }
+          } else {
+            // User is already watching — don't interrupt. Park fresh data
+            // behind a "new videos" chip they can tap when ready.
+            setState(() {
+              _pendingItems = fresh;
+              _isOffline = false;
+              _notice = null;
+            });
           }
           return;
         }
@@ -146,7 +170,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
     }
 
     // Step 3: network failed or returned nothing.
-    if (!mounted) return;
+    if (generation != _loadGeneration || !mounted) return;
     if (_items.isNotEmpty) {
       // Already showing (TTL-valid) cache — just update banner.
       setState(() {
@@ -156,8 +180,10 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
     } else {
       // TTL expired or no cache — try loading stale cache before empty state.
       final List<FeedItem>? stale = await _dao.loadStale();
-      if (stale != null && stale.isNotEmpty && mounted) {
+      if (generation != _loadGeneration || !mounted) return;
+      if (stale != null && stale.isNotEmpty) {
         final int lastIndex = await _dao.loadLastIndex();
+        if (generation != _loadGeneration || !mounted) return;
         setState(() {
           _items = stale;
           _loading = false;
@@ -166,9 +192,9 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
         });
         final int startIndex = lastIndex.clamp(0, stale.length - 1);
         if (widget.enableVideo) {
-          await _activateIndex(startIndex, autoPlay: widget.isActive);
+          unawaited(_activateIndex(startIndex, autoPlay: widget.isActive));
         }
-      } else if (mounted) {
+      } else {
         // Truly no cache — show offline empty state.
         setState(() {
           _loading = false;
@@ -176,6 +202,26 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
           _notice = null;
         });
       }
+    }
+  }
+
+  /// Applies pending fresh items — called when the user taps the "new videos" chip.
+  void _applyPending() {
+    final List<FeedItem> fresh = _pendingItems;
+    if (fresh.isEmpty) return;
+    _saveCurrentProgress();
+    setState(() {
+      _items = fresh;
+      _pendingItems = const <FeedItem>[];
+      _notice = null;
+    });
+    _pageController.animateToPage(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+    );
+    if (widget.enableVideo) {
+      unawaited(_activateIndex(0, autoPlay: widget.isActive));
     }
   }
 
@@ -445,6 +491,18 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
             left: 12,
             right: 12,
             child: _NoticeBanner(message: _notice!, isOffline: _isOffline),
+          ),
+        if (_pendingItems.isNotEmpty)
+          Positioned(
+            top: 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _NewVideosBadge(
+                count: _pendingItems.length,
+                onTap: _applyPending,
+              ),
+            ),
           ),
       ],
     );
@@ -1596,3 +1654,48 @@ class _NoticeBanner extends StatelessWidget {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// "New videos" floating chip — shown when fresh content arrived in background
+// without interrupting the current session. Tapping applies the new feed.
+// ---------------------------------------------------------------------------
+
+class _NewVideosBadge extends StatelessWidget {
+  const _NewVideosBadge({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.arrow_upward_rounded,
+                size: 14, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              '$count new videos',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

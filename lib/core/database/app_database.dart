@@ -61,6 +61,16 @@ class ShopCacheTable extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Membership VIP video list — JSON array of HomeVideoItem.
+class MembershipVideosCacheTable extends Table {
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  TextColumn get json => text()();
+  IntColumn get cachedAt => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -72,13 +82,14 @@ class ShopCacheTable extends Table {
       FeedMetaTable,
       HomeCacheTable,
       ShopCacheTable,
+      MembershipVideosCacheTable,
     ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -93,6 +104,9 @@ class AppDatabase extends _$AppDatabase {
               // Add savedAt column; existing rows get epoch 0 (treated as
               // oldest — will be pruned first on next saveProgress call).
               await m.addColumn(feedProgressTable, feedProgressTable.savedAt);
+            }
+            if (from < 4) {
+              await m.createTable(membershipVideosCacheTable);
             }
           } catch (e, st) {
             // Migration failure must not crash the app. Cache tables will be

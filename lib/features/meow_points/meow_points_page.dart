@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,8 +61,7 @@ class MeowPointsPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.brandGold,
+        child: AppRefreshIndicator(
           onRefresh: () async => ref.invalidate(meowPointsWalletProvider),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -152,7 +152,6 @@ class _BalanceCard extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.stars_rounded,
-                  color: AppColors.brandGold,
                   size: 22,
                 ),
               ),
@@ -160,7 +159,6 @@ class _BalanceCard extends StatelessWidget {
               Text(
                 'Current Balance',
                 style: AppTextStyles.caption.copyWith(
-                  color: AppColors.brandGold,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
@@ -176,7 +174,6 @@ class _BalanceCard extends StatelessWidget {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppColors.brandGold,
                 ),
               ),
             )
@@ -191,7 +188,6 @@ class _BalanceCard extends StatelessWidget {
             Text(
               wallet != null ? '${wallet!.balance}' : '—',
               style: AppTextStyles.sectionTitle.copyWith(
-                color: AppColors.brandGold,
                 fontSize: 36,
                 fontWeight: FontWeight.w800,
                 height: 1.0,
@@ -244,7 +240,6 @@ class _DailyRewardCard extends StatelessWidget {
             ),
             child: const Icon(
               Icons.card_giftcard_rounded,
-              color: AppColors.brandGold,
               size: 20,
             ),
           ),
@@ -280,7 +275,6 @@ class _DailyRewardCard extends StatelessWidget {
                     height: 14,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.brandGold,
                     ),
                   )
                 : const Text('Claim'),
@@ -355,7 +349,6 @@ class _StatRow extends StatelessWidget {
           Text(
             '$_display MP',
             style: AppTextStyles.body.copyWith(
-              color: AppColors.brandGold,
               fontWeight: FontWeight.w600,
             ),
           ),

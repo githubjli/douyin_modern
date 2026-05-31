@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 
@@ -137,9 +138,7 @@ class _OrderListPageState extends State<OrderListPage> {
       );
     }
 
-    return RefreshIndicator(
-      color: AppColors.brandGold,
-      backgroundColor: AppColors.cardBackground,
+    return AppRefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -262,7 +261,6 @@ class _OrderCard extends StatelessWidget {
                 Text(
                   '${order.totalAmountSnapshot} $unit',
                   style: AppTextStyles.caption.copyWith(
-                    color: AppColors.brandGold,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),

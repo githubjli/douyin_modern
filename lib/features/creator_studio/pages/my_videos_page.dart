@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import '../../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 
@@ -156,8 +157,7 @@ class _MyVideosPageState extends State<MyVideosPage> {
                         if (uploaded == true) _refresh();
                       });
                     })
-                  : RefreshIndicator(
-                      color: AppColors.brandGold,
+                  : AppRefreshIndicator(
                       onRefresh: _refresh,
                       child: ListView.separated(
                         controller: _scrollController,

@@ -1029,8 +1029,8 @@ class _PrepareView extends StatelessWidget {
                   ],
                   _CircleButton(
                     icon: isLandscape
-                        ? Icons.stay_current_portrait_rounded
-                        : Icons.stay_current_landscape_rounded,
+                        ? Icons.fullscreen_exit_rounded
+                        : Icons.fullscreen_rounded,
                     onTap: onToggleOrientation,
                   ),
                 ],

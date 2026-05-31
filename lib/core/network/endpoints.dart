@@ -186,6 +186,28 @@ class Endpoints {
   static String shopOrderDetail(String orderNo) =>
       '/api/product-orders/$orderNo/';
 
+  static String shopOrderConfirmReceived(String orderNo) =>
+      '/api/product-orders/$orderNo/confirm-received/';
+
+  static String shopOrderRefundRequests(String orderNo) =>
+      '/api/product-orders/$orderNo/refund-requests/';
+
+  // ── Cart / Wishlist ───────────────────────────────────────────────────────
+  static const String cartItems = '/api/cart/items/';
+  static String cartItemDetail(int id) => '/api/cart/items/$id/';
+  static const String cartCount = '/api/cart/count/';
+
+  // ── Seller Store ──────────────────────────────────────────────────────────
+  static const String sellerStoreMe       = '/api/store/me/';
+  static const String sellerProducts      = '/api/store/me/products/';
+  static String sellerProductDetail(int id) => '/api/store/me/products/$id/';
+
+  static const String sellerOrders        = '/api/seller/product-orders/';
+  static String sellerOrderDetail(String orderNo) =>
+      '/api/seller/product-orders/$orderNo/';
+  static String sellerOrderShip(String orderNo) =>
+      '/api/seller/product-orders/$orderNo/ship/';
+
   // ── Creator Studio ────────────────────────────────────────────────────────
   static const String creatorVideos     = '/api/creator/videos/';
   static const String creatorLiveStreams = '/api/creator/live-streams/';

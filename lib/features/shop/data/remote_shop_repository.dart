@@ -161,9 +161,9 @@ class RemoteShopRepository implements ShopRepository {
   }
 
   ShopOrder _mapOrder(Map<String, dynamic> m) {
-    // Product name: try product_name_snapshot first, then nested product.name
     final dynamic productSnap = m['product_snapshot'];
     final String? productName = m['product_name_snapshot'] as String? ??
+        m['product_title_snapshot'] as String? ??
         (productSnap is Map<String, dynamic>
             ? productSnap['name'] as String?
             : null);
@@ -171,14 +171,37 @@ class RemoteShopRepository implements ShopRepository {
         (productSnap is Map<String, dynamic>
             ? productSnap['thumbnail_url'] as String?
             : null);
+
+    final dynamic shipmentRaw = m['shipment'];
+    final ShopShipment? shipment = shipmentRaw is Map<String, dynamic>
+        ? ShopShipment.fromJson(shipmentRaw)
+        : null;
+
+    final dynamic refundRaw = m['refund_summary'];
+    final ShopRefundSummary? refundSummary = refundRaw is Map<String, dynamic>
+        ? ShopRefundSummary.fromJson(refundRaw)
+        : null;
+
+    final dynamic paymentRaw = m['payment_summary'];
+    final ShopPaymentSummary? paymentSummary =
+        paymentRaw is Map<String, dynamic>
+            ? ShopPaymentSummary.fromJson(paymentRaw)
+            : null;
+
     return ShopOrder(
       orderNo: m['order_no'] as String? ?? '',
       status: m['status'] as String? ?? '',
       paymentAsset: m['payment_asset'] as String? ?? '',
-      unitPriceSnapshot: m['unit_price_snapshot'] as String? ?? '0',
-      totalAmountSnapshot: m['total_amount_snapshot'] as String? ?? '0',
-      platformFeeAmount: m['platform_fee_amount'] as String? ?? '0',
-      sellerReceivableAmount: m['seller_receivable_amount'] as String? ?? '0',
+      unitPriceSnapshot: (m['unit_price_snapshot'] ??
+              m['product_price_snapshot'] ??
+              m['expected_amount'] ??
+              '0')
+          .toString(),
+      totalAmountSnapshot:
+          (m['total_amount_snapshot'] ?? m['total_amount'] ?? '0').toString(),
+      platformFeeAmount: (m['platform_fee_amount'] ?? '0').toString(),
+      sellerReceivableAmount:
+          (m['seller_receivable_amount'] ?? '0').toString(),
       paidAt: m['paid_at'] as String?,
       shippingAddressSnapshot:
           m['shipping_address_snapshot'] is Map<String, dynamic>
@@ -188,6 +211,11 @@ class RemoteShopRepository implements ShopRepository {
       productThumbnailSnapshot: productThumb,
       quantity: m['quantity'] as int? ?? 1,
       createdAt: m['created_at'] as String?,
+      updatedAt: m['updated_at'] as String?,
+      expiresAt: m['expires_at'] as String?,
+      shipment: shipment,
+      refundSummary: refundSummary,
+      paymentSummary: paymentSummary,
     );
   }
 
@@ -209,6 +237,44 @@ class RemoteShopRepository implements ShopRepository {
       items = const <dynamic>[];
     }
     return items.whereType<Map<String, dynamic>>().map(_mapOrder).toList();
+  }
+
+  @override
+  Future<ShopOrder> getOrderDetail(String orderNo) async {
+    final response = await _apiClient.get<dynamic>(
+      Endpoints.shopOrderDetail(orderNo),
+      authenticated: true,
+    );
+    final dynamic raw = response.data;
+    if (raw is! Map<String, dynamic>) throw Exception('Invalid order detail response');
+    return _mapOrder(raw);
+  }
+
+  @override
+  Future<ShopOrder> confirmReceived(String orderNo) async {
+    final response = await _apiClient.post<dynamic>(
+      Endpoints.shopOrderConfirmReceived(orderNo),
+      authenticated: true,
+    );
+    final dynamic raw = response.data;
+    if (raw is! Map<String, dynamic>) throw Exception('Invalid confirm-received response');
+    return _mapOrder(raw);
+  }
+
+  @override
+  Future<void> requestRefund({
+    required String orderNo,
+    required String reason,
+    required String requestedAmount,
+  }) async {
+    await _apiClient.post<dynamic>(
+      Endpoints.shopOrderRefundRequests(orderNo),
+      data: <String, dynamic>{
+        'reason': reason,
+        'requested_amount': requestedAmount,
+      },
+      authenticated: true,
+    );
   }
 
   ShopProductPage _mapProductPage(Map<String, dynamic> m, int page, int pageSize) {

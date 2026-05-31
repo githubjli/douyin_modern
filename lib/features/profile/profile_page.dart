@@ -34,6 +34,8 @@ import '../meow_points/meow_points_page.dart';
 import '../kyc/application/kyc_providers.dart';
 import '../kyc/presentation/kyc_page.dart';
 import '../library/library_page.dart';
+import '../seller/pages/my_products_page.dart';
+import '../seller/pages/seller_orders_page.dart';
 import 'data/remote_profile_repository.dart';
 import 'domain/profile_repository.dart';
 import 'domain/user_profile.dart';
@@ -979,6 +981,7 @@ class _SignedInProfileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isCreator = profile?.isCreator == true;
+    final bool isSeller = profile?.isSeller == true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1077,6 +1080,45 @@ class _SignedInProfileBody extends StatelessWidget {
                 onTap: () => Navigator.of(context).push<void>(
                   MaterialPageRoute<void>(
                     builder: (_) => const CreateDramaPage(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+
+        // ── Seller Studio (only for sellers) ──────────────────────────
+        if (isSeller) ...<Widget>[
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xs, bottom: AppSpacing.xs),
+            child: Text(
+              'SELLER STUDIO',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.mutedOliveText,
+                letterSpacing: 0.8,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          _StudioSubCard(
+            label: 'Seller Store',
+            items: <_MenuItem>[
+              _MenuItem(
+                icon: Icons.storefront_outlined,
+                label: 'My Products',
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyProductsPage(),
+                  ),
+                ),
+              ),
+              _MenuItem(
+                icon: Icons.receipt_long_outlined,
+                label: 'Manage Orders',
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SellerOrdersPage(),
                   ),
                 ),
               ),

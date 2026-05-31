@@ -1,6 +1,6 @@
 part of '../shop_page.dart';
 
-enum _ShopMenuAction { orders, addresses }
+enum _ShopMenuAction { orders, addresses, cart }
 
 class _ShopTopBar extends StatelessWidget {
   const _ShopTopBar({
@@ -39,54 +39,49 @@ class _ShopTopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.xs),
-        // Cart icon — tap opens popup: My Orders / My Addresses / Cart
-        PopupMenuButton<_ShopMenuAction>(
-          onSelected: onMenuSelected,
-          color: AppColors.cardBackground,
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-            side: const BorderSide(color: AppColors.softBorder),
-          ),
-          // Use the cart icon as the visible trigger (no extra ⋮ button)
-          child: const Icon(
-            Icons.shopping_cart_outlined,
-            color: AppColors.cocoaText,
-            size: 24,
-          ),
-          itemBuilder: (_) => <PopupMenuEntry<_ShopMenuAction>>[
-            _menuItem(
-              _ShopMenuAction.orders,
-              Icons.receipt_long_outlined,
-              'My Orders',
-            ),
-            _menuItem(
-              _ShopMenuAction.addresses,
-              Icons.location_on_outlined,
-              'My Addresses',
-            ),
-            const PopupMenuDivider(),
-            // Cart — disabled placeholder
-            PopupMenuItem<_ShopMenuAction>(
-              enabled: false,
-              child: Row(
-                children: <Widget>[
-                  const Icon(
-                    Icons.shopping_cart_outlined,
-                    size: 18,
-                    color: AppColors.mutedOliveText,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    'Cart  (coming soon)',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.mutedOliveText,
-                    ),
-                  ),
-                ],
+        // Cart icon with badge — tap opens popup
+        Consumer(
+          builder: (BuildContext ctx, WidgetRef ref, _) {
+            final int count =
+                ref.watch(cartCountProvider).asData?.value ?? 0;
+            return PopupMenuButton<_ShopMenuAction>(
+              onSelected: onMenuSelected,
+              color: AppColors.cardBackground,
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                side: const BorderSide(color: AppColors.softBorder),
               ),
-            ),
-          ],
+              child: Badge(
+                isLabelVisible: count > 0,
+                label: Text('$count', style: const TextStyle(fontSize: 10)),
+                backgroundColor: AppColors.brandGold,
+                child: const Icon(
+                  Icons.shopping_cart_outlined,
+                  color: AppColors.cocoaText,
+                  size: 24,
+                ),
+              ),
+              itemBuilder: (_) => <PopupMenuEntry<_ShopMenuAction>>[
+                _menuItem(
+                  _ShopMenuAction.orders,
+                  Icons.receipt_long_outlined,
+                  'My Orders',
+                ),
+                _menuItem(
+                  _ShopMenuAction.addresses,
+                  Icons.location_on_outlined,
+                  'My Addresses',
+                ),
+                const PopupMenuDivider(),
+                _menuItem(
+                  _ShopMenuAction.cart,
+                  Icons.favorite_outline,
+                  count > 0 ? 'Saved Items ($count)' : 'Saved Items',
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

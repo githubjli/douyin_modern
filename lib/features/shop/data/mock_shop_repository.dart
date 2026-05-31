@@ -237,6 +237,47 @@ class MockShopRepository implements ShopRepository {
     ];
   }
 
+  @override
+  Future<ShopOrder> getOrderDetail(String orderNo) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final List<ShopOrder> all = await getOrders();
+    return all.firstWhere(
+      (ShopOrder o) => o.orderNo == orderNo,
+      orElse: () => ShopOrder(
+        orderNo: orderNo,
+        status: 'paid',
+        paymentAsset: 'meow_points',
+        unitPriceSnapshot: '100',
+        totalAmountSnapshot: '100',
+        platformFeeAmount: '0',
+        sellerReceivableAmount: '100',
+      ),
+    );
+  }
+
+  @override
+  Future<ShopOrder> confirmReceived(String orderNo) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return ShopOrder(
+      orderNo: orderNo,
+      status: 'completed',
+      paymentAsset: 'meow_credit',
+      unitPriceSnapshot: '22',
+      totalAmountSnapshot: '22',
+      platformFeeAmount: '0',
+      sellerReceivableAmount: '22',
+    );
+  }
+
+  @override
+  Future<void> requestRefund({
+    required String orderNo,
+    required String reason,
+    required String requestedAmount,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+  }
+
   List<ShopProductSpec> _specsFor(ShopProduct p) {
     final String slug = p.category?.slug ?? '';
     return switch (slug) {

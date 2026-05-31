@@ -14,6 +14,8 @@ import '../meow_points/application/meow_points_providers.dart';
 import '../shipping/data/shipping_address_repository.dart';
 import '../shipping/domain/shipping_address.dart';
 import '../shipping/presentation/address_list_page.dart';
+import 'cart_page.dart';
+import 'data/cart_repository.dart';
 import 'data/mock_shop_repository.dart';
 import 'data/remote_shop_repository.dart';
 import 'domain/shop_models.dart';
@@ -45,6 +47,11 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 
   int _activeImageIndex = 0;
   bool _detailLoading = true;
+  int _quantity = 1;
+
+  // Cart / wishlist state
+  int? _cartItemId;       // non-null when product is saved
+  bool _cartLoading = false;
 
   late final PageController _imageController;
 
@@ -65,12 +72,72 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             ? RemoteShopRepository(apiClient: ref.read(apiClientProvider))
             : const MockShopRepository());
     _loadDetail();
+    _loadCartStatus();
   }
 
   @override
   void dispose() {
     _imageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCartStatus() async {
+    if (!widget.useRemote) return;
+    try {
+      final CartRepository cartRepo = ref.read(cartRepositoryProvider);
+      final List<CartItem> items = await cartRepo.getItems();
+      if (!mounted) return;
+      final CartItem? match = items.cast<CartItem?>().firstWhere(
+            (CartItem? c) => c!.product.id == widget.product.id,
+            orElse: () => null,
+          );
+      setState(() => _cartItemId = match?.id);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleCart() async {
+    if (_cartLoading) return;
+    final bool isAuthenticated =
+        ref.read(authControllerProvider).isSignedIn;
+    if (!isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to save items')),
+      );
+      return;
+    }
+    setState(() => _cartLoading = true);
+    try {
+      final CartRepository cartRepo = ref.read(cartRepositoryProvider);
+      if (_cartItemId != null) {
+        await cartRepo.removeItem(_cartItemId!);
+        if (!mounted) return;
+        setState(() => _cartItemId = null);
+        ref.invalidate(cartCountProvider);
+      } else {
+        final CartItem item = await cartRepo.addItem(widget.product.id);
+        if (!mounted) return;
+        setState(() => _cartItemId = item.id);
+        ref.invalidate(cartCountProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Saved to your wishlist'),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(builder: (_) => const CartPage()),
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _cartLoading = false);
+    }
   }
 
   Future<void> _loadDetail() async {
@@ -142,6 +209,14 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                           const SizedBox(height: AppSpacing.md),
                           _SpecsSection(specs: _product.specs),
                         ],
+                        const SizedBox(height: AppSpacing.md),
+                        _SectionDivider(),
+                        const SizedBox(height: AppSpacing.md),
+                        _QuantitySelector(
+                          quantity: _quantity,
+                          stock: _product.stock,
+                          onChanged: (int v) => setState(() => _quantity = v),
+                        ),
                         const SizedBox(height: AppSpacing.xl),
                       ],
                     ),
@@ -155,6 +230,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             repo: _repo,
             isAuthenticated: isAuthenticated,
             selectedAsset: _selectedAsset,
+            quantity: _quantity,
           ),
         ],
       ),
@@ -172,6 +248,15 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         child: const Center(child: _GlassIconButton(icon: Icons.arrow_back_rounded)),
       ),
       actions: <Widget>[
+        // Wishlist heart button
+        GestureDetector(
+          onTap: _cartLoading ? null : _toggleCart,
+          child: _GlassIconButton(
+            icon: _cartItemId != null ? Icons.favorite : Icons.favorite_border,
+            color: _cartItemId != null ? Colors.redAccent : null,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
         _GlassCartMenuButton(repo: _repo),
         const SizedBox(width: AppSpacing.sm),
       ],
@@ -480,12 +565,14 @@ class _BuyBar extends ConsumerStatefulWidget {
     required this.repo,
     required this.isAuthenticated,
     required this.selectedAsset,
+    required this.quantity,
   });
 
   final ShopProduct product;
   final ShopRepository repo;
   final bool isAuthenticated;
   final ShopPaymentAsset? selectedAsset;
+  final int quantity;
 
   @override
   ConsumerState<_BuyBar> createState() => _BuyBarState();
@@ -500,7 +587,7 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
     try {
       final ShopOrder order = await widget.repo.createOrder(
         productId: widget.product.id,
-        quantity: 1,
+        quantity: widget.quantity,
         paymentAsset: asset,
         shippingAddressId: shippingAddressId,
       );
@@ -731,9 +818,10 @@ class _BuyButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _GlassIconButton extends StatelessWidget {
-  const _GlassIconButton({required this.icon});
+  const _GlassIconButton({required this.icon, this.color});
 
   final IconData icon;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -747,7 +835,7 @@ class _GlassIconButton extends StatelessWidget {
             color: Color(0x33000000),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Icon(icon, color: color ?? Colors.white, size: 20),
         ),
       ),
     );
@@ -785,28 +873,19 @@ class _GlassCartMenuButton extends StatelessWidget {
                 builder: (_) => const AddressListPage(),
               ),
             );
+          case 'cart':
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const CartPage(),
+              ),
+            );
         }
       },
       itemBuilder: (_) => <PopupMenuEntry<String>>[
         _menuItem('orders', Icons.receipt_long_outlined, 'My Orders'),
         _menuItem('addresses', Icons.location_on_outlined, 'My Addresses'),
         const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Row(
-            children: <Widget>[
-              const Icon(Icons.shopping_cart_outlined,
-                  size: 18, color: AppColors.mutedOliveText),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                'Cart  (coming soon)',
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.mutedOliveText,
-                ),
-              ),
-            ],
-          ),
-        ),
+        _menuItem('cart', Icons.favorite_outline, 'Saved Items'),
       ],
       // Cart glass icon is the visible trigger — no separate ⋮ button
       child: const _GlassIconButton(icon: Icons.shopping_cart_outlined),
@@ -1232,6 +1311,81 @@ class _ConfirmRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Quantity Selector ─────────────────────────────────────────────────────────
+
+class _QuantitySelector extends StatelessWidget {
+  const _QuantitySelector({
+    required this.quantity,
+    required this.stock,
+    required this.onChanged,
+  });
+
+  final int quantity;
+  final int stock;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Text('Quantity', style: AppTextStyles.caption.copyWith(color: AppColors.cocoaText)),
+        const Spacer(),
+        _QtyButton(
+          icon: Icons.remove,
+          enabled: quantity > 1,
+          onTap: () => onChanged(quantity - 1),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Text(
+            '$quantity',
+            style: AppTextStyles.cardTitle.copyWith(fontSize: 16),
+          ),
+        ),
+        _QtyButton(
+          icon: Icons.add,
+          enabled: stock <= 0 || quantity < stock,
+          onTap: () => onChanged(quantity + 1),
+        ),
+      ],
+    );
+  }
+}
+
+class _QtyButton extends StatelessWidget {
+  const _QtyButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: enabled
+              ? AppColors.brandGold.withValues(alpha: 0.15)
+              : AppColors.mutedOliveText.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? AppColors.brandGold : AppColors.mutedOliveText,
+        ),
       ),
     );
   }

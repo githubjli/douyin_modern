@@ -8,9 +8,6 @@ abstract final class CacheConfig {
   /// entries (by savedAt) are deleted to stay within this limit.
   static const int maxProgressRows = 500;
 
-  /// Maximum total size of the image disk cache (CachedNetworkImage).
-  static const int imageCacheMaxBytes = 100 * 1024 * 1024; // 100 MB
-
   /// How long image cache entries are retained on disk.
   static const Duration imageCacheStalePeriod = Duration(days: 7);
 

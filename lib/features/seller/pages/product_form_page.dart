@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/endpoints.dart';
 import '../data/seller_repository.dart';
 import '../domain/seller_models.dart';
 
@@ -34,6 +36,10 @@ class _ProductFormPageState extends State<ProductFormPage> {
 
   bool _saving = false;
 
+  // Category
+  List<_Category> _categories = const <_Category>[];
+  _Category? _selectedCategory;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +52,35 @@ class _ProductFormPageState extends State<ProductFormPage> {
       _mcPriceCtrl.text = p.meowCreditPrice ?? '';
       _thumbnailCtrl.text = p.thumbnailUrl ?? '';
     }
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final response = await ApiClient().get<dynamic>(Endpoints.shopCategories);
+      final dynamic raw = response.data;
+      if (raw is! List) return;
+      final List<_Category> cats = raw
+          .whereType<Map<String, dynamic>>()
+          .where((Map<String, dynamic> m) => (m['slug'] as String?) != 'all')
+          .map((Map<String, dynamic> m) => _Category(
+                id: m['id'] as int? ?? 0,
+                name: m['name'] as String? ?? '',
+                slug: m['slug'] as String? ?? '',
+              ))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        // Pre-select if editing
+        if (widget.product?.categorySlug != null) {
+          _selectedCategory = cats.cast<_Category?>().firstWhere(
+                (_Category? c) => c!.slug == widget.product!.categorySlug,
+                orElse: () => null,
+              );
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -70,6 +105,7 @@ class _ProductFormPageState extends State<ProductFormPage> {
       if (_mpPriceCtrl.text.trim().isNotEmpty) 'meow_points_price': _mpPriceCtrl.text.trim(),
       if (_mcPriceCtrl.text.trim().isNotEmpty) 'meow_credit_price': _mcPriceCtrl.text.trim(),
       if (_thumbnailCtrl.text.trim().isNotEmpty) 'thumbnail_url': _thumbnailCtrl.text.trim(),
+      if (_selectedCategory != null) 'category_id': _selectedCategory!.id,
     };
 
     try {
@@ -161,6 +197,31 @@ class _ProductFormPageState extends State<ProductFormPage> {
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
+            if (_categories.isNotEmpty)
+              _FormCard(
+                label: 'Category',
+                children: <Widget>[
+                  DropdownButtonFormField<_Category>(
+                    initialValue: _selectedCategory,
+                    hint: Text('Select category', style: AppTextStyles.caption.copyWith(color: AppColors.mutedOliveText)),
+                    dropdownColor: AppColors.cardBackground,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AppColors.softBorder)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AppColors.softBorder)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.brandGold)),
+                      filled: true,
+                      fillColor: AppColors.warmBackground,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    items: _categories.map((_Category c) => DropdownMenuItem<_Category>(
+                      value: c,
+                      child: Text(c.name, style: AppTextStyles.caption.copyWith(color: AppColors.cocoaText)),
+                    )).toList(),
+                    onChanged: (_Category? v) => setState(() => _selectedCategory = v),
+                  ),
+                ],
+              ),
+            if (_categories.isNotEmpty) const SizedBox(height: AppSpacing.sm),
             _FormCard(
               label: 'Pricing (at least one required)',
               children: <Widget>[
@@ -285,4 +346,16 @@ class _FormCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _Category {
+  const _Category({required this.id, required this.name, required this.slug});
+  final int id;
+  final String name;
+  final String slug;
+
+  @override
+  bool operator ==(Object other) => other is _Category && other.id == id;
+  @override
+  int get hashCode => id.hashCode;
 }

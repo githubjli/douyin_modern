@@ -6,6 +6,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/network/api_client.dart';
 import '../data/seller_repository.dart';
 import '../domain/seller_models.dart';
+import 'seller_order_detail_page.dart';
 
 class SellerOrdersPage extends StatefulWidget {
   const SellerOrdersPage({super.key});
@@ -122,6 +123,18 @@ class _OrderListState extends State<_OrderList>
     }
   }
 
+  void _openDetail(SellerOrder order) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SellerOrderDetailPage(
+          orderNo: order.orderNo,
+          repo: widget.repo,
+          initialOrder: order,
+        ),
+      ),
+    ).then((_) => _load());
+  }
+
   Future<void> _shipOrder(SellerOrder order) async {
     final _ShipResult? result = await showModalBottomSheet<_ShipResult>(
       context: context,
@@ -190,9 +203,12 @@ class _OrderListState extends State<_OrderList>
         padding: const EdgeInsets.all(AppSpacing.md),
         itemCount: _orders.length,
         separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-        itemBuilder: (_, int i) => _SellerOrderTile(
-          order: _orders[i],
-          onShip: _orders[i].canShip ? () => _shipOrder(_orders[i]) : null,
+        itemBuilder: (_, int i) => GestureDetector(
+          onTap: () => _openDetail(_orders[i]),
+          child: _SellerOrderTile(
+            order: _orders[i],
+            onShip: _orders[i].canShip ? () => _shipOrder(_orders[i]) : null,
+          ),
         ),
       ),
     );

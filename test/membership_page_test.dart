@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -54,6 +55,9 @@ void main() {
   );
 
   setUpAll(() {
+    // Each test creates its own NativeDatabase.memory() for isolation.
+    // Suppress drift's "multiple instances" warning — it's expected here.
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (_) async => null);
   });

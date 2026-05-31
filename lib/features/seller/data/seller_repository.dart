@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../domain/seller_models.dart';
@@ -6,6 +8,49 @@ class SellerRepository {
   const SellerRepository(this._client);
 
   final ApiClient _client;
+
+  // ── Seller Application ────────────────────────────────────────────────────
+
+  /// Returns null when the user has no application (404).
+  Future<SellerApplication?> getMyApplication() async {
+    try {
+      final response = await _client.get<dynamic>(
+        Endpoints.sellerApplicationMe,
+        authenticated: true,
+      );
+      final dynamic raw = response.data;
+      if (raw is! Map<String, dynamic>) return null;
+      return SellerApplication.fromJson(raw);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<SellerApplication> submitApplication({
+    required String storeName,
+    required String businessType,
+    required String businessDescription,
+    required String contactPhone,
+    required String contactEmail,
+    String? businessLicenseUrl,
+  }) async {
+    final response = await _client.post<dynamic>(
+      Endpoints.sellerApplications,
+      data: <String, dynamic>{
+        'store_name': storeName,
+        'business_type': businessType,
+        'business_description': businessDescription,
+        'contact_phone': contactPhone,
+        'contact_email': contactEmail,
+        'business_license_url': businessLicenseUrl ?? '',
+      },
+      authenticated: true,
+    );
+    final dynamic raw = response.data;
+    if (raw is! Map<String, dynamic>) throw Exception('Invalid response');
+    return SellerApplication.fromJson(raw);
+  }
 
   // ── Store ──────────────────────────────────────────────────────────────────
 

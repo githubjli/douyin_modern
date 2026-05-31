@@ -197,6 +197,10 @@ class Endpoints {
   static String cartItemDetail(int id) => '/api/cart/items/$id/';
   static const String cartCount = '/api/cart/count/';
 
+  // ── Seller Application ────────────────────────────────────────────────────
+  static const String sellerApplications  = '/api/seller-applications/';
+  static const String sellerApplicationMe = '/api/seller-applications/me/';
+
   // ── Seller Store ──────────────────────────────────────────────────────────
   static const String sellerStoreMe       = '/api/store/me/';
   static const String sellerProducts      = '/api/store/me/products/';

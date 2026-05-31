@@ -95,24 +95,34 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
-          try {
-            if (from < 2) {
+          // Each step is isolated so a failure in one migration does not
+          // prevent later steps from running.
+          if (from < 2) {
+            try {
               await m.createTable(homeCacheTable);
               await m.createTable(shopCacheTable);
+            } catch (e, st) {
+              // ignore: avoid_print
+              print('[DB] migration v2 error: $e\n$st');
             }
-            if (from < 3) {
+          }
+          if (from < 3) {
+            try {
               // Add savedAt column; existing rows get epoch 0 (treated as
               // oldest — will be pruned first on next saveProgress call).
               await m.addColumn(feedProgressTable, feedProgressTable.savedAt);
+            } catch (e, st) {
+              // ignore: avoid_print
+              print('[DB] migration v3 error: $e\n$st');
             }
-            if (from < 4) {
+          }
+          if (from < 4) {
+            try {
               await m.createTable(membershipVideosCacheTable);
+            } catch (e, st) {
+              // ignore: avoid_print
+              print('[DB] migration v4 error: $e\n$st');
             }
-          } catch (e, st) {
-            // Migration failure must not crash the app. Cache tables will be
-            // empty until the next successful network fetch rebuilds them.
-            // ignore: avoid_print
-            print('[DB] migration error from=$from to=$to: $e\n$st');
           }
         },
       );

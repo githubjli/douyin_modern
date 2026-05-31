@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../app/route_observer.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/widgets/app_cached_image.dart';
 import '../../core/database/database_provider.dart';
 import '../../core/database/feed_dao.dart';
 import '../../core/network/api_client.dart';
@@ -571,7 +572,17 @@ class _FeedBackground extends StatelessWidget {
     }
 
     if (controller == null || !controller!.value.isInitialized) {
-      return Container(color: Colors.black);
+      final String? thumb = item.thumbnailUrl;
+      if (thumb != null && thumb.isNotEmpty) {
+        return AppCachedImage(
+          imageUrl: thumb,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorWidget: (context, url, error) => _Placeholder(item: item),
+        );
+      }
+      return _Placeholder(item: item);
     }
 
     return FittedBox(
@@ -583,6 +594,24 @@ class _FeedBackground extends StatelessWidget {
       ),
     );
   }
+}
+
+// Gradient placeholder shown while the video controller is initialising
+// and no thumbnail URL is available (or thumbnail fails to load).
+class _Placeholder extends StatelessWidget {
+  const _Placeholder({required this.item});
+  final FeedItem item;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: item.placeholderGradient,
+          ),
+        ),
+      );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

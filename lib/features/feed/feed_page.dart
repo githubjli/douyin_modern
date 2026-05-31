@@ -305,7 +305,9 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
 
     final VideoPlayerController? active = _controllers[index];
     if (active != null && active.value.isInitialized) {
-      if (autoPlay) {
+      // Re-check isActive: the tab may have been switched while we were
+      // awaiting init. Playing in the background causes audio-only leakage.
+      if (autoPlay && widget.isActive) {
         await active.play();
       } else {
         await active.pause();
@@ -416,7 +418,10 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
       return;
     }
 
-    unawaited(_activateIndex(_currentIndex, autoPlay: _resumeOnTabActive));
+    // No controller present — either it was never created or it was cleared
+    // mid-init when the tab switched away. Always autoplay on return so the
+    // user doesn't land on a silent, frozen frame.
+    unawaited(_activateIndex(_currentIndex, autoPlay: true));
     _resumeOnTabActive = false;
   }
 

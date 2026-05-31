@@ -1,5 +1,6 @@
 import 'package:meow_media/app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
@@ -370,9 +371,19 @@ class _ShipmentCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: GestureDetector(
-                child: Text(
-                  'Track Package →',
-                  style: TextStyle(color: AppColors.brandGold, fontSize: 13),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: shipment.trackingUrl!));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Tracking URL copied to clipboard')),
+                  );
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text('Track Package', style: TextStyle(color: AppColors.brandGold, fontSize: 13)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.copy_rounded, size: 13, color: AppColors.brandGold),
+                  ],
                 ),
               ),
             ),
@@ -428,7 +439,7 @@ class _RefundStatusCard extends StatelessWidget {
           if (latest != null) ...<Widget>[
             const SizedBox(height: 6),
             if (latest['status'] != null)
-              _InfoRow(label: 'Status', value: latest['status'].toString()),
+              _InfoRow(label: 'Status', value: _refundStatusText(latest['status'].toString())),
             if (latest['requested_amount'] != null)
               _InfoRow(label: 'Amount', value: latest['requested_amount'].toString()),
             if (latest['reason'] != null)
@@ -641,6 +652,15 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
+
+String _refundStatusText(String status) => switch (status) {
+      'pending' || 'pending_review' => 'Under Review',
+      'approved' => 'Approved',
+      'rejected' => 'Rejected',
+      'completed' || 'refunded' => 'Refunded',
+      'cancelled' => 'Cancelled',
+      _ => status,
+    };
 
 String _formatDate(String iso) {
   try {

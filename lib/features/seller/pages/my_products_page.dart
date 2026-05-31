@@ -50,6 +50,16 @@ class _MyProductsPageState extends State<MyProductsPage> {
     }
   }
 
+  Future<void> _toggleActive(SellerProduct product) async {
+    try {
+      await _repo.updateProduct(product.id, <String, dynamic>{'is_active': !product.isActive});
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update failed: $e')));
+    }
+  }
+
   Future<void> _goAdd() async {
     final bool? added = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -177,6 +187,7 @@ class _MyProductsPageState extends State<MyProductsPage> {
           product: _products[i],
           onEdit: () => _goEdit(_products[i]),
           onDelete: () => _confirmDelete(_products[i]),
+          onToggleActive: () => _toggleActive(_products[i]),
         ),
       ),
     );
@@ -188,11 +199,13 @@ class _ProductTile extends StatelessWidget {
     required this.product,
     required this.onEdit,
     required this.onDelete,
+    required this.onToggleActive,
   });
 
   final SellerProduct product;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onToggleActive;
 
   @override
   Widget build(BuildContext context) {
@@ -251,18 +264,28 @@ class _ProductTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            if (!product.isActive)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'Inactive',
-                  style: TextStyle(color: Colors.orange, fontSize: 10),
+            GestureDetector(
+              onTap: onToggleActive,
+              child: Tooltip(
+                message: product.isActive ? 'Tap to deactivate' : 'Tap to activate',
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: product.isActive
+                        ? Colors.green.withValues(alpha: 0.15)
+                        : Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    product.isActive ? 'Active' : 'Inactive',
+                    style: TextStyle(
+                      color: product.isActive ? Colors.green : Colors.orange,
+                      fontSize: 10,
+                    ),
+                  ),
                 ),
               ),
+            ),
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               onPressed: onEdit,

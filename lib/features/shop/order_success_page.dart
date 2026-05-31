@@ -8,6 +8,7 @@ import '../../app/theme/app_text_styles.dart';
 import 'domain/shop_models.dart';
 import 'domain/shop_order_models.dart';
 import 'domain/shop_repository.dart';
+import 'order_detail_page.dart';
 import 'order_list_page.dart';
 
 /// Full-screen order success page shown immediately after a successful purchase.
@@ -178,7 +179,7 @@ class _OrderCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Qty: 1',
+                        'Qty: ${order.quantity}',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.mutedOliveText,
                           fontSize: 11,
@@ -413,7 +414,11 @@ class _ActionButtons extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute<void>(
-                  builder: (_) => OrderListPage(repo: repo),
+                  builder: (_) => OrderDetailPage(
+                    orderNo: order.orderNo,
+                    repo: repo,
+                    initialOrder: order,
+                  ),
                 ),
               );
             },
@@ -424,8 +429,19 @@ class _ActionButtons extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
               ),
             ),
-            child: const Text('View My Orders'),
+            child: const Text('View Order Details'),
           ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute<void>(
+                builder: (_) => OrderListPage(repo: repo),
+              ),
+            );
+          },
+          child: const Text('View All Orders', style: TextStyle(color: AppColors.mutedOliveText, fontSize: 13)),
         ),
       ],
     );

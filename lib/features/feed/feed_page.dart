@@ -64,6 +64,10 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   final Set<int> _viewedSeriesIds = <int>{};
   List<String> _danmakuComments = const <String>[];
   int _loadGeneration = 0;
+  // Incremented each time _activateIndex is called. Stale activations
+  // detect the mismatch after their awaits and abort — preventing disposed
+  // controllers from calling play() or _disposeNonVisible on the wrong index.
+  int _activateGeneration = 0;
 
   FeedDao get _dao => ref.read(feedDaoProvider);
 
@@ -280,11 +284,24 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   }
 
   Future<void> _activateIndex(int index, {bool autoPlay = true}) async {
+    final int generation = ++_activateGeneration;
     _currentIndex = index;
     if (mounted) setState(() => _danmakuComments = const <String>[]);
     if (autoPlay) _postViewStat(index);
     unawaited(_loadDanmaku(index));
+
+    // Immediately silence any currently playing controllers so there is no
+    // audio overlap while the new controller is initialising.
+    for (final VideoPlayerController ctrl in _controllers.values) {
+      if (ctrl.value.isInitialized && ctrl.value.isPlaying) {
+        unawaited(ctrl.pause());
+      }
+    }
+
     await _ensureController(index);
+
+    // Abort if a newer _activateIndex call has started while we were awaiting.
+    if (generation != _activateGeneration || !mounted) return;
 
     final VideoPlayerController? active = _controllers[index];
     if (active != null && active.value.isInitialized) {
@@ -294,6 +311,8 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
         await active.pause();
       }
     }
+
+    if (generation != _activateGeneration || !mounted) return;
 
     await _disposeNonVisible(index);
     if (mounted) setState(() {});
@@ -306,7 +325,15 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
       Uri.parse(_items[index].videoUrl),
     );
     _controllers[index] = controller;
-    await controller.initialize();
+    try {
+      await controller.initialize();
+    } catch (_) {
+      // Initialisation can fail if the controller was disposed mid-flight
+      // (e.g. user swiped away before the network buffered). Remove it so the
+      // next _activateIndex call starts fresh for this index.
+      _controllers.remove(index);
+      return;
+    }
     await controller.setLooping(true);
 
     // Restore saved progress for this episode.
@@ -330,7 +357,11 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
     for (final int key in stale) {
       final VideoPlayerController? controller = _controllers.remove(key);
       if (controller != null) {
-        await controller.pause();
+        // Only pause if initialised — calling pause() on an uninitialised
+        // controller can throw or behave unpredictably.
+        if (controller.value.isInitialized) {
+          await controller.pause();
+        }
         await controller.dispose();
       }
     }

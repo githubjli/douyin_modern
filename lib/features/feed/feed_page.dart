@@ -60,6 +60,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   bool _danmakuEnabled = true;
   final Set<int> _viewedSeriesIds = <int>{};
   List<String> _danmakuComments = const <String>[];
+  int _loadGeneration = 0;
 
   FeedDao get _dao => ref.read(feedDaoProvider);
 
@@ -95,10 +96,15 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
   }
 
   Future<void> _loadFeed() async {
+    final int generation = ++_loadGeneration;
+
     // Step 1: show valid (within TTL) cache instantly — no spinner.
     final List<FeedItem>? cached = await _dao.loadFeed();
-    if (cached != null && cached.isNotEmpty && mounted) {
+    if (generation != _loadGeneration || !mounted) return;
+
+    if (cached != null && cached.isNotEmpty) {
       final int lastIndex = await _dao.loadLastIndex();
+      if (generation != _loadGeneration || !mounted) return;
       setState(() {
         _items = cached;
         _loading = false;
@@ -106,8 +112,9 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
         _notice = '正在更新内容…';
       });
       final int startIndex = lastIndex.clamp(0, cached.length - 1);
+      // Don't await — video init must not block the network fetch below.
       if (widget.enableVideo) {
-        await _activateIndex(startIndex, autoPlay: widget.isActive);
+        unawaited(_activateIndex(startIndex, autoPlay: widget.isActive));
       }
     } else if (mounted) {
       setState(() => _loading = true);
@@ -118,6 +125,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
       try {
         final List<FeedItem> remoteItems =
             await _remoteRepository.getShortsFeed();
+        if (generation != _loadGeneration || !mounted) return;
         final List<FeedItem> fresh = remoteItems
             .where((FeedItem item) =>
                 item.videoUrl.isNotEmpty && item.isLocked != true)
@@ -125,15 +133,20 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
 
         if (fresh.isNotEmpty) {
           await _dao.saveFeed(fresh);
-          if (!mounted) return;
+          if (generation != _loadGeneration || !mounted) return;
           setState(() {
             _items = fresh;
             _loading = false;
             _isOffline = false;
             _notice = null;
           });
+          // Re-use current index so the user stays on the same position.
+          // Only init controller if not already running for that index.
           if (widget.enableVideo) {
-            await _activateIndex(0, autoPlay: widget.isActive);
+            final int target = _currentIndex.clamp(0, fresh.length - 1);
+            if (!_controllers.containsKey(target)) {
+              unawaited(_activateIndex(target, autoPlay: widget.isActive));
+            }
           }
           return;
         }
@@ -146,7 +159,7 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
     }
 
     // Step 3: network failed or returned nothing.
-    if (!mounted) return;
+    if (generation != _loadGeneration || !mounted) return;
     if (_items.isNotEmpty) {
       // Already showing (TTL-valid) cache — just update banner.
       setState(() {
@@ -156,8 +169,10 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
     } else {
       // TTL expired or no cache — try loading stale cache before empty state.
       final List<FeedItem>? stale = await _dao.loadStale();
-      if (stale != null && stale.isNotEmpty && mounted) {
+      if (generation != _loadGeneration || !mounted) return;
+      if (stale != null && stale.isNotEmpty) {
         final int lastIndex = await _dao.loadLastIndex();
+        if (generation != _loadGeneration || !mounted) return;
         setState(() {
           _items = stale;
           _loading = false;
@@ -166,9 +181,9 @@ class _FeedPageState extends ConsumerState<FeedPage> with RouteAware {
         });
         final int startIndex = lastIndex.clamp(0, stale.length - 1);
         if (widget.enableVideo) {
-          await _activateIndex(startIndex, autoPlay: widget.isActive);
+          unawaited(_activateIndex(startIndex, autoPlay: widget.isActive));
         }
-      } else if (mounted) {
+      } else {
         // Truly no cache — show offline empty state.
         setState(() {
           _loading = false;

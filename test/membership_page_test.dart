@@ -1,9 +1,13 @@
 import 'dart:async';
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meow_media/core/database/app_database.dart';
+import 'package:meow_media/core/database/database_provider.dart';
+import 'package:meow_media/core/database/membership_videos_dao.dart';
 import 'package:meow_media/core/network/api_client.dart';
 import 'package:meow_media/core/network/api_error.dart';
 import 'package:meow_media/features/auth/application/auth_providers.dart';
@@ -71,6 +75,11 @@ void main() {
     VoidCallback? onSignInPressed,
     VoidCallback? onSubscribePressed,
   }) async {
+    // Use an in-memory SQLite DB so MembershipVideosDao works in tests
+    // without hitting the filesystem or background isolates.
+    final AppDatabase inMemoryDb = AppDatabase(NativeDatabase.memory());
+    addTearDown(inMemoryDb.close);
+
     final ProviderContainer effectiveContainer = container ??
         ProviderContainer(
           overrides: [
@@ -78,6 +87,8 @@ void main() {
               authRepository ?? _AuthRepositoryFake(isSignedIn: true),
             ),
             membershipRepositoryProvider.overrideWithValue(repository),
+            membershipVideosDaoProvider
+                .overrideWithValue(MembershipVideosDao(inMemoryDb)),
           ],
         );
     if (container == null) {
@@ -785,18 +796,17 @@ void main() {
     expect(find.text('Yearly'), findsOneWidget);
   });
 
-  testWidgets('falls back to mock plans when repository throws',
+  testWidgets('falls back to placeholder plans when repository throws',
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
       repository: _MembershipRepositoryFake(plansError: Exception('offline')),
     );
 
-    await dragUntilTextVisible(tester, 'Mock Monthly');
+    await dragUntilTextVisible(tester, 'Monthly');
 
-    expect(find.text('Mock Monthly'), findsOneWidget);
-    expect(find.text('¥5 / month'), findsOneWidget);
-    expect(find.text('Mock perks'), findsOneWidget);
+    expect(find.text('Monthly'), findsOneWidget);
+    expect(find.text('THB 99 / month'), findsOneWidget);
   });
 
   testWidgets('shows active membership status and current plan state',
@@ -902,18 +912,17 @@ void main() {
     expect(find.text('Backend Pro'), findsOneWidget);
   });
 
-  testWidgets('falls back to mock plans when repository returns empty',
+  testWidgets('falls back to placeholder plans when repository returns empty',
       (WidgetTester tester) async {
     await pumpMembershipPage(
       tester,
       repository: const _MembershipRepositoryFake(plans: <MembershipPlan>[]),
     );
 
-    await dragUntilTextVisible(tester, 'Mock Monthly');
+    await dragUntilTextVisible(tester, 'Monthly');
 
-    expect(find.text('Mock Monthly'), findsOneWidget);
-    expect(find.text('¥5 / month'), findsOneWidget);
-    expect(find.text('Mock perks'), findsOneWidget);
+    expect(find.text('Monthly'), findsOneWidget);
+    expect(find.text('THB 99 / month'), findsOneWidget);
   });
 
   testWidgets('loads VIP videos with authenticated public video requests',

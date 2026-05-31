@@ -41,9 +41,12 @@ class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({
     super.key,
     ProfileRepository? profileRepository,
+    this.networkRefreshTrigger = 0,
   }) : _profileRepository = profileRepository;
 
   final ProfileRepository? _profileRepository;
+  /// Incremented by the shell when network connectivity is restored.
+  final int networkRefreshTrigger;
 
   @override
   ConsumerState<ProfilePage> createState() => _ProfilePageState();
@@ -235,6 +238,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     });
   }
 
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.networkRefreshTrigger != widget.networkRefreshTrigger) {
+      unawaited(_refreshProfile());
+    }
+  }
+
   void _handleAuthState(AuthState authState) {
     if (!mounted) return;
     if (authState.status == AuthStatus.signedOut) {
@@ -260,7 +271,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     if (authState.status == AuthStatus.error) {
       setState(() {
-        _error = authState.message;
+        _error = _friendlyAuthError(authState.message ?? '');
       });
     }
 
@@ -386,6 +397,15 @@ bool _shouldShowGuestProfile(AuthState authState) {
 String _friendlyAuthError(String message) {
   if (message.contains('Given token not valid for any token type')) {
     return 'Session expired. Please sign in again.';
+  }
+  // Raw socket/DNS errors from background connections (e.g. live-stream init)
+  // should not expose internal hostnames or library internals to the user.
+  if (message.contains('Failed host lookup') ||
+      message.contains('connection errored') ||
+      message.contains('SocketException') ||
+      message.contains('Connection refused') ||
+      message.contains('Network is unreachable')) {
+    return 'Network connection issue. Please check your connection and try again.';
   }
   return message;
 }

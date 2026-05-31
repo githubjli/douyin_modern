@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
@@ -557,8 +558,7 @@ class _VideosTabState extends State<_VideosTab>
       );
     }
 
-    return RefreshIndicator(
-      color: AppColors.brandGold,
+    return AppRefreshIndicator(
       onRefresh: _refresh,
       child: GridView.builder(
         padding: const EdgeInsets.all(AppSpacing.sm),
@@ -669,8 +669,7 @@ class _DramasTabState extends State<_DramasTab>
       );
     }
 
-    return RefreshIndicator(
-      color: AppColors.brandGold,
+    return AppRefreshIndicator(
       onRefresh: _refresh,
       child: GridView.builder(
         padding: const EdgeInsets.all(AppSpacing.sm),
@@ -781,8 +780,7 @@ class _LivesTabState extends State<_LivesTab>
       );
     }
 
-    return RefreshIndicator(
-      color: AppColors.brandGold,
+    return AppRefreshIndicator(
       onRefresh: _refresh,
       child: GridView.builder(
         padding: const EdgeInsets.all(AppSpacing.sm),
@@ -1228,8 +1226,7 @@ class _EmptyTab extends StatelessWidget {
     );
     final Future<void> Function()? refresh = onRefresh;
     if (refresh == null) return inner;
-    return RefreshIndicator(
-      color: AppColors.brandGold,
+    return AppRefreshIndicator(
       onRefresh: refresh,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -1298,7 +1295,6 @@ class _LoadMoreIndicator extends StatelessWidget {
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
-            color: AppColors.brandGold,
             strokeWidth: 2,
           ),
         ),

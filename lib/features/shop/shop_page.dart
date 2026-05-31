@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import '../../app/widgets/app_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -283,9 +284,7 @@ class _ShopPageState extends ConsumerState<ShopPage> {
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.brandGold,
-          backgroundColor: AppColors.cardBackground,
+        child: AppRefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.md),

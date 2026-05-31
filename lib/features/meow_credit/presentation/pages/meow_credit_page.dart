@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -23,8 +24,7 @@ class MeowCreditPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.brandGold,
+        child: AppRefreshIndicator(
           onRefresh: () async {
             ref.invalidate(meowCreditWalletProvider);
             ref.invalidate(meowCreditLedgerProvider);
@@ -210,7 +210,6 @@ class _BalanceCard extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.monetization_on_outlined,
-                  color: AppColors.brandGold,
                   size: 22,
                 ),
               ),
@@ -218,7 +217,6 @@ class _BalanceCard extends StatelessWidget {
               Text(
                 'Current Balance',
                 style: AppTextStyles.caption.copyWith(
-                  color: AppColors.brandGold,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
@@ -230,7 +228,6 @@ class _BalanceCard extends StatelessWidget {
           Text(
             wallet != null ? '${wallet!.balance}' : '—',
             style: AppTextStyles.sectionTitle.copyWith(
-              color: AppColors.brandGold,
               fontSize: 36,
               fontWeight: FontWeight.w800,
               height: 1.0,

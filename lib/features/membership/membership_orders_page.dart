@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
+import '../../app/widgets/app_refresh_indicator.dart';
 import '../../app/widgets/back_nav_header.dart';
 import 'application/membership_providers.dart';
 import 'application/membership_state.dart';
@@ -29,6 +30,8 @@ class MembershipOrdersPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
+        child: AppRefreshIndicator(
+        onRefresh: () async => refresh(),
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: <Widget>[
@@ -49,6 +52,7 @@ class MembershipOrdersPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
             _TxHintsSection(hints: hints, onRefresh: refresh),
           ],
+        ),
         ),
       ),
     );

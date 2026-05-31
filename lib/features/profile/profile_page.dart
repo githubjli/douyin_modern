@@ -1,3 +1,4 @@
+import 'package:meow_media/app/widgets/app_refresh_indicator.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -333,9 +334,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
 
     return SafeArea(
-      child: RefreshIndicator(
+      child: AppRefreshIndicator(
         onRefresh: _refreshProfile,
-        color: AppColors.brandGold,
         child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: <Widget>[
@@ -665,7 +665,6 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                                 TextSpan(
                                   text: 'Terms & Conditions',
                                   style: AppTextStyles.caption.copyWith(
-                                    color: AppColors.brandGold,
                                     decoration: TextDecoration.underline,
                                     decorationColor: AppColors.brandGold,
                                   ),
@@ -712,7 +711,6 @@ class _GuestProfileCardState extends State<_GuestProfileCard> {
                   TextSpan(
                     text: isRegister ? 'Sign In' : 'Sign Up',
                     style: const TextStyle(
-                      color: AppColors.brandGold,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -739,7 +737,6 @@ InputDecoration _inputDecoration(
     fillColor: AppColors.warmBackground,
     labelStyle: AppTextStyles.caption,
     floatingLabelStyle: AppTextStyles.caption.copyWith(
-      color: AppColors.brandGold,
     ),
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(
@@ -1223,8 +1220,7 @@ class _ProfileHeader extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.brandGold.withAlpha(30),
                     shape: BoxShape.circle,
-                    border:
-                        Border.all(color: AppColors.brandGold, width: 1.5),
+                    border: Border.all(color: AppColors.brandGold, width: 1.5),
                   ),
                   child: avatarUrl != null
                       ? ClipOval(
@@ -1334,7 +1330,6 @@ class _InitialsAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: AppTextStyles.sectionTitle.copyWith(
-          color: AppColors.brandGold,
           fontSize: 20,
         ),
       ),
@@ -1361,7 +1356,6 @@ class _RoleBadge extends StatelessWidget {
       child: Text(
         label,
         style: AppTextStyles.caption.copyWith(
-          color: AppColors.brandGold,
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
@@ -1403,7 +1397,6 @@ class _CreditCard extends StatelessWidget {
             ),
             child: const Icon(
               Icons.monetization_on_outlined,
-              color: AppColors.brandGold,
               size: 20,
             ),
           ),
@@ -1465,7 +1458,6 @@ class _PointsCard extends StatelessWidget {
             ),
             child: const Icon(
               Icons.stars_rounded,
-              color: AppColors.brandGold,
               size: 20,
             ),
           ),
@@ -1605,7 +1597,6 @@ class _StudioSubCard extends StatelessWidget {
             child: Text(
               label,
               style: AppTextStyles.caption.copyWith(
-                color: AppColors.brandGold,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.6,
@@ -2013,15 +2004,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         decoration: BoxDecoration(
                           color: AppColors.brandGold.withAlpha(30),
                           shape: BoxShape.circle,
-                          border: Border.all(
-                              color: AppColors.brandGold, width: 2),
+                          border: Border.all(color: AppColors.brandGold, width: 2),
                         ),
                         child: _avatarBusy
                             ? const Padding(
                                 padding: EdgeInsets.all(24),
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppColors.brandGold,
                                 ),
                               )
                             : hasAvatar
@@ -2043,7 +2032,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             width: 26,
                             height: 26,
                             decoration: BoxDecoration(
-                              color: AppColors.brandGold,
                               shape: BoxShape.circle,
                               border: Border.all(
                                   color: AppColors.warmBackground, width: 2),
@@ -2392,7 +2380,6 @@ class _EditCard extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.brandGold,
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,

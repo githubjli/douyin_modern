@@ -8,6 +8,70 @@ extension ShopPaymentAssetX on ShopPaymentAsset {
       this == ShopPaymentAsset.meowPoints ? 'MeowPoints' : 'MeowCredit';
 }
 
+class ShopShipment {
+  const ShopShipment({
+    required this.carrier,
+    required this.trackingNumber,
+    this.trackingUrl,
+    this.shippedNote,
+    this.shippedAt,
+  });
+
+  final String carrier;
+  final String trackingNumber;
+  final String? trackingUrl;
+  final String? shippedNote;
+  final String? shippedAt;
+
+  factory ShopShipment.fromJson(Map<String, dynamic> j) => ShopShipment(
+        carrier: j['carrier'] as String? ?? '',
+        trackingNumber: j['tracking_number'] as String? ?? '',
+        trackingUrl: j['tracking_url'] as String?,
+        shippedNote: j['shipped_note'] as String?,
+        shippedAt: j['shipped_at'] as String?,
+      );
+}
+
+class ShopRefundSummary {
+  const ShopRefundSummary({
+    required this.activeRefundRequestExists,
+    this.latestRefundRequest,
+  });
+
+  final bool activeRefundRequestExists;
+  final Map<String, dynamic>? latestRefundRequest;
+
+  factory ShopRefundSummary.fromJson(Map<String, dynamic> j) =>
+      ShopRefundSummary(
+        activeRefundRequestExists:
+            j['active_refund_request_exists'] as bool? ?? false,
+        latestRefundRequest:
+            j['latest_refund_request'] as Map<String, dynamic>?,
+      );
+}
+
+class ShopPaymentSummary {
+  const ShopPaymentSummary({
+    required this.status,
+    this.amount,
+    this.currency,
+    this.txid,
+  });
+
+  final String status;
+  final String? amount;
+  final String? currency;
+  final String? txid;
+
+  factory ShopPaymentSummary.fromJson(Map<String, dynamic> j) =>
+      ShopPaymentSummary(
+        status: j['status'] as String? ?? '',
+        amount: j['amount'] as String?,
+        currency: j['currency'] as String?,
+        txid: j['txid'] as String?,
+      );
+}
+
 class ShopOrder {
   const ShopOrder({
     required this.orderNo,
@@ -23,6 +87,11 @@ class ShopOrder {
     this.productThumbnailSnapshot,
     this.quantity = 1,
     this.createdAt,
+    this.updatedAt,
+    this.expiresAt,
+    this.shipment,
+    this.refundSummary,
+    this.paymentSummary,
   });
 
   final String orderNo;
@@ -33,10 +102,18 @@ class ShopOrder {
   final String platformFeeAmount;
   final String sellerReceivableAmount;
   final String? paidAt;
+  final String? createdAt;
+  final String? updatedAt;
+  final String? expiresAt;
 
-  /// Raw snapshot of the shipping address at order time (may be empty map
-  /// when no address was provided).
   final Map<String, dynamic>? shippingAddressSnapshot;
+  final String? productNameSnapshot;
+  final String? productThumbnailSnapshot;
+  final int quantity;
+
+  final ShopShipment? shipment;
+  final ShopRefundSummary? refundSummary;
+  final ShopPaymentSummary? paymentSummary;
 
   String get statusText => switch (status) {
         'pending_payment' || 'pending' => 'Pending payment',
@@ -53,20 +130,11 @@ class ShopOrder {
         _ => paymentAsset,
       };
 
-  /// Product name captured at order time (may come from product_name_snapshot
-  /// or a nested product object — whichever the API provides).
-  final String? productNameSnapshot;
+  bool get canConfirmReceived => status == 'shipping';
+  bool get canRequestRefund =>
+      (status == 'paid' || status == 'shipping' || status == 'completed') &&
+      (refundSummary?.activeRefundRequestExists != true);
 
-  /// Product thumbnail at order time.
-  final String? productThumbnailSnapshot;
-
-  /// Number of units ordered.
-  final int quantity;
-
-  /// ISO-8601 creation timestamp.
-  final String? createdAt;
-
-  /// Human-readable shipping address from the snapshot, or null if not set.
   String? get shippingAddressLine {
     final Map<String, dynamic>? snap = shippingAddressSnapshot;
     if (snap == null || snap.isEmpty) return null;

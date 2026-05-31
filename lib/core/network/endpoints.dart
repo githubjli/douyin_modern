@@ -186,6 +186,12 @@ class Endpoints {
   static String shopOrderDetail(String orderNo) =>
       '/api/product-orders/$orderNo/';
 
+  static String shopOrderConfirmReceived(String orderNo) =>
+      '/api/product-orders/$orderNo/confirm-received/';
+
+  static String shopOrderRefundRequests(String orderNo) =>
+      '/api/product-orders/$orderNo/refund-requests/';
+
   // ── Creator Studio ────────────────────────────────────────────────────────
   static const String creatorVideos     = '/api/creator/videos/';
   static const String creatorLiveStreams = '/api/creator/live-streams/';

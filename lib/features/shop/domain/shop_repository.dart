@@ -19,4 +19,11 @@ abstract class ShopRepository {
   });
 
   Future<List<ShopOrder>> getOrders({int page = 1, int pageSize = 20});
+  Future<ShopOrder> getOrderDetail(String orderNo);
+  Future<ShopOrder> confirmReceived(String orderNo);
+  Future<void> requestRefund({
+    required String orderNo,
+    required String reason,
+    required String requestedAmount,
+  });
 }

@@ -45,6 +45,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 
   int _activeImageIndex = 0;
   bool _detailLoading = true;
+  int _quantity = 1;
 
   late final PageController _imageController;
 
@@ -142,6 +143,14 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                           const SizedBox(height: AppSpacing.md),
                           _SpecsSection(specs: _product.specs),
                         ],
+                        const SizedBox(height: AppSpacing.md),
+                        _SectionDivider(),
+                        const SizedBox(height: AppSpacing.md),
+                        _QuantitySelector(
+                          quantity: _quantity,
+                          stock: _product.stock,
+                          onChanged: (int v) => setState(() => _quantity = v),
+                        ),
                         const SizedBox(height: AppSpacing.xl),
                       ],
                     ),
@@ -155,6 +164,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             repo: _repo,
             isAuthenticated: isAuthenticated,
             selectedAsset: _selectedAsset,
+            quantity: _quantity,
           ),
         ],
       ),
@@ -480,12 +490,14 @@ class _BuyBar extends ConsumerStatefulWidget {
     required this.repo,
     required this.isAuthenticated,
     required this.selectedAsset,
+    required this.quantity,
   });
 
   final ShopProduct product;
   final ShopRepository repo;
   final bool isAuthenticated;
   final ShopPaymentAsset? selectedAsset;
+  final int quantity;
 
   @override
   ConsumerState<_BuyBar> createState() => _BuyBarState();
@@ -500,7 +512,7 @@ class _BuyBarState extends ConsumerState<_BuyBar> {
     try {
       final ShopOrder order = await widget.repo.createOrder(
         productId: widget.product.id,
-        quantity: 1,
+        quantity: widget.quantity,
         paymentAsset: asset,
         shippingAddressId: shippingAddressId,
       );
@@ -1232,6 +1244,81 @@ class _ConfirmRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Quantity Selector ─────────────────────────────────────────────────────────
+
+class _QuantitySelector extends StatelessWidget {
+  const _QuantitySelector({
+    required this.quantity,
+    required this.stock,
+    required this.onChanged,
+  });
+
+  final int quantity;
+  final int stock;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Text('Quantity', style: AppTextStyles.caption.copyWith(color: AppColors.cocoaText)),
+        const Spacer(),
+        _QtyButton(
+          icon: Icons.remove,
+          enabled: quantity > 1,
+          onTap: () => onChanged(quantity - 1),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Text(
+            '$quantity',
+            style: AppTextStyles.cardTitle.copyWith(fontSize: 16),
+          ),
+        ),
+        _QtyButton(
+          icon: Icons.add,
+          enabled: stock <= 0 || quantity < stock,
+          onTap: () => onChanged(quantity + 1),
+        ),
+      ],
+    );
+  }
+}
+
+class _QtyButton extends StatelessWidget {
+  const _QtyButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: enabled
+              ? AppColors.brandGold.withValues(alpha: 0.15)
+              : AppColors.mutedOliveText.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? AppColors.brandGold : AppColors.mutedOliveText,
+        ),
       ),
     );
   }

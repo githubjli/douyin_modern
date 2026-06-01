@@ -27,8 +27,11 @@ class PublicCreatorProfile {
     this.followerCount = 0,
     this.followingCount = 0,
     this.videoCount = 0,
-    this.totalLikes = 0,
+    this.dramaCount = 0,
+    this.liveCount = 0,
     this.totalViews = 0,
+    this.totalLikes = 0,
+    this.totalGifts = 0,
     this.viewerIsFollowing = false,
   });
 
@@ -41,9 +44,18 @@ class PublicCreatorProfile {
   final int subscriberCount;
   final int followerCount;
   final int followingCount;
+  /// Public video count (published, non-private).
   final int videoCount;
-  final int totalLikes;
+  /// Published drama count.
+  final int dramaCount;
+  /// Non-private live session count.
+  final int liveCount;
+  /// Total views across videos + dramas + lives.
   final int totalViews;
+  /// Total likes across videos + dramas + lives.
+  final int totalLikes;
+  /// Total gift value received (sum of gift amounts, not transaction count).
+  final int totalGifts;
   final bool viewerIsFollowing;
 
   factory PublicCreatorProfile.fromJson(Map<String, dynamic> json) {
@@ -84,10 +96,13 @@ class PublicCreatorProfile {
       followerCount: followerCount,
       followingCount: (json['following_count'] as num?)?.toInt() ?? 0,
       videoCount: (json['video_count'] as num?)?.toInt() ?? 0,
-      totalLikes: (json['total_likes'] as num?)?.toInt() ??
-          (json['like_count'] as num?)?.toInt() ?? 0,
+      dramaCount: (json['drama_count'] as num?)?.toInt() ?? 0,
+      liveCount:  (json['live_count']  as num?)?.toInt() ?? 0,
       totalViews: (json['total_views'] as num?)?.toInt() ??
           (json['view_count'] as num?)?.toInt() ?? 0,
+      totalLikes: (json['total_likes'] as num?)?.toInt() ??
+          (json['like_count'] as num?)?.toInt() ?? 0,
+      totalGifts: (json['total_gifts'] as num?)?.toInt() ?? 0,
       viewerIsFollowing: json['viewer_is_following'] as bool? ?? false,
     );
   }
@@ -104,8 +119,11 @@ class PublicCreatorProfile {
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount,
       videoCount: videoCount,
-      totalLikes: totalLikes,
+      dramaCount: dramaCount,
+      liveCount: liveCount,
       totalViews: totalViews,
+      totalLikes: totalLikes,
+      totalGifts: totalGifts,
       viewerIsFollowing: viewerIsFollowing ?? this.viewerIsFollowing,
     );
   }

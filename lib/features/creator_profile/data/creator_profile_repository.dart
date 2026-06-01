@@ -9,7 +9,13 @@ class CreatorProfileRepository {
   const CreatorProfileRepository(this._client);
   final ApiClient _client;
 
-  /// Uses the universal user endpoint (works for all users, not just creators).
+  /// Fetches a public user/creator profile including aggregated stats.
+  ///
+  /// Uses the unified endpoint GET /api/public/users/{id}/ which now returns
+  /// full creator stats (video_count, total_views, total_likes, total_gifts,
+  /// drama_count, live_count) for creator accounts, and zeroes for regular
+  /// users.  The legacy /api/public/creators/{id}/ endpoint is no longer
+  /// called from here.
   Future<PublicCreatorProfile> getProfile(int creatorId) async {
     final response = await _client.get<dynamic>(
       Endpoints.publicUserProfile(creatorId),

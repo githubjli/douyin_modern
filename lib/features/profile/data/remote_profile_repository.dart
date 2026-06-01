@@ -95,8 +95,11 @@ class RemoteProfileRepository implements ProfileRepository {
           data, const <String>['follower_count', 'subscriber_count']),
       likeCount: _readInt(
           data, const <String>['total_likes', 'like_count']),
+      // total_gifts = sum of gift amounts (display value, consistent with
+      // public profile).  gift_count = transaction count (kept as fallback
+      // only; not used for display).
       giftCount: _readInt(
-          data, const <String>['gift_count', 'total_gifts']),
+          data, const <String>['total_gifts', 'gift_count']),
       videoCount: _readInt(
           data, const <String>['video_count']),
       viewCount: _readInt(

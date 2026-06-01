@@ -186,6 +186,11 @@ class Endpoints {
   static const String shopCategories = '/api/shop/categories/';
   static const String shopProducts = '/api/shop/products/';
 
+  /// Public products for a specific seller — used in CreatorProfilePage Store tab.
+  /// GET /api/shop/products/?seller={userId}
+  static String publicSellerProducts(int userId) =>
+      '/api/shop/products/?seller=$userId';
+
   static String shopProductDetail(int id) => '/api/shop/products/$id/';
 
   static const String shopOrders = '/api/product-orders/';

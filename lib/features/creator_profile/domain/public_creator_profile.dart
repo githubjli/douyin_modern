@@ -27,7 +27,8 @@ class PublicCreatorProfile {
     this.followerCount = 0,
     this.followingCount = 0,
     this.videoCount = 0,
-    this.likeCount = 0,
+    this.totalLikes = 0,
+    this.totalViews = 0,
     this.viewerIsFollowing = false,
   });
 
@@ -41,7 +42,8 @@ class PublicCreatorProfile {
   final int followerCount;
   final int followingCount;
   final int videoCount;
-  final int likeCount;
+  final int totalLikes;
+  final int totalViews;
   final bool viewerIsFollowing;
 
   factory PublicCreatorProfile.fromJson(Map<String, dynamic> json) {
@@ -82,7 +84,10 @@ class PublicCreatorProfile {
       followerCount: followerCount,
       followingCount: (json['following_count'] as num?)?.toInt() ?? 0,
       videoCount: (json['video_count'] as num?)?.toInt() ?? 0,
-      likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+      totalLikes: (json['total_likes'] as num?)?.toInt() ??
+          (json['like_count'] as num?)?.toInt() ?? 0,
+      totalViews: (json['total_views'] as num?)?.toInt() ??
+          (json['view_count'] as num?)?.toInt() ?? 0,
       viewerIsFollowing: json['viewer_is_following'] as bool? ?? false,
     );
   }
@@ -99,7 +104,8 @@ class PublicCreatorProfile {
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount,
       videoCount: videoCount,
-      likeCount: likeCount,
+      totalLikes: totalLikes,
+      totalViews: totalViews,
       viewerIsFollowing: viewerIsFollowing ?? this.viewerIsFollowing,
     );
   }

@@ -94,13 +94,13 @@ class RemoteProfileRepository implements ProfileRepository {
       followerCount: _readInt(
           data, const <String>['follower_count', 'subscriber_count']),
       likeCount: _readInt(
-          data, const <String>['like_count', 'total_likes']),
+          data, const <String>['total_likes', 'like_count']),
       giftCount: _readInt(
           data, const <String>['gift_count', 'total_gifts']),
       videoCount: _readInt(
-          data, const <String>['video_count', 'total_videos']),
+          data, const <String>['video_count']),
       viewCount: _readInt(
-          data, const <String>['view_count', 'total_views']),
+          data, const <String>['total_views', 'view_count']),
     );
   }
 

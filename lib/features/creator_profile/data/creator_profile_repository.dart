@@ -19,6 +19,7 @@ class CreatorProfileRepository {
   Future<PublicCreatorProfile> getProfile(int creatorId) async {
     final response = await _client.get<dynamic>(
       Endpoints.publicUserProfile(creatorId),
+      authenticated: true, // needed so viewer_is_following is populated
     );
     final data = response.data;
     if (data is! Map<String, dynamic>) {

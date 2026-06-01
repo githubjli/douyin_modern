@@ -24,7 +24,6 @@ import '../creator_studio/pages/my_live_streams_page.dart';
 import '../creator_studio/pages/my_videos_page.dart';
 import '../creator_studio/pages/upload_video_page.dart';
 import '../creator_profile/presentation/creator_profile_page.dart';
-import '../creator_profile/presentation/follow_list_page.dart';
 import '../live/go_live_page.dart';
 import '../membership/membership_orders_page.dart';
 import '../meow_credit/application/meow_credit_providers.dart';
@@ -1175,57 +1174,6 @@ class _SignedInProfileBody extends StatelessWidget {
                     builder: (_) => const SellerOrdersPage(),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-
-        // ── Follow ─────────────────────────────────────────────────────
-        if (profile != null) ...<Widget>[
-          _SectionCard(
-            label: 'Follow',
-            items: <_MenuItem>[
-              _MenuItem(
-                icon: Icons.people_outline_rounded,
-                label: 'Followers',
-                trailing: Text(
-                  '${profile!.followerCount ?? 0}',
-                  style: const TextStyle(
-                      color: AppColors.brandGold,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600),
-                ),
-                onTap: () {
-                  final int? uid = int.tryParse(profile!.userId);
-                  if (uid == null) return;
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => FollowListPage(
-                        userId: uid,
-                        type: FollowListType.followers,
-                        totalCount: profile!.followerCount ?? 0,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              _MenuItem(
-                icon: Icons.person_add_alt_1_outlined,
-                label: 'Following',
-                onTap: () {
-                  final int? uid = int.tryParse(profile!.userId);
-                  if (uid == null) return;
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => FollowListPage(
-                        userId: uid,
-                        type: FollowListType.following,
-                        totalCount: 0,
-                      ),
-                    ),
-                  );
-                },
               ),
             ],
           ),

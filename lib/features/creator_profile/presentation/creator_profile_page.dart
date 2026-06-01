@@ -33,7 +33,7 @@ class CreatorProfilePage extends ConsumerStatefulWidget {
 
 class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+  late TabController _tabController;
   late final CreatorProfileRepository _repo;
 
   PublicCreatorProfile? _profile;

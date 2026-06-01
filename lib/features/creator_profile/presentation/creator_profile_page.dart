@@ -326,28 +326,19 @@ class _ProfileHeader extends StatelessWidget {
           ],
           const SizedBox(height: AppSpacing.md),
 
-          // Stats row
+          // Stats row — order mirrors My Profile page:
+          // Followers · Likes · Gifts · Videos · Views
           Row(
             children: <Widget>[
-              _StatItem(
-                value: profile.followerCount,
-                label: 'Followers',
-              ),
-              const SizedBox(width: AppSpacing.xl),
-              _StatItem(
-                value: profile.videoCount,
-                label: 'Videos',
-              ),
-              const SizedBox(width: AppSpacing.xl),
-              _StatItem(
-                value: profile.totalViews,
-                label: 'Views',
-              ),
-              const SizedBox(width: AppSpacing.xl),
-              _StatItem(
-                value: profile.totalLikes,
-                label: 'Likes',
-              ),
+              _StatItem(value: profile.followerCount, label: 'Followers'),
+              const SizedBox(width: AppSpacing.lg),
+              _StatItem(value: profile.totalLikes,    label: 'Likes'),
+              const SizedBox(width: AppSpacing.lg),
+              _StatItem(value: profile.totalGifts,    label: 'Gifts'),
+              const SizedBox(width: AppSpacing.lg),
+              _StatItem(value: profile.videoCount,    label: 'Videos'),
+              const SizedBox(width: AppSpacing.lg),
+              _StatItem(value: profile.totalViews,    label: 'Views'),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

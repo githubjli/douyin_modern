@@ -23,6 +23,7 @@ class PublicCreatorProfile {
     this.avatarUrl,
     this.bio,
     this.isCreator = false,
+    this.isSeller = false,
     this.subscriberCount = 0,
     this.followerCount = 0,
     this.followingCount = 0,
@@ -41,6 +42,7 @@ class PublicCreatorProfile {
   final String? avatarUrl;
   final String? bio;
   final bool isCreator;
+  final bool isSeller;
   final int subscriberCount;
   final int followerCount;
   final int followingCount;
@@ -92,6 +94,7 @@ class PublicCreatorProfile {
       avatarUrl: avatarUrl,
       bio: bio,
       isCreator: json['is_creator'] as bool? ?? false,
+      isSeller: json['is_seller'] as bool? ?? false,
       subscriberCount: (json['subscriber_count'] as num?)?.toInt() ?? 0,
       followerCount: followerCount,
       followingCount: (json['following_count'] as num?)?.toInt() ?? 0,
@@ -115,6 +118,7 @@ class PublicCreatorProfile {
       avatarUrl: avatarUrl,
       bio: bio,
       isCreator: isCreator,
+      isSeller: isSeller,
       subscriberCount: subscriberCount,
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount,

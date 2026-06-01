@@ -8,7 +8,11 @@ import 'package:shimmer/shimmer.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/api_error.dart';
+import '../../../core/network/endpoints.dart';
+import '../../shop/domain/shop_models.dart';
+import '../../shop/product_detail_page.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../drama_detail/drama_detail_page.dart';
 import '../../home/domain/home_models.dart';
@@ -45,6 +49,13 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
+  void _rebuildTabController(bool isSeller) {
+    final int length = isSeller ? 4 : 3;
+    if (_tabController.length == length) return;
+    _tabController.dispose();
+    _tabController = TabController(length: length, vsync: this);
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -66,6 +77,7 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
       setState(() {
         _profile = profile;
         _loading = false;
+        _rebuildTabController(profile.isSeller);
       });
     } catch (e) {
       if (!mounted) return;
@@ -184,10 +196,11 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
                 unselectedLabelStyle: AppTextStyles.body.copyWith(
                   fontSize: 13,
                 ),
-                tabs: const <Widget>[
-                  Tab(text: 'Videos'),
-                  Tab(text: 'Dramas'),
-                  Tab(text: 'Live'),
+                tabs: <Widget>[
+                  const Tab(text: 'Videos'),
+                  const Tab(text: 'Dramas'),
+                  const Tab(text: 'Live'),
+                  if (_profile!.isSeller) const Tab(text: 'Store'),
                 ],
               ),
             ),
@@ -199,6 +212,8 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
             _VideosTab(creatorId: widget.creatorId, repo: _repo),
             _DramasTab(creatorId: widget.creatorId, repo: _repo),
             _LivesTab(creatorId: widget.creatorId, repo: _repo),
+            if (_profile!.isSeller)
+              _StoreTab(creatorId: widget.creatorId),
           ],
         ),
       ),
@@ -1398,4 +1413,218 @@ String _formatCount(int n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
   return n.toString();
+}
+
+// ── Store tab ──────────────────────────────────────────────────────────────────
+
+class _StoreTab extends ConsumerStatefulWidget {
+  const _StoreTab({required this.creatorId});
+  final int creatorId;
+
+  @override
+  ConsumerState<_StoreTab> createState() => _StoreTabState();
+}
+
+class _StoreTabState extends ConsumerState<_StoreTab>
+    with AutomaticKeepAliveClientMixin {
+  final List<ShopProduct> _products = <ShopProduct>[];
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _error;
+  String? _nextUrl;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load({String? url}) async {
+    if (!mounted) return;
+    if (url == null) {
+      setState(() { _loading = true; _error = null; });
+    } else {
+      setState(() => _loadingMore = true);
+    }
+    try {
+      final ApiClient client = ref.read(apiClientProvider);
+      final response = await client.get<dynamic>(
+        url ?? Endpoints.publicSellerProducts(widget.creatorId),
+      );
+      if (!mounted) return;
+      final dynamic data = response.data;
+      List<dynamic> items = const <dynamic>[];
+      String? next;
+      if (data is Map<String, dynamic>) {
+        items = data['results'] as List<dynamic>? ?? <dynamic>[];
+        final dynamic n = data['next'];
+        if (n is String && n.isNotEmpty) next = n;
+      } else if (data is List<dynamic>) {
+        items = data;
+      }
+      final List<ShopProduct> parsed = items
+          .whereType<Map<String, dynamic>>()
+          .map(ShopProduct.fromJson)
+          .toList();
+      setState(() {
+        if (url == null) { _products..clear()..addAll(parsed); }
+        else { _products.addAll(parsed); }
+        _nextUrl = next;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _error = 'Failed to load products.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.brandGold, strokeWidth: 2),
+      );
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
+          Text(_error!, style: const TextStyle(color: Colors.white54)),
+          const SizedBox(height: AppSpacing.sm),
+          TextButton(
+            onPressed: () => _load(),
+            child: const Text('Retry', style: TextStyle(color: AppColors.brandGold)),
+          ),
+        ]),
+      );
+    }
+    if (_products.isEmpty) {
+      return const Center(
+        child: Text('No products yet.', style: TextStyle(color: Colors.white54)),
+      );
+    }
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification n) {
+        if (!_loadingMore &&
+            _nextUrl != null &&
+            n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+          _load(url: _nextUrl);
+        }
+        return false;
+      },
+      child: GridView.builder(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.72,
+          crossAxisSpacing: AppSpacing.sm,
+          mainAxisSpacing: AppSpacing.sm,
+        ),
+        itemCount: _products.length + (_loadingMore ? 2 : 0),
+        itemBuilder: (_, int i) {
+          if (i >= _products.length) {
+            return const _ProductSkeleton();
+          }
+          return _ProductCard(product: _products[i]);
+        },
+      ),
+    );
+  }
+}
+
+// ── Product card ───────────────────────────────────────────────────────────────
+
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.product});
+  final ShopProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ProductDetailPage(product: product),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // Thumbnail
+            Expanded(
+              child: product.thumbnailUrl != null
+                  ? AppCachedImage(
+                      imageUrl: product.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    )
+                  : Container(
+                      color: Colors.white10,
+                      child: const Icon(Icons.image_not_supported_outlined,
+                          color: Colors.white24, size: 32),
+                    ),
+            ),
+            // Info
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    product.price,
+                    style: const TextStyle(
+                      color: AppColors.brandGold,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (product.soldCount > 0)
+                    Text(
+                      '${_formatCount(product.soldCount)} sold',
+                      style: const TextStyle(color: Colors.white38, fontSize: 10),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductSkeleton extends StatelessWidget {
+  const _ProductSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
+    );
+  }
 }

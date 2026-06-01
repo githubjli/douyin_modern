@@ -14,6 +14,7 @@ import '../../core/database/feed_dao.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../../shared/danmaku_overlay.dart';
+import '../creator_profile/presentation/creator_profile_page.dart';
 import '../drama_player/drama_player_page.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
@@ -719,6 +720,16 @@ class _ActionColumnState extends State<_ActionColumn> {
     }
   }
 
+  void _openCreatorProfile() {
+    final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
+    if (ownerId == null) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CreatorProfilePage(creatorId: ownerId),
+      ),
+    );
+  }
+
   Future<void> _toggleSubscribe() async {
     if (_busy) return;
     final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
@@ -864,8 +875,9 @@ class _ActionColumnState extends State<_ActionColumn> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
+        // Avatar → creator profile; "+" badge → follow
         GestureDetector(
-          onTap: _toggleSubscribe,
+          onTap: _openCreatorProfile,
           child: Stack(
             clipBehavior: Clip.none,
             children: <Widget>[
@@ -876,15 +888,19 @@ class _ActionColumnState extends State<_ActionColumn> {
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: const BoxDecoration(
-                        color: AppColors.brandGold,
-                        shape: BoxShape.circle,
+                    child: GestureDetector(
+                      onTap: _toggleSubscribe,
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brandGold,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add,
+                            size: 14, color: AppColors.warmBackground),
                       ),
-                      child: const Icon(Icons.add,
-                          size: 14, color: AppColors.warmBackground),
                     ),
                   ),
                 ),

@@ -11,15 +11,30 @@ class CreatorProfileRepository {
 
   /// Fetches a public user/creator profile including aggregated stats.
   ///
-  /// Uses the unified endpoint GET /api/public/users/{id}/ which now returns
-  /// full creator stats (video_count, total_views, total_likes, total_gifts,
-  /// drama_count, live_count) for creator accounts, and zeroes for regular
-  /// users.  The legacy /api/public/creators/{id}/ endpoint is no longer
-  /// called from here.
+  /// Dramas and shorts pass a creator/channel ID, not a user ID. The creators
+  /// endpoint accepts both creator and channel IDs, so we try it first for
+  /// full stats. If that 404s (plain user account), fall back to the universal
+  /// users endpoint.
   Future<PublicCreatorProfile> getProfile(int creatorId) async {
+    // Try the creator endpoint first — it accepts channel/creator IDs and
+    // returns full aggregated stats (video_count, total_views, etc.).
+    try {
+      final response = await _client.get<dynamic>(
+        Endpoints.publicCreatorProfile(creatorId),
+        authenticated: true,
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return PublicCreatorProfile.fromJson(data);
+      }
+    } catch (_) {
+      // 404 or any error → fall through to universal user endpoint.
+    }
+
+    // Fallback: universal endpoint (works for plain user accounts).
     final response = await _client.get<dynamic>(
       Endpoints.publicUserProfile(creatorId),
-      authenticated: true, // needed so viewer_is_following is populated
+      authenticated: true,
     );
     final data = response.data;
     if (data is! Map<String, dynamic>) {

@@ -79,7 +79,8 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
         _loading = false;
         _rebuildTabController(profile.isSeller);
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[CreatorProfile] load failed for id=${widget.creatorId}: $e\n$st');
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -144,6 +145,19 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
                     color: AppColors.mutedOliveText,
                   ),
                 ),
+                if (_error != null) ...<Widget>[
+                  const SizedBox(height: AppSpacing.xs),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.mutedOliveText,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.sm),
                 TextButton(
                   onPressed: _loadProfile,

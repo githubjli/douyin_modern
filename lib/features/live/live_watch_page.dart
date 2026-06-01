@@ -862,8 +862,8 @@ class _LiveWatchPageState extends ConsumerState<LiveWatchPage> {
           ),
           child: Icon(
             _isLandscape
-                ? Icons.stay_current_portrait_rounded
-                : Icons.stay_current_landscape_rounded,
+                ? Icons.fullscreen_exit_rounded
+                : Icons.fullscreen_rounded,
             color: Colors.white,
             size: 18,
           ),

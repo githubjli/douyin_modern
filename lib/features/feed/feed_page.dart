@@ -732,6 +732,17 @@ class _ActionColumnState extends State<_ActionColumn> {
 
   Future<void> _toggleSubscribe() async {
     if (_busy) return;
+    // Already following — show hint, do not unfollow from this entry point.
+    if (_subscribed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Already following'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
     if (ownerId == null) return;
     final int? seriesId = widget.item.seriesId;
@@ -882,28 +893,34 @@ class _ActionColumnState extends State<_ActionColumn> {
             clipBehavior: Clip.none,
             children: <Widget>[
               avatar,
-              if (!_subscribed)
-                Positioned(
-                  bottom: -6,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _toggleSubscribe,
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          color: AppColors.brandGold,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.add,
-                            size: 14, color: AppColors.warmBackground),
+              Positioned(
+                bottom: -6,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: _toggleSubscribe,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: _subscribed
+                            ? Colors.white24
+                            : AppColors.brandGold,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _subscribed ? Icons.check : Icons.add,
+                        size: 14,
+                        color: _subscribed
+                            ? Colors.white
+                            : AppColors.warmBackground,
                       ),
                     ),
                   ),
                 ),
+              ),
             ],
           ),
         ),

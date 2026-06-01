@@ -40,6 +40,7 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
   bool _loading = true;
   String? _error;
   bool _followLoading = false;
+  bool _confirmedOwnProfile = false;
 
   @override
   void initState() {
@@ -107,14 +108,14 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is ApiError && e.statusCode == 400) {
+        // 400 means "you can't follow yourself" — hide the button permanently.
+        setState(() { _followLoading = false; _confirmedOwnProfile = true; });
+        return;
+      }
       setState(() => _followLoading = false);
-      // 400 typically means "you can't follow yourself" from the backend.
-      final String message =
-          (e is ApiError && e.statusCode == 400)
-              ? 'You can\'t follow yourself.'
-              : 'Failed to update follow status.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        const SnackBar(content: Text('Failed to update follow status.')),
       );
     }
   }
@@ -173,12 +174,13 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
       );
     }
 
-    // Hide the Follow button when the viewer is looking at their own profile.
-    // AuthSession.userId is a String (e.g. "42"), profile.id is an int.
+    // Hide Follow when viewing own profile. ID comparison can mismatch when
+    // the profile was loaded via the creator endpoint (channel ID ≠ user ID),
+    // so we also set _confirmedOwnProfile=true if the backend returns 400.
     final String? sessionUserId =
         ref.watch(authControllerProvider).session?.userId;
-    final bool isOwnProfile =
-        sessionUserId != null && sessionUserId == _profile!.id.toString();
+    final bool isOwnProfile = _confirmedOwnProfile ||
+        (sessionUserId != null && sessionUserId == _profile!.id.toString());
 
     return Scaffold(
       backgroundColor: AppColors.warmBackground,
@@ -536,6 +538,12 @@ class _VideosTabState extends State<_VideosTab>
         _error = null;
       });
     } catch (e) {
+      // 404 means this user has no creator videos endpoint — treat as empty.
+      if (e is ApiError && e.statusCode == 404) {
+        if (!mounted) return;
+        setState(() { _loading = false; _loadingMore = false; });
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -648,6 +656,11 @@ class _DramasTabState extends State<_DramasTab>
         _error = null;
       });
     } catch (e) {
+      if (e is ApiError && e.statusCode == 404) {
+        if (!mounted) return;
+        setState(() { _loading = false; _loadingMore = false; });
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -759,6 +772,11 @@ class _LivesTabState extends State<_LivesTab>
         _error = null;
       });
     } catch (e) {
+      if (e is ApiError && e.statusCode == 404) {
+        if (!mounted) return;
+        setState(() { _loading = false; _loadingMore = false; });
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _loading = false;

@@ -421,19 +421,21 @@ VideoInteractionState _mapInteraction(
   VideoInteractionState current,
 ) {
   final dynamic creator = data['creator'];
-  final int? creatorId = creator is Map<String, dynamic>
-      ? _int(creator['id'])
-      : current.creatorId;
-  final int? subscriberCount = creator is Map<String, dynamic>
-      ? (_int(creator['follower_count']) ??
-         _int(creator['subscriber_count']) ??
-         _int(data['owner_subscriber_count']))
-      : (_int(data['owner_subscriber_count']) ?? current.subscriberCount);
-  final bool isFollowing = creator is Map<String, dynamic>
-      ? (_bool(creator['is_following']) ??
-          _bool(data['is_following_owner']) ??
-          current.isFollowing)
-      : (_bool(data['is_following_owner']) ?? current.isFollowing);
+  // P0: prefer owner_id (User.id) over creator.id — backend guarantees they are equal.
+  final int? creatorId = _int(data['owner_id']) ??
+      (creator is Map<String, dynamic> ? _int(creator['id']) : null) ??
+      current.creatorId;
+  // P1: prefer owner_follower_count, fall back to creator object, then legacy alias.
+  final int? followerCount = _int(data['owner_follower_count']) ??
+      (creator is Map<String, dynamic>
+          ? (_int(creator['follower_count']) ?? _int(creator['subscriber_count']))
+          : null) ??
+      _int(data['owner_subscriber_count']) ??
+      current.subscriberCount;
+  // P1: prefer is_following_owner, fall back to creator object.
+  final bool isFollowing = _bool(data['is_following_owner']) ??
+      (creator is Map<String, dynamic> ? _bool(creator['is_following']) : null) ??
+      current.isFollowing;
 
   return VideoInteractionState(
     likeCount: _int(data['like_count']) ?? current.likeCount,
@@ -441,8 +443,8 @@ VideoInteractionState _mapInteraction(
     commentCount: _int(data['comment_count']) ?? current.commentCount,
     giftCount: _int(data['gift_count']) ?? current.giftCount,
     shareCount: _int(data['share_count']) ?? current.shareCount,
-    creatorId: creatorId ?? current.creatorId,
-    subscriberCount: subscriberCount,
+    creatorId: creatorId,
+    subscriberCount: followerCount,
     isFollowing: isFollowing,
   );
 }
@@ -478,10 +480,11 @@ HomeVideoItem _mapRecommendationItem(dynamic data) {
 }
 
 String? _videoOwnerName(Map<String, dynamic> data) {
+  // P1 priority: owner_name → creator.name → owner.username → owner.email
   return _str(data['owner_name']) ??
+      _nestedStr(data['creator'], 'name') ??
       _nestedStr(data['owner'], 'username') ??
-      _nestedStr(data['owner'], 'email') ??
-      _nestedStr(data['creator'], 'name');
+      _nestedStr(data['owner'], 'email');
 }
 
 String? _videoOwnerAvatarUrl(Map<String, dynamic> data) {

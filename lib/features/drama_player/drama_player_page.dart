@@ -83,7 +83,9 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
           data['owner_avatar_url'] as String? ??
           data['owner_avatar'] as String? ??
           data['creator_avatar_url'] as String?;
-      final dynamic subscribed = data['viewer_is_subscribed'] ??
+      final dynamic subscribed = data['viewer_is_following'] ??
+          data['is_following_owner'] ??
+          data['viewer_is_subscribed'] ??
           data['is_subscribed'];
       setState(() {
         _ownerId = ownerId is int

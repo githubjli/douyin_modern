@@ -53,6 +53,13 @@ class Endpoints {
   static String videoRecommendations(int id) =>
       '/api/videos/$id/recommendations/';
 
+  /// Canonical follow endpoint (POST = follow, DELETE = unfollow).
+  /// All three legacy paths (/api/creators/{id}/follow/,
+  /// /api/channels/{id}/subscribe/, /api/public/users/{id}/follow/)
+  /// now write to the same ChannelSubscription table.
+  static String userFollow(int userId) => '/api/public/users/$userId/follow/';
+
+  // Legacy aliases — kept for gradual migration; prefer userFollow().
   static String creatorFollow(int creatorId) =>
       '/api/creators/$creatorId/follow/';
 

@@ -256,9 +256,11 @@ class VideoDetailNotifier extends Notifier<VideoDetailState> {
           interaction: state.interaction.copyWith(
             isFollowing: _bool(data['is_following']) ??
                 _bool(data['viewer_is_following']) ??
+                _bool(data['is_subscribed']) ??
+                _bool(data['viewer_is_subscribed']) ??
                 !wasFollowing,
-            subscriberCount: _int(data['subscriber_count']) ??
-                _int(data['follower_count']) ??
+            subscriberCount: _int(data['follower_count']) ??
+                _int(data['subscriber_count']) ??
                 state.interaction.subscriberCount,
           ),
         );
@@ -423,8 +425,10 @@ VideoInteractionState _mapInteraction(
       ? _int(creator['id'])
       : current.creatorId;
   final int? subscriberCount = creator is Map<String, dynamic>
-      ? (_int(creator['subscriber_count']) ?? _int(data['owner_subscriber_count']))
-      : _int(data['owner_subscriber_count']) ?? current.subscriberCount;
+      ? (_int(creator['follower_count']) ??
+         _int(creator['subscriber_count']) ??
+         _int(data['owner_subscriber_count']))
+      : (_int(data['owner_subscriber_count']) ?? current.subscriberCount);
   final bool isFollowing = creator is Map<String, dynamic>
       ? (_bool(creator['is_following']) ??
           _bool(data['is_following_owner']) ??

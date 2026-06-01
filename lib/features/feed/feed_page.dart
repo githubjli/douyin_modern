@@ -710,7 +710,9 @@ class _ActionColumnState extends State<_ActionColumn> {
         _commentCount = (data['comment_count'] as int?) ?? _commentCount;
         _shareCount = (data['share_count'] as int?) ?? _shareCount;
         _giftCount = (data['gift_count'] as int?) ?? _giftCount;
-        _subscribed = (data['viewer_is_subscribed'] as bool?) ?? _subscribed;
+        _subscribed = (data['viewer_is_following'] as bool?) ??
+            (data['viewer_is_subscribed'] as bool?) ??
+            _subscribed;
       });
     } catch (_) {
       // best-effort — keep local state

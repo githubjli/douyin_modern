@@ -9,8 +9,31 @@ class CreatorProfileRepository {
   const CreatorProfileRepository(this._client);
   final ApiClient _client;
 
-  /// Uses the universal user endpoint (works for all users, not just creators).
+  /// Fetches a public creator profile with aggregated stats.
+  ///
+  /// Strategy: try the creator endpoint first (`/api/public/creators/{id}/`)
+  /// which returns full stats (video_count, total_views, total_likes).
+  /// If that returns a 404 (user is not a creator) fall back to the universal
+  /// user endpoint (`/api/public/users/{id}/`).
+  ///
+  /// TODO(backend): once GET /api/public/users/{id}/ returns the same
+  /// aggregated stat fields as the creator endpoint, remove the fallback
+  /// and always use publicUserProfile so a single call suffices.
   Future<PublicCreatorProfile> getProfile(int creatorId) async {
+    // Attempt creator endpoint first (has video_count / total_views / total_likes).
+    try {
+      final response = await _client.get<dynamic>(
+        Endpoints.publicCreatorProfile(creatorId),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return PublicCreatorProfile.fromJson(data);
+      }
+    } catch (_) {
+      // 404 or any error → fall through to universal user endpoint.
+    }
+
+    // Fallback: universal endpoint (works for non-creator users).
     final response = await _client.get<dynamic>(
       Endpoints.publicUserProfile(creatorId),
     );

@@ -1467,6 +1467,7 @@ class _StoreTabState extends ConsumerState<_StoreTab>
       final ApiClient client = ref.read(apiClientProvider);
       final response = await client.get<dynamic>(
         url ?? Endpoints.publicSellerProducts(widget.creatorId),
+        authenticated: true,
       );
       if (!mounted) return;
       final dynamic data = response.data;
@@ -1490,7 +1491,8 @@ class _StoreTabState extends ConsumerState<_StoreTab>
         _loading = false;
         _loadingMore = false;
       });
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[StoreTab] load failed for seller=${widget.creatorId}: $e\n$st');
       if (!mounted) return;
       setState(() {
         _loading = false;

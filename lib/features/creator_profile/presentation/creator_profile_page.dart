@@ -335,13 +335,18 @@ class _ProfileHeader extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xl),
               _StatItem(
-                value: profile.followingCount,
-                label: 'Following',
+                value: profile.videoCount,
+                label: 'Videos',
               ),
               const SizedBox(width: AppSpacing.xl),
               _StatItem(
-                value: profile.videoCount,
-                label: 'Videos',
+                value: profile.totalViews,
+                label: 'Views',
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              _StatItem(
+                value: profile.totalLikes,
+                label: 'Likes',
               ),
             ],
           ),

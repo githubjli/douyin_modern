@@ -16,6 +16,7 @@ import '../../core/network/endpoints.dart';
 import '../../shared/danmaku_overlay.dart';
 import '../creator_profile/presentation/creator_profile_page.dart';
 import '../drama_player/drama_player_page.dart';
+import '../follow/follow_providers.dart';
 import 'data/mock_feed_repository.dart';
 import 'data/remote_feed_repository.dart';
 import 'domain/feed_item.dart';
@@ -650,7 +651,7 @@ class _Placeholder extends StatelessWidget {
 // Action column – stateful, wired to backend APIs
 // ────────────────────────────────────────────────────────────────────────────
 
-class _ActionColumn extends StatefulWidget {
+class _ActionColumn extends ConsumerStatefulWidget {
   const _ActionColumn({
     required this.item,
     required this.apiClient,
@@ -664,11 +665,10 @@ class _ActionColumn extends StatefulWidget {
   final VoidCallback? onToggleDanmaku;
 
   @override
-  State<_ActionColumn> createState() => _ActionColumnState();
+  ConsumerState<_ActionColumn> createState() => _ActionColumnState();
 }
 
-class _ActionColumnState extends State<_ActionColumn> {
-  late bool _subscribed;
+class _ActionColumnState extends ConsumerState<_ActionColumn> {
   late bool _favorited;
   late int _favoriteCount;
   late int _commentCount;
@@ -681,12 +681,25 @@ class _ActionColumnState extends State<_ActionColumn> {
   void initState() {
     super.initState();
     final FeedItem item = widget.item;
-    _subscribed = item.viewerIsSubscribed ?? false;
     _favorited = item.isFavorited ?? false;
     _favoriteCount = item.favoriteCount ?? item.likeCount ?? 0;
     _commentCount = item.commentCount ?? 0;
     _shareCount = item.shareCount ?? 0;
     _giftCount = item.giftCount ?? 0;
+
+    // Seed shared follow state from the cached FeedItem value so the UI
+    // doesn't flash "Follow" before the network refresh lands.
+    final int? ownerId = int.tryParse(item.ownerId ?? '');
+    if (ownerId != null && item.viewerIsSubscribed != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(followStateProvider(ownerId).notifier).hydrate(
+              isFollowing: item.viewerIsSubscribed!,
+              followerCount:
+                  ref.read(followStateProvider(ownerId)).followerCount,
+            );
+      });
+    }
 
     if (item.seriesId != null) {
       _refreshSummary(item.seriesId!);
@@ -711,10 +724,21 @@ class _ActionColumnState extends State<_ActionColumn> {
         _commentCount = (data['comment_count'] as int?) ?? _commentCount;
         _shareCount = (data['share_count'] as int?) ?? _shareCount;
         _giftCount = (data['gift_count'] as int?) ?? _giftCount;
-        _subscribed = (data['viewer_is_following'] as bool?) ??
-            (data['viewer_is_subscribed'] as bool?) ??
-            _subscribed;
       });
+      final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
+      if (ownerId != null) {
+        final FollowState follow = FollowRepository.parseFollowState(
+          data,
+          fallbackIsFollowing:
+              ref.read(followStateProvider(ownerId)).isFollowing,
+          fallbackFollowerCount:
+              ref.read(followStateProvider(ownerId)).followerCount,
+        );
+        ref.read(followStateProvider(ownerId).notifier).hydrate(
+              isFollowing: follow.isFollowing,
+              followerCount: follow.followerCount,
+            );
+      }
     } catch (_) {
       // best-effort — keep local state
     }
@@ -732,8 +756,12 @@ class _ActionColumnState extends State<_ActionColumn> {
 
   Future<void> _toggleSubscribe() async {
     if (_busy) return;
+    final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
+    if (ownerId == null) return;
+    final bool wasFollowing =
+        ref.read(followStateProvider(ownerId)).isFollowing;
     // Already following — show hint, do not unfollow from this entry point.
-    if (_subscribed) {
+    if (wasFollowing) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Already following'),
@@ -743,29 +771,11 @@ class _ActionColumnState extends State<_ActionColumn> {
       );
       return;
     }
-    final int? ownerId = int.tryParse(widget.item.ownerId ?? '');
-    if (ownerId == null) return;
-    final int? seriesId = widget.item.seriesId;
-    final bool next = !_subscribed;
-    setState(() {
-      _subscribed = next;
-      _busy = true;
-    });
+    setState(() => _busy = true);
     try {
-      if (next) {
-        await widget.apiClient.post<dynamic>(
-          Endpoints.channelSubscribe(ownerId),
-          authenticated: true,
-        );
-      } else {
-        await widget.apiClient.delete<dynamic>(
-          Endpoints.channelSubscribe(ownerId),
-          authenticated: true,
-        );
-      }
-      if (seriesId != null) unawaited(_refreshSummary(seriesId));
+      await ref.read(followStateProvider(ownerId).notifier).toggle();
     } catch (_) {
-      if (mounted) setState(() => _subscribed = !next);
+      // Notifier already reverted optimistic state.
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -868,6 +878,9 @@ class _ActionColumnState extends State<_ActionColumn> {
   @override
   Widget build(BuildContext context) {
     final FeedItem item = widget.item;
+    final int? ownerId = int.tryParse(item.ownerId ?? '');
+    final bool subscribed = ownerId != null &&
+        ref.watch(followStateProvider(ownerId)).isFollowing;
 
     Widget avatar;
     if (item.ownerAvatarUrl != null && item.ownerAvatarUrl!.isNotEmpty) {
@@ -905,15 +918,15 @@ class _ActionColumnState extends State<_ActionColumn> {
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: _subscribed
+                        color: subscribed
                             ? Colors.white24
                             : AppColors.brandGold,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        _subscribed ? Icons.check : Icons.add,
+                        subscribed ? Icons.check : Icons.add,
                         size: 14,
-                        color: _subscribed
+                        color: subscribed
                             ? Colors.white
                             : AppColors.warmBackground,
                       ),

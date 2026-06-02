@@ -5,19 +5,22 @@ import '../../app/widgets/app_cached_image.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/endpoints.dart';
 import '../../shared/danmaku_overlay.dart';
+import '../creator_profile/presentation/creator_profile_page.dart';
 import '../drama_detail/drama_detail_page.dart';
+import '../follow/follow_providers.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Public entry-point widget
 // ────────────────────────────────────────────────────────────────────────────
 
-class DramaPlayerPage extends StatefulWidget {
+class DramaPlayerPage extends ConsumerStatefulWidget {
   const DramaPlayerPage({
     super.key,
     required this.dramaId,
@@ -32,10 +35,10 @@ class DramaPlayerPage extends StatefulWidget {
   final int? totalEpisodes;
 
   @override
-  State<DramaPlayerPage> createState() => _DramaPlayerPageState();
+  ConsumerState<DramaPlayerPage> createState() => _DramaPlayerPageState();
 }
 
-class _DramaPlayerPageState extends State<DramaPlayerPage> {
+class _DramaPlayerPageState extends ConsumerState<DramaPlayerPage> {
   late final ApiClient _apiClient;
   PageController? _pageController;
   final Map<int, VideoPlayerController> _controllers =
@@ -52,10 +55,9 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
   int _shareCount = 0;
   int _giftCount = 0;
 
-  // Owner / follow
+  // Owner / follow — _subscribed lives in followStateProvider(_ownerId).
   int? _ownerId;
   String? _ownerAvatarUrl;
-  bool _subscribed = false;
 
   // Danmaku
   bool _danmakuEnabled = true;
@@ -77,45 +79,53 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
           .get<dynamic>(Endpoints.dramaDetail(widget.dramaId));
       final dynamic data = response.data;
       if (data is! Map<String, dynamic> || !mounted) return;
-      final dynamic ownerId = data['owner'] ?? data['owner_id'] ??
-          data['channel_id'] ?? data['creator_id'];
-      final String? avatarUrl =
-          data['owner_avatar_url'] as String? ??
-          data['owner_avatar'] as String? ??
-          data['creator_avatar_url'] as String?;
-      final dynamic subscribed = data['viewer_is_following'] ??
-          data['is_following_owner'] ??
-          data['viewer_is_subscribed'] ??
-          data['is_subscribed'];
+      // P0: backend guarantees owner_id == User.id. Do not fall back to
+      // channel_id / creator_id — those are legacy aliases for the same user.
+      final dynamic rawOwner = data['owner'];
+      final dynamic ownerId = data['owner_id'] ??
+          (rawOwner is Map ? rawOwner['id'] : rawOwner);
+      // P1: prefer owner_avatar_url; owner_avatar is a server-side alias.
+      final String? avatarUrl = data['owner_avatar_url'] as String? ??
+          data['owner_avatar'] as String?;
+      final int? parsedOwnerId = ownerId is int
+          ? ownerId
+          : int.tryParse(ownerId?.toString() ?? '');
       setState(() {
-        _ownerId = ownerId is int
-            ? ownerId
-            : int.tryParse(ownerId?.toString() ?? '');
+        _ownerId = parsedOwnerId;
         _ownerAvatarUrl = avatarUrl;
-        _subscribed = subscribed is bool ? subscribed : false;
       });
+      // Seed shared follow state so any other page (video detail, creator
+      // profile, feed shorts) watching the same userId stays in sync.
+      if (parsedOwnerId != null) {
+        final FollowState follow = FollowRepository.parseFollowState(
+          data,
+          fallbackIsFollowing: false,
+        );
+        ref.read(followStateProvider(parsedOwnerId).notifier).hydrate(
+              isFollowing: follow.isFollowing,
+              followerCount: follow.followerCount,
+            );
+      }
     } catch (_) {}
+  }
+
+  void _openCreatorProfile() {
+    final int? ownerId = _ownerId;
+    if (ownerId == null) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CreatorProfilePage(creatorId: ownerId),
+      ),
+    );
   }
 
   Future<void> _toggleSubscribe() async {
     final int? ownerId = _ownerId;
     if (ownerId == null) return;
-    final bool next = !_subscribed;
-    setState(() => _subscribed = next);
     try {
-      if (next) {
-        await _apiClient.post<dynamic>(
-          Endpoints.channelSubscribe(ownerId),
-          authenticated: true,
-        );
-      } else {
-        await _apiClient.delete<dynamic>(
-          Endpoints.channelSubscribe(ownerId),
-          authenticated: true,
-        );
-      }
+      await ref.read(followStateProvider(ownerId).notifier).toggle();
     } catch (_) {
-      if (mounted) setState(() => _subscribed = !next);
+      // Swallowed — notifier already reverted the optimistic update.
     }
   }
 
@@ -608,14 +618,15 @@ class _DramaPlayerPageState extends State<DramaPlayerPage> {
               bottom: 80,
               child: _DramaActionColumn(
                 dramaId: widget.dramaId,
+                ownerId: _ownerId,
                 ownerAvatarUrl: _ownerAvatarUrl,
-                subscribed: _subscribed,
                 favorited: _favorited,
                 favoriteCount: _favoriteCount,
                 commentCount: _commentCount,
                 shareCount: _shareCount,
                 giftCount: _giftCount,
                 danmakuEnabled: _danmakuEnabled,
+                onOpenProfile: _ownerId != null ? _openCreatorProfile : null,
                 onSubscribe: _toggleSubscribe,
                 onFavorite: _toggleFavorite,
                 onComment: _openComments,
@@ -1234,7 +1245,7 @@ class _UnlockOption extends StatelessWidget {
 // Right-side action column for DramaPlayerPage
 // ────────────────────────────────────────────────────────────────────────────
 
-class _DramaActionColumn extends StatelessWidget {
+class _DramaActionColumn extends ConsumerWidget {
   const _DramaActionColumn({
     required this.dramaId,
     required this.favorited,
@@ -1249,19 +1260,21 @@ class _DramaActionColumn extends StatelessWidget {
     required this.onGift,
     required this.onToggleDanmaku,
     required this.onSubscribe,
+    this.onOpenProfile,
+    this.ownerId,
     this.ownerAvatarUrl,
-    this.subscribed = false,
   });
 
   final int dramaId;
+  final int? ownerId;
   final String? ownerAvatarUrl;
-  final bool subscribed;
   final bool favorited;
   final int favoriteCount;
   final int commentCount;
   final int shareCount;
   final int giftCount;
   final bool danmakuEnabled;
+  final VoidCallback? onOpenProfile;
   final VoidCallback onSubscribe;
   final VoidCallback onFavorite;
   final VoidCallback onComment;
@@ -1270,7 +1283,9 @@ class _DramaActionColumn extends StatelessWidget {
   final VoidCallback onToggleDanmaku;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool subscribed = ownerId != null &&
+        ref.watch(followStateProvider(ownerId!)).isFollowing;
     final Widget avatar = ownerAvatarUrl != null && ownerAvatarUrl!.isNotEmpty
         ? CircleAvatar(radius: 24, backgroundImage: NetworkImage(ownerAvatarUrl!))
         : const CircleAvatar(
@@ -1282,9 +1297,9 @@ class _DramaActionColumn extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        // Avatar + follow button
+        // Avatar → creator profile; "+" badge → follow
         GestureDetector(
-          onTap: onSubscribe,
+          onTap: onOpenProfile,
           child: Stack(
             clipBehavior: Clip.none,
             children: <Widget>[
@@ -1295,15 +1310,19 @@ class _DramaActionColumn extends StatelessWidget {
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: const BoxDecoration(
-                        color: AppColors.brandGold,
-                        shape: BoxShape.circle,
+                    child: GestureDetector(
+                      onTap: onSubscribe,
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brandGold,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add,
+                            size: 14, color: AppColors.warmBackground),
                       ),
-                      child: const Icon(Icons.add,
-                          size: 14, color: AppColors.warmBackground),
                     ),
                   ),
                 ),

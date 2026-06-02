@@ -82,10 +82,20 @@ class PublicCreatorProfile {
             ? json['description'] as String
             : null;
 
-    // Follower count: follower_count > followers_count
+    // Follower count: follower_count > followers_count > subscriber_count
     final int followerCount =
         (json['follower_count'] as num?)?.toInt() ??
-        (json['followers_count'] as num?)?.toInt() ?? 0;
+        (json['followers_count'] as num?)?.toInt() ??
+        (json['subscriber_count'] as num?)?.toInt() ?? 0;
+
+    // viewer_is_following priority:
+    //   is_following_owner > viewer_is_following >
+    //   is_subscribed > viewer_is_subscribed
+    final bool viewerIsFollowing = (json['is_following_owner'] as bool?) ??
+        (json['viewer_is_following'] as bool?) ??
+        (json['is_subscribed'] as bool?) ??
+        (json['viewer_is_subscribed'] as bool?) ??
+        false;
 
     return PublicCreatorProfile(
       id: (json['id'] as num).toInt(),
@@ -106,7 +116,7 @@ class PublicCreatorProfile {
       totalLikes: (json['total_likes'] as num?)?.toInt() ??
           (json['like_count'] as num?)?.toInt() ?? 0,
       totalGifts: (json['total_gifts'] as num?)?.toInt() ?? 0,
-      viewerIsFollowing: json['viewer_is_following'] as bool? ?? false,
+      viewerIsFollowing: viewerIsFollowing,
     );
   }
 
@@ -258,17 +268,4 @@ class PublicCreatorLive {
   }
 }
 
-/// Result returned after follow / unfollow.
-class FollowResult {
-  const FollowResult({required this.isFollowing, required this.followerCount});
-
-  final bool isFollowing;
-  final int followerCount;
-
-  factory FollowResult.fromJson(Map<String, dynamic> json) {
-    return FollowResult(
-      isFollowing: json['viewer_is_following'] as bool? ?? false,
-      followerCount: (json['follower_count'] as num?)?.toInt() ?? 0,
-    );
-  }
-}
+// FollowResult moved to features/follow/follow_providers.dart (FollowState).

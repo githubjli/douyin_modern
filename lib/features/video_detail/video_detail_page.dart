@@ -18,6 +18,7 @@ import '../../core/network/endpoints.dart';
 import '../auth/application/auth_providers.dart';
 import '../auth/application/auth_state.dart';
 import '../creator_profile/presentation/creator_profile_page.dart';
+import '../follow/follow_providers.dart';
 import '../home/domain/home_models.dart';
 import 'application/video_detail_notifier.dart';
 
@@ -548,9 +549,6 @@ class _VideoDetailBodyState extends ConsumerState<_VideoDetailBody> {
                       video: video,
                       interaction: interaction,
                       isSignedIn: isSignedIn,
-                      onFollow: () => unawaited(
-                        ref.read(videoDetailProvider.notifier).toggleFollow(),
-                      ),
                       onCreatorTap: interaction.creatorId != null
                           ? () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
@@ -1370,30 +1368,35 @@ class _InfoBadge extends StatelessWidget {
 // Author + Follow row — now live
 // ---------------------------------------------------------------------------
 
-class _AuthorFollowRow extends StatelessWidget {
+class _AuthorFollowRow extends ConsumerWidget {
   const _AuthorFollowRow({
     required this.video,
     required this.interaction,
     required this.isSignedIn,
-    required this.onFollow,
     this.onCreatorTap,
   });
 
   final HomeVideoItem video;
   final VideoInteractionState interaction;
   final bool isSignedIn;
-  final VoidCallback onFollow;
   final VoidCallback? onCreatorTap;
 
   @override
-  Widget build(BuildContext context) {
-    final int? subs = interaction.subscriberCount;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final int? creatorId = interaction.creatorId;
+    final FollowState? followState = creatorId != null
+        ? ref.watch(followStateProvider(creatorId))
+        : null;
     final String meta = <String>[
       'Creator',
-      if (subs != null) '${_formatCount(subs)} followers',
+      if (followState != null && followState.followerCount > 0)
+        '${_formatCount(followState.followerCount)} followers',
       if (video.viewCount != null && video.viewCount! > 0)
         '${_formatCount(video.viewCount!)} views',
     ].join(' · ');
+
+    final bool showFollow = creatorId != null &&
+        !(followState?.isSelfDisallowed ?? false);
 
     return Row(
       children: <Widget>[
@@ -1431,11 +1434,15 @@ class _AuthorFollowRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        if (interaction.creatorId != null || !isSignedIn)
+        if (showFollow || !isSignedIn)
           _FollowButton(
-            isFollowing: interaction.isFollowing,
+            isFollowing: followState?.isFollowing ?? false,
             onTap: isSignedIn
-                ? onFollow
+                ? () => unawaited(
+                      ref
+                          .read(followStateProvider(creatorId!).notifier)
+                          .toggle(),
+                    )
                 : () => ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Sign in to follow creators.'),

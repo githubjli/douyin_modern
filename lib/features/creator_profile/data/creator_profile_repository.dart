@@ -76,29 +76,7 @@ class CreatorProfileRepository {
     return _parsePagedResult(response.data, PublicCreatorLive.fromJson);
   }
 
-  /// POST /api/creators/{id}/follow/
-  Future<FollowResult> follow(int creatorId) async {
-    final response = await _client.post<dynamic>(
-      Endpoints.creatorFollow(creatorId),
-      authenticated: true,
-    );
-    final data = response.data;
-    return FollowResult.fromJson(
-      data is Map<String, dynamic> ? data : <String, dynamic>{},
-    );
-  }
-
-  /// DELETE /api/creators/{id}/follow/
-  Future<FollowResult> unfollow(int creatorId) async {
-    final response = await _client.delete<dynamic>(
-      Endpoints.creatorUnfollow(creatorId),
-      authenticated: true,
-    );
-    final data = response.data;
-    return FollowResult.fromJson(
-      data is Map<String, dynamic> ? data : <String, dynamic>{},
-    );
-  }
+  // Follow / unfollow live in FollowRepository — see features/follow/.
 
   // ── helpers ────────────────────────────────────────────────────────────────
 

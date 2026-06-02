@@ -15,6 +15,7 @@ import '../../shop/domain/shop_models.dart';
 import '../../shop/product_detail_page.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../drama_detail/drama_detail_page.dart';
+import '../../follow/follow_providers.dart';
 import '../../home/domain/home_models.dart';
 import '../../video_detail/video_detail_page.dart';
 import '../data/creator_profile_repository.dart';
@@ -39,8 +40,6 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
   PublicCreatorProfile? _profile;
   bool _loading = true;
   String? _error;
-  bool _followLoading = false;
-  bool _confirmedOwnProfile = false;
 
   @override
   void initState() {
@@ -75,6 +74,12 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
     try {
       final profile = await _repo.getProfile(widget.creatorId);
       if (!mounted) return;
+      // Seed shared follow state so any other page watching the same userId
+      // (video detail, drama player, feed shorts) stays in sync.
+      ref.read(followStateProvider(widget.creatorId).notifier).hydrate(
+            isFollowing: profile.viewerIsFollowing,
+            followerCount: profile.followerCount,
+          );
       setState(() {
         _profile = profile;
         _loading = false;
@@ -91,29 +96,12 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
   }
 
   Future<void> _toggleFollow() async {
-    final profile = _profile;
-    if (profile == null || _followLoading) return;
-    setState(() => _followLoading = true);
     try {
-      final result = profile.viewerIsFollowing
-          ? await _repo.unfollow(widget.creatorId)
-          : await _repo.follow(widget.creatorId);
+      await ref
+          .read(followStateProvider(widget.creatorId).notifier)
+          .toggle();
+    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _profile = profile.copyWith(
-          viewerIsFollowing: result.isFollowing,
-          followerCount: result.followerCount,
-        );
-        _followLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      if (e is ApiError && e.statusCode == 400) {
-        // 400 means "you can't follow yourself" — hide the button permanently.
-        setState(() { _followLoading = false; _confirmedOwnProfile = true; });
-        return;
-      }
-      setState(() => _followLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to update follow status.')),
       );
@@ -176,10 +164,13 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
 
     // Hide Follow when viewing own profile. ID comparison can mismatch when
     // the profile was loaded via the creator endpoint (channel ID ≠ user ID),
-    // so we also set _confirmedOwnProfile=true if the backend returns 400.
+    // so we also rely on followState.isSelfDisallowed (sticky after the
+    // backend returns 400).
     final String? sessionUserId =
         ref.watch(authControllerProvider).session?.userId;
-    final bool isOwnProfile = _confirmedOwnProfile ||
+    final FollowState followState =
+        ref.watch(followStateProvider(widget.creatorId));
+    final bool isOwnProfile = followState.isSelfDisallowed ||
         (sessionUserId != null && sessionUserId == _profile!.id.toString());
 
     return Scaffold(
@@ -190,9 +181,9 @@ class _CreatorProfilePageState extends ConsumerState<CreatorProfilePage>
           SliverToBoxAdapter(
             child: _ProfileHeader(
               profile: _profile!,
+              followState: followState,
               onBack: () => Navigator.of(context).maybePop(),
               onFollow: _toggleFollow,
-              followLoading: _followLoading,
               isOwnProfile: isOwnProfile,
             ),
           ),
@@ -277,16 +268,16 @@ class _StickyTabBar extends SliverPersistentHeaderDelegate {
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
     required this.profile,
+    required this.followState,
     required this.onBack,
     required this.onFollow,
-    required this.followLoading,
     this.isOwnProfile = false,
   });
 
   final PublicCreatorProfile profile;
+  final FollowState followState;
   final VoidCallback onBack;
   final VoidCallback onFollow;
-  final bool followLoading;
 
   /// When true the viewer IS this creator — the Follow button is hidden.
   final bool isOwnProfile;
@@ -327,8 +318,8 @@ class _ProfileHeader extends StatelessWidget {
               const Spacer(),
               if (!isOwnProfile)
                 _FollowButton(
-                  isFollowing: profile.viewerIsFollowing,
-                  loading: followLoading,
+                  isFollowing: followState.isFollowing,
+                  loading: followState.isUpdating,
                   onTap: onFollow,
                 ),
             ],
@@ -361,7 +352,7 @@ class _ProfileHeader extends StatelessWidget {
           // Followers · Likes · Gifts · Videos · Views
           Row(
             children: <Widget>[
-              _StatItem(value: profile.followerCount, label: 'Followers'),
+              _StatItem(value: followState.followerCount, label: 'Followers'),
               const SizedBox(width: AppSpacing.lg),
               _StatItem(value: profile.totalLikes,    label: 'Likes'),
               const SizedBox(width: AppSpacing.lg),

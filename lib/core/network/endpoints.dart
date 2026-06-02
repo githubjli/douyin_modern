@@ -54,17 +54,10 @@ class Endpoints {
       '/api/videos/$id/recommendations/';
 
   /// Canonical follow endpoint (POST = follow, DELETE = unfollow).
-  /// All three legacy paths (/api/creators/{id}/follow/,
-  /// /api/channels/{id}/subscribe/, /api/public/users/{id}/follow/)
-  /// now write to the same ChannelSubscription table.
+  /// Legacy paths (/api/creators/{id}/follow/, /api/channels/{id}/subscribe/)
+  /// remain available server-side for older clients but mobile code must go
+  /// through this one — wired up via FollowRepository.
   static String userFollow(int userId) => '/api/public/users/$userId/follow/';
-
-  // Legacy aliases — kept for gradual migration; prefer userFollow().
-  static String creatorFollow(int creatorId) =>
-      '/api/creators/$creatorId/follow/';
-
-  static String creatorUnfollow(int creatorId) =>
-      '/api/creators/$creatorId/follow/';
 
   // Public creator profile
   static String publicUserProfile(int id) => '/api/public/users/$id/';
@@ -157,8 +150,7 @@ class Endpoints {
 
   static String dramaGiftSend(int id) => '/api/dramas/$id/gifts/send/';
 
-  static String channelSubscribe(int ownerId) =>
-      '/api/channels/$ownerId/subscribe/';
+  // channelSubscribe removed — use Endpoints.userFollow() via FollowRepository.
 
   // Manual (staff-reviewed) payment endpoints
   static String manualPaymentInfo(String planCode) =>

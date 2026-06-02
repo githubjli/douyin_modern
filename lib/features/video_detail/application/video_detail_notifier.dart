@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_error_classifier.dart';
 import '../../../core/network/endpoints.dart';
+import '../../follow/follow_providers.dart';
 import '../../home/domain/home_models.dart';
 
 // ---------------------------------------------------------------------------
@@ -17,8 +18,6 @@ class VideoInteractionState {
     this.giftCount = 0,
     this.shareCount = 0,
     this.creatorId,
-    this.subscriberCount,
-    this.isFollowing = false,
   });
 
   final int likeCount;
@@ -27,8 +26,6 @@ class VideoInteractionState {
   final int giftCount;
   final int shareCount;
   final int? creatorId;
-  final int? subscriberCount;
-  final bool isFollowing;
 
   VideoInteractionState copyWith({
     int? likeCount,
@@ -37,8 +34,6 @@ class VideoInteractionState {
     int? giftCount,
     int? shareCount,
     int? creatorId,
-    int? subscriberCount,
-    bool? isFollowing,
   }) {
     return VideoInteractionState(
       likeCount: likeCount ?? this.likeCount,
@@ -47,8 +42,6 @@ class VideoInteractionState {
       giftCount: giftCount ?? this.giftCount,
       shareCount: shareCount ?? this.shareCount,
       creatorId: creatorId ?? this.creatorId,
-      subscriberCount: subscriberCount ?? this.subscriberCount,
-      isFollowing: isFollowing ?? this.isFollowing,
     );
   }
 }
@@ -169,6 +162,22 @@ class VideoDetailNotifier extends Notifier<VideoDetailState> {
         interaction: interaction,
         loadingDetail: false,
       );
+      // Seed shared follow state so the Follow button on this page stays in
+      // sync with the same creator on other pages (creator profile, drama, …).
+      if (data != null && interaction.creatorId != null) {
+        final dynamic creator = data['creator'];
+        final FollowState follow = FollowRepository.parseFollowState(
+          data,
+          fallbackIsFollowing: false,
+          nested: creator is Map<String, dynamic> ? creator : null,
+        );
+        ref
+            .read(followStateProvider(interaction.creatorId!).notifier)
+            .hydrate(
+              isFollowing: follow.isFollowing,
+              followerCount: follow.followerCount,
+            );
+      }
     } catch (error) {
       if (isAuthDeniedError(error)) {
         state = state.copyWith(
@@ -221,60 +230,9 @@ class VideoDetailNotifier extends Notifier<VideoDetailState> {
     }
   }
 
-  // ── Follow ────────────────────────────────────────────────────────────────
-
-  Future<void> toggleFollow() async {
-    final int? creatorId = state.interaction.creatorId;
-    if (creatorId == null) return;
-
-    final bool wasFollowing = state.interaction.isFollowing;
-    state = state.copyWith(
-      interaction: state.interaction.copyWith(
-        isFollowing: !wasFollowing,
-        subscriberCount:
-            (state.interaction.subscriberCount ?? 0) + (wasFollowing ? -1 : 1),
-      ),
-    );
-
-    try {
-      final dynamic data;
-      if (wasFollowing) {
-        await _apiClient.delete<dynamic>(
-          Endpoints.creatorFollow(creatorId),
-          authenticated: true,
-        );
-        data = null;
-      } else {
-        final response = await _apiClient.post<dynamic>(
-          Endpoints.creatorFollow(creatorId),
-          authenticated: true,
-        );
-        data = response.data;
-      }
-      if (data is Map<String, dynamic>) {
-        state = state.copyWith(
-          interaction: state.interaction.copyWith(
-            isFollowing: _bool(data['is_following']) ??
-                _bool(data['viewer_is_following']) ??
-                _bool(data['is_subscribed']) ??
-                _bool(data['viewer_is_subscribed']) ??
-                !wasFollowing,
-            subscriberCount: _int(data['follower_count']) ??
-                _int(data['subscriber_count']) ??
-                state.interaction.subscriberCount,
-          ),
-        );
-      }
-    } catch (_) {
-      state = state.copyWith(
-        interaction: state.interaction.copyWith(
-          isFollowing: wasFollowing,
-          subscriberCount: (state.interaction.subscriberCount ?? 1) +
-              (wasFollowing ? 1 : -1),
-        ),
-      );
-    }
-  }
+  // Follow now lives in followStateProvider (features/follow/).
+  // The UI calls ref.read(followStateProvider(creatorId).notifier).toggle()
+  // directly; this notifier only seeds the shared state on load.
 
   // ── Comments ──────────────────────────────────────────────────────────────
 
@@ -425,17 +383,6 @@ VideoInteractionState _mapInteraction(
   final int? creatorId = _int(data['owner_id']) ??
       (creator is Map<String, dynamic> ? _int(creator['id']) : null) ??
       current.creatorId;
-  // P1: prefer owner_follower_count, fall back to creator object, then legacy alias.
-  final int? followerCount = _int(data['owner_follower_count']) ??
-      (creator is Map<String, dynamic>
-          ? (_int(creator['follower_count']) ?? _int(creator['subscriber_count']))
-          : null) ??
-      _int(data['owner_subscriber_count']) ??
-      current.subscriberCount;
-  // P1: prefer is_following_owner, fall back to creator object.
-  final bool isFollowing = _bool(data['is_following_owner']) ??
-      (creator is Map<String, dynamic> ? _bool(creator['is_following']) : null) ??
-      current.isFollowing;
 
   return VideoInteractionState(
     likeCount: _int(data['like_count']) ?? current.likeCount,
@@ -444,8 +391,6 @@ VideoInteractionState _mapInteraction(
     giftCount: _int(data['gift_count']) ?? current.giftCount,
     shareCount: _int(data['share_count']) ?? current.shareCount,
     creatorId: creatorId,
-    subscriberCount: followerCount,
-    isFollowing: isFollowing,
   );
 }
 
